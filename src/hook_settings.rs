@@ -1,3 +1,4 @@
+use crate::hook_events;
 use anyhow::{Context, Result, bail};
 use serde_json::{Map, Value, json};
 use std::fs::{self, OpenOptions};
@@ -6,18 +7,6 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MARKER: &str = "CJ_RUST_HOOK=1";
-const EVENTS: [&str; 9] = [
-    "SessionStart",
-    "UserPromptSubmit",
-    "PreToolUse",
-    "PostToolUse",
-    "Notification",
-    "PermissionRequest",
-    "Stop",
-    "PreCompact",
-    "SessionEnd",
-];
-
 pub fn read(path: &Path) -> Result<Value> {
     if !path.exists() {
         return Ok(json!({}));
@@ -31,7 +20,7 @@ pub fn read(path: &Path) -> Result<Value> {
 }
 
 pub fn installed(settings: &Value) -> Vec<&'static str> {
-    EVENTS
+    hook_events::ALL
         .into_iter()
         .filter(|event| {
             settings["hooks"][event].as_array().is_some_and(|groups| {
@@ -45,14 +34,14 @@ pub fn installed(settings: &Value) -> Vec<&'static str> {
         .collect()
 }
 
-pub fn update(settings: &mut Value, binary: &Path, install: bool) -> Result<()> {
+pub fn update(settings: &mut Value, binary: &Path, agent: &str, install: bool) -> Result<()> {
     let hooks = settings
         .as_object_mut()
         .context("settings must be an object")?
         .entry("hooks")
         .or_insert_with(|| Value::Object(Map::new()));
     let groups = hooks.as_object_mut().context("hooks must be an object")?;
-    for event in EVENTS {
+    for event in hook_events::ALL {
         let existing = groups.remove(event).unwrap_or_else(|| json!([]));
         let old = existing.as_array().context("hook event must be an array")?;
         let mut kept = Vec::new();
@@ -73,19 +62,18 @@ pub fn update(settings: &mut Value, binary: &Path, install: bool) -> Result<()> 
             copy["hooks"] = json!(rest);
             kept.push(copy);
         }
-        if install {
+        if install && let Some((matcher, timeout)) = hook_events::spec(agent, event) {
             let command = format!(
                 "{MARKER} '{}' hook {event}",
                 binary.to_string_lossy().replace('\'', "'\\''")
             );
-            let matcher = if event == "SessionStart" {
-                "startup|resume|clear|compact"
-            } else {
-                "*"
-            };
-            kept.push(json!({"matcher": matcher, "hooks": [{
-                "type": "command", "command": command, "timeout": 5
-            }]}));
+            let mut group = json!({"hooks": [{
+                "type": "command", "command": command, "timeout": timeout
+            }]});
+            if let Some(matcher) = matcher {
+                group["matcher"] = json!(matcher);
+            }
+            kept.push(group);
         }
         if !kept.is_empty() {
             groups.insert(event.to_owned(), json!(kept));

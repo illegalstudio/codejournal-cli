@@ -112,3 +112,12 @@ class OfflineTest(unittest.TestCase):
         self.cli("sync")
         self.assertEqual(Handler.requests[0][2]["title"], "Credential [redacted github token]")
         self.assertEqual(Handler.requests[0][2]["body"], "old [redacted github token]")
+
+    def test_human_write_reports_masking_without_echoing_secret(self):
+        secret = "ghp_" + "Z9y8" * 9
+        result = subprocess.run([self.binary, "--offline", "--project", "fixture",
+            "add", "--kind", "gotcha", "--title", f"Credential {secret}",
+            "--body", f"old {secret}"], cwd=self.base, env=self.env,
+            capture_output=True, text=True, timeout=10, check=True)
+        self.assertIn("masked 2 github token before saving", result.stdout)
+        self.assertNotIn(secret, result.stdout + result.stderr)

@@ -1,5 +1,6 @@
 use crate::{
-    api_cache, api_write, project_bootstrap, request_outbox::PendingRequest, secret_redaction,
+    api_cache, api_write, output, project_bootstrap, request_outbox::PendingRequest,
+    secret_redaction,
 };
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::Client;
@@ -98,7 +99,8 @@ impl Api {
 
     pub fn post_noqueue(&self, path: &str, body: &Value) -> Result<Value> {
         let path = project_bootstrap::read_path(self, path)?;
-        let body = sanitized(body.clone());
+        let mut body = body.clone();
+        output::record_masking(secret_redaction::value(&mut body));
         self.send(
             self.client
                 .post(format!("{}{}", self.server, path))
@@ -107,7 +109,8 @@ impl Api {
     }
 
     pub fn put_noqueue(&self, path: &str, body: &Value) -> Result<Value> {
-        let body = sanitized(body.clone());
+        let mut body = body.clone();
+        output::record_masking(secret_redaction::value(&mut body));
         self.send(
             self.client
                 .put(format!("{}{}", self.server, path))

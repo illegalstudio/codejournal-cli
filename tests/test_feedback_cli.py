@@ -38,6 +38,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.respond(200, {"doc": {"id": PLAN_ID, "body": "Documentation body"}, "revisions": []})
         elif self.path.endswith("/tasks?all=1"):
             self.respond(200, {"tasks": [{"id": PLAN_ID}]})
+        elif self.path.endswith("/rules"):
+            self.respond(200, {"rules": "- Run focused tests."})
         else:
             self.respond(404, {"error": "unknown route"})
 
@@ -45,7 +47,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         size = int(self.headers.get("Content-Length", "0"))
         body = json.loads(self.rfile.read(size))
         self.calls.append((self.command, self.path, body))
-        self.respond(200, {"ok": True})
+        self.respond(200, {"rules": body["rules"]} if self.path.endswith("/rules") else {"ok": True})
 
     do_PATCH = record
     do_POST = record
@@ -122,6 +124,13 @@ class FeedbackCliTest(unittest.TestCase):
         self.command("rules", "append", "- Keep commits small.")
         self.assertEqual([call[2]["rules"] for call in Handler.calls[-2:]],
                          ["- Run make test.", "- Keep commits small."])
+
+    def test_rules_show_set_and_clear_have_human_output(self):
+        self.assertEqual(self.command("rules").stdout.strip(), "- Run focused tests.")
+        self.assertIn("Project rules updated (1 line(s)).",
+                      self.command("rules", "set", "- Keep tests focused.").stdout)
+        self.assertIn("Project rules cleared.", self.command("rules", "clear").stdout)
+        self.assertEqual(Handler.calls[-1][2]["rules"], "")
 
     def test_shorthand_refs_reach_api(self):
         self.command("add", "--kind", "discovery", "--title", "A fact", "--body", "Body",

@@ -120,7 +120,10 @@ class WatchFeedbackTest(unittest.TestCase):
         self.assertEqual(Handler.notifications[-1]["title"], "Slow: timed out")
         running = json.loads(self.cli("--json", "watch", "start", "--title", "Long", "--",
                                       "sleep", "30"))["watch"]
-        self.cli("watch", "cancel", running["id"][:8])
+        listing = self.cli("watch", "list", "--all")
+        self.assertIn("Fake CI", listing)
+        self.assertIn("[sh -c echo FAILED; exit 3]", listing)
+        self.assertIn("Cancelled watch", self.cli("watch", "cancel", running["id"][:8]))
         self.wait(running["id"], "cancelled")
         self.assertEqual(len(Handler.notifications), 2)
         text = self.cli("watch", "start", "--title", "Message", "--", "true")

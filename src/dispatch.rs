@@ -96,6 +96,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
             args.action,
             args.body,
             args.body_file,
+            cli.json,
         ),
         Command::Activity {
             action: ActivityAction::Publish,

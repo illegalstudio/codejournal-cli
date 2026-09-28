@@ -1,7 +1,8 @@
 use crate::api::Api;
 use crate::watch_args::WatchAction;
 use crate::{
-    attribution, notification_delivery, output, project_bootstrap, watch_runner, watch_state,
+    attribution, notification_delivery, output, project_bootstrap, watch_format, watch_runner,
+    watch_state,
 };
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
@@ -87,6 +88,9 @@ pub fn run(
                     "ends"
                 };
                 let (safe_title, _) = crate::secret_redaction::text(&title);
+                if let Some(notice) = output::masking_notice() {
+                    println!("{notice}");
+                }
                 println!("Watching {} (pid {}): {safe_title}", &id[..8], child.id());
                 let channels = delivery["channels"]
                     .as_array()
@@ -103,13 +107,19 @@ pub fn run(
             }
         }
         WatchAction::List { all } => {
-            output::json(&api.get(&format!("{path}?all={}", if all { 1 } else { 0 }))?)
+            let result = api.get(&format!("{path}?all={}", if all { 1 } else { 0 }))?;
+            output::emit(&result, &watch_format::list(&result), json_output)
         }
         WatchAction::Cancel { id } => {
             let watch = resolve(api, &path, &id)?;
             let full_id = watch["id"].as_str().context("watch ID missing")?;
             if watch["status"] != "running" {
-                return output::json(&json!({"watch": watch, "cancelled": false}));
+                let text = watch_format::cancel(&watch, false);
+                return output::emit(
+                    &json!({"watch": watch, "cancelled": false}),
+                    &text,
+                    json_output,
+                );
             }
             let pid = watch_state::read_pid(full_id)
                 .context("this watch is not running on this machine")?;
@@ -119,7 +129,12 @@ pub fn run(
             )?;
             terminate(pid);
             watch_state::remove_pid(full_id);
-            output::json(&result)
+            let updated = &result["watch"];
+            output::emit(
+                &json!({"watch": updated, "cancelled": true}),
+                &watch_format::cancel(updated, true),
+                json_output,
+            )
         }
         WatchAction::Run { id } => watch_runner::run(api, &path, &id),
     }

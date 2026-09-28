@@ -16,7 +16,7 @@ pub fn run() -> Result<()> {
         return session_record::run(operation);
     }
     if let Command::Hooks { action } = &cli.command {
-        return hook_setup::run(action);
+        return hook_setup::run(action, cli.json);
     }
     if let Command::Setup(args) = &cli.command {
         if args.database.is_some() || args.sync_url.is_some() || args.auth_token.is_some() {
@@ -57,6 +57,9 @@ pub fn run() -> Result<()> {
             if json_mode {
                 println!("{}", serde_json::json!({"queued": true, "id": queued.0}));
             } else {
+                if let Some(notice) = output::masking_notice() {
+                    println!("{notice}");
+                }
                 println!("Queued for synchronization: {}", queued.0);
             }
             Ok(())

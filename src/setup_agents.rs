@@ -66,7 +66,7 @@ pub fn run(action: &SetupAction) -> Result<()> {
             let mut settings = hook_settings::read(&settings_path)?;
             let prior = settings.clone();
             if !status {
-                hook_settings::update(&mut settings, &binary, !uninstall)?;
+                hook_settings::update(&mut settings, &binary, name, !uninstall)?;
             }
             if !status && !dry_run && settings != prior {
                 hook_settings::write(&settings_path, &settings)?;

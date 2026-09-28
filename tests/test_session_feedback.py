@@ -220,18 +220,38 @@ class SessionFeedbackTest(unittest.TestCase):
         ]}}))
         env = dict(self.env, CODEX_HOME=str(codex_home))
         def call(*args):
-            return json.loads(subprocess.run([self.binary, "hooks", *args, "--agent", "codex"],
+            return json.loads(subprocess.run([self.binary, "--json", "hooks", *args, "--agent", "codex"],
                                              env=env, capture_output=True, text=True, check=True).stdout)
         installed = call("install")
         self.assertTrue(installed["agents"][0]["changed"])
         current = json.loads(settings.read_text())
         self.assertEqual(current["theme"], "dark")
         self.assertEqual(len(current["hooks"]["PostToolUse"]), 2)
-        self.assertEqual(len(call("status")["agents"][0]["installed"]), 9)
+        self.assertEqual(len(call("status")["agents"][0]["installed"]), 8)
+        self.assertNotIn("Notification", current["hooks"])
+        self.assertEqual(current["hooks"]["SessionStart"][0]["hooks"][0]["timeout"], 30)
+        self.assertEqual(current["hooks"]["SessionEnd"][0]["hooks"][0]["timeout"], 3)
+        human = subprocess.run([self.binary, "hooks", "status", "--agent", "codex"],
+                               env=env, capture_output=True, text=True, check=True)
+        self.assertIn("Codex:", human.stdout)
+        self.assertIn("Code Journal hooks:", human.stdout)
         self.assertFalse(call("install")["agents"][0]["changed"])
         call("uninstall")
         self.assertEqual(json.loads(settings.read_text())["hooks"]["PostToolUse"][0]
                          ["hooks"][0]["command"], "other-hook")
+
+    def test_claude_hook_events_match_python_contract(self):
+        claude_home = self.base / "claude"
+        claude_home.mkdir()
+        env = dict(self.env, CLAUDE_CONFIG_DIR=str(claude_home))
+        subprocess.run([self.binary, "--json", "hooks", "install", "--agent", "claude"],
+                       env=env, capture_output=True, text=True, check=True)
+        groups = json.loads((claude_home / "settings.json").read_text())["hooks"]
+        self.assertNotIn("PermissionRequest", groups)
+        self.assertIn("Notification", groups)
+        self.assertEqual(groups["SessionEnd"][0]["hooks"][0]["timeout"], 5)
+        self.assertEqual(groups["PreToolUse"][0]["matcher"],
+                         "Edit|Write|MultiEdit|NotebookEdit|StrReplace|Delete")
 
     def test_setup_agents_installs_skill_and_hooks_in_isolated_home(self):
         codex_home = self.base / "codex"

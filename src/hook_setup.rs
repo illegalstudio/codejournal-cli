@@ -1,12 +1,13 @@
 use crate::hook_args::HooksAction;
 use crate::hook_settings;
+use crate::hook_setup_format;
 use crate::output;
 use anyhow::{Context, Result, bail};
 use directories::BaseDirs;
 use serde_json::json;
 use std::path::PathBuf;
 
-pub fn run(action: &HooksAction) -> Result<()> {
+pub fn run(action: &HooksAction, json_mode: bool) -> Result<()> {
     let (agent, install, dry_run, status) = match action {
         HooksAction::Install { agent, dry_run } => (agent.as_str(), true, *dry_run, false),
         HooksAction::Uninstall { agent, dry_run } => (agent.as_str(), false, *dry_run, false),
@@ -28,7 +29,7 @@ pub fn run(action: &HooksAction) -> Result<()> {
         let before = settings.clone();
         let previously_installed = hook_settings::installed(&settings);
         if !status {
-            hook_settings::update(&mut settings, &binary, install)?;
+            hook_settings::update(&mut settings, &binary, target_agent, install)?;
         }
         let changed = settings != before;
         let backup = if !dry_run && changed {
@@ -43,12 +44,8 @@ pub fn run(action: &HooksAction) -> Result<()> {
     if results.is_empty() {
         bail!("no supported agent settings directory found");
     }
-    if !status && !dry_run && install {
-        eprintln!(
-            "Hooks installed. In Codex, review and trust them with /hooks before starting a new session."
-        );
-    }
-    output::json(&json!({"agents": results}))
+    let text = hook_setup_format::render(&results, status, install, dry_run);
+    output::emit(&json!({"agents": results}), &text, json_mode)
 }
 
 pub(crate) fn target(agent: &str) -> Result<PathBuf> {

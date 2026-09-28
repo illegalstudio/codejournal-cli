@@ -1,6 +1,6 @@
 use crate::{
     api::Api,
-    project_bootstrap,
+    output, project_bootstrap,
     request_outbox::{self, PendingRequest, QueuedWrite},
     secret_redaction,
 };
@@ -11,7 +11,7 @@ use serde_json::Value;
 pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Result<Value> {
     let mut body = body;
     if let Some(value) = &mut body {
-        secret_redaction::value(value);
+        output::record_masking(secret_redaction::value(value));
     }
     let mut request = request_outbox::new(&api.server, method, path, body);
     let can_queue = path.starts_with("/api/v1/tenants/");
