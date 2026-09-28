@@ -86,7 +86,8 @@ pub fn run(
                 } else {
                     "ends"
                 };
-                println!("Watching {} (pid {}): {title}", &id[..8], child.id());
+                let (safe_title, _) = crate::secret_redaction::text(&title);
+                println!("Watching {} (pid {}): {safe_title}", &id[..8], child.id());
                 let channels = delivery["channels"]
                     .as_array()
                     .into_iter()

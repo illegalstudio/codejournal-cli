@@ -1,4 +1,6 @@
-use crate::{api_cache, api_write, project_bootstrap, request_outbox::PendingRequest};
+use crate::{
+    api_cache, api_write, project_bootstrap, request_outbox::PendingRequest, secret_redaction,
+};
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::Client;
 use serde_json::Value;
@@ -59,7 +61,7 @@ impl Api {
     pub fn get(&self, path: &str) -> Result<Value> {
         let path = project_bootstrap::read_path(self, path)?;
         if self.offline {
-            return api_cache::read(&self.server, &self.token, &path);
+            return api_cache::read(&self.server, &self.token, &path).map(sanitized);
         }
         let request = self
             .client
@@ -69,17 +71,20 @@ impl Api {
         let response = match request.send() {
             Ok(response) => response,
             Err(error) => {
-                return api_cache::read(&self.server, &self.token, &path).with_context(|| {
-                    format!("API request failed and no cached response exists: {error}")
-                });
+                return api_cache::read(&self.server, &self.token, &path)
+                    .map(sanitized)
+                    .with_context(|| {
+                        format!("API request failed and no cached response exists: {error}")
+                    });
             }
         };
         let status = response.status();
         if status.is_server_error() {
             return api_cache::read(&self.server, &self.token, &path)
+                .map(sanitized)
                 .with_context(|| format!("API returned {status} and no cached response exists"));
         }
-        let value: Value = response.json().context("API returned invalid JSON")?;
+        let value: Value = sanitized(response.json().context("API returned invalid JSON")?);
         if !status.is_success() {
             bail!("API returned {status}: {value}");
         }
@@ -93,18 +98,20 @@ impl Api {
 
     pub fn post_noqueue(&self, path: &str, body: &Value) -> Result<Value> {
         let path = project_bootstrap::read_path(self, path)?;
+        let body = sanitized(body.clone());
         self.send(
             self.client
                 .post(format!("{}{}", self.server, path))
-                .json(body),
+                .json(&body),
         )
     }
 
     pub fn put_noqueue(&self, path: &str, body: &Value) -> Result<Value> {
+        let body = sanitized(body.clone());
         self.send(
             self.client
                 .put(format!("{}{}", self.server, path))
-                .json(body),
+                .json(&body),
         )
     }
 
@@ -131,12 +138,17 @@ impl Api {
             .send()
             .context("API request failed")?;
         let status = response.status();
-        let value: Value = response.json().context("API returned invalid JSON")?;
+        let value: Value = sanitized(response.json().context("API returned invalid JSON")?);
         if !status.is_success() {
             bail!("API returned {status}: {value}");
         }
         Ok(value)
     }
+}
+
+pub(crate) fn sanitized(mut value: Value) -> Value {
+    secret_redaction::value(&mut value);
+    value
 }
 
 pub fn public_client(server: &str) -> Result<Client> {

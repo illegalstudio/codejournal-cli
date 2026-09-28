@@ -101,3 +101,14 @@ class OfflineTest(unittest.TestCase):
         self.cli("sync")
         self.assertEqual(len(Handler.requests), 2)
         self.assertEqual(Handler.requests[0][0], Handler.requests[1][0])
+
+    def test_offline_queue_masks_secrets_before_writing_to_disk(self):
+        secret = "ghp_" + "Z9y8" * 9
+        queued = json.loads(self.cli("--offline", "add", "--kind", "gotcha",
+            "--title", f"Credential {secret}", "--body", f"old {secret}"))
+        self.assertTrue(queued["queued"])
+        for path in (self.base / "state").rglob("*.json"):
+            self.assertNotIn(secret, path.read_text())
+        self.cli("sync")
+        self.assertEqual(Handler.requests[0][2]["title"], "Credential [redacted github token]")
+        self.assertEqual(Handler.requests[0][2]["body"], "old [redacted github token]")

@@ -1,4 +1,4 @@
-use crate::outbox;
+use crate::{outbox, secret_redaction};
 use anyhow::Result;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -20,9 +20,11 @@ fn path(server: &str, token: &str, endpoint: &str) -> Result<PathBuf> {
 }
 
 pub fn read(server: &str, token: &str, endpoint: &str) -> Result<Value> {
-    Ok(serde_json::from_slice(&fs::read(path(
-        server, token, endpoint,
-    )?)?)?)
+    let mut value: Value = serde_json::from_slice(&fs::read(path(server, token, endpoint)?)?)?;
+    if !secret_redaction::value(&mut value).is_empty() {
+        let _ = write(server, token, endpoint, &value);
+    }
+    Ok(value)
 }
 
 pub fn write(server: &str, token: &str, endpoint: &str, value: &Value) -> Result<()> {

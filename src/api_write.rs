@@ -2,12 +2,17 @@ use crate::{
     api::Api,
     project_bootstrap,
     request_outbox::{self, PendingRequest, QueuedWrite},
+    secret_redaction,
 };
 use anyhow::{Result, bail};
 use reqwest::Method;
 use serde_json::Value;
 
 pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Result<Value> {
+    let mut body = body;
+    if let Some(value) = &mut body {
+        secret_redaction::value(value);
+    }
     let mut request = request_outbox::new(&api.server, method, path, body);
     let can_queue = path.starts_with("/api/v1/tenants/");
     if let Some(tenant) = project_bootstrap::tenant_for_path(api, path) {
@@ -32,7 +37,7 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
         return queued(&request);
     }
     let mut value: Value = match response.json() {
-        Ok(value) => value,
+        Ok(value) => crate::api::sanitized(value),
         Err(_error) if can_queue && status.is_success() => return queued(&request),
         Err(error) => return Err(error.into()),
     };
@@ -44,7 +49,7 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
         request.path = project_bootstrap::replace_slug(path, &slug);
         let retry = builder(api, &request)?.send()?;
         status = retry.status();
-        value = retry.json()?;
+        value = crate::api::sanitized(retry.json()?);
     }
     if !status.is_success() {
         bail!("API returned {status}: {value}");
@@ -58,7 +63,7 @@ pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
     }
     let response = builder(api, request)?.send()?;
     let status = response.status();
-    let value: Value = response.json()?;
+    let value: Value = crate::api::sanitized(response.json()?);
     if !status.is_success() {
         bail!("API returned {status}: {value}");
     }

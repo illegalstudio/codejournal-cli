@@ -79,6 +79,7 @@ mod request_outbox;
 mod rules;
 mod runtime;
 mod search_args;
+mod secret_redaction;
 mod session_git;
 mod session_record;
 mod session_state;
