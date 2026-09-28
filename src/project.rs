@@ -9,13 +9,13 @@ pub fn slug(explicit: Option<&str>) -> Result<String> {
                 checkout
                     .origin
                     .as_deref()
-                    .and_then(remote_slug)
+                    .map(slug_from_identity)
                     .or_else(|| {
                         checkout
                             .anchor
                             .file_name()
                             .and_then(|part| part.to_str())
-                            .map(str::to_owned)
+                            .map(slug_from_identity)
                     })
             })
             .unwrap_or_else(|| {
@@ -23,58 +23,68 @@ pub fn slug(explicit: Option<&str>) -> Result<String> {
                     .unwrap_or_default()
                     .file_name()
                     .and_then(|part| part.to_str())
-                    .unwrap_or("project")
-                    .to_owned()
+                    .map(slug_from_identity)
+                    .unwrap_or_else(|| "project".to_owned())
             }),
     };
-    let normalized = value.to_ascii_lowercase().replace(['_', ' '], "-");
-    if normalized.is_empty()
-        || !normalized
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    if value.is_empty()
+        || !value.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"._-".contains(&byte)
+        })
     {
         bail!("invalid project slug: {value}");
     }
-    Ok(normalized)
+    Ok(value)
 }
 
-fn remote_slug(remote: &str) -> Option<String> {
-    let path = if remote.contains("://") {
-        reqwest::Url::parse(remote).ok()?.path().to_owned()
-    } else if let Some((_, path)) = remote.split_once(':') {
-        path.to_owned()
-    } else {
-        remote.to_owned()
-    };
-    let parts: Vec<_> = path
-        .trim_end_matches('/')
-        .trim_end_matches(".git")
+fn slug_from_identity(identity: &str) -> String {
+    let parts: Vec<_> = identity
         .split('/')
         .filter(|part| !part.is_empty())
         .collect();
-    if parts.len() < 2 {
-        return None;
+    let start = if parts.len() >= 3 {
+        parts.len() - 2
+    } else {
+        parts.len().saturating_sub(1)
+    };
+    let candidate = parts[start..].join("-").to_ascii_lowercase();
+    let mut sanitized = String::new();
+    let mut replacing = false;
+    for character in candidate.chars() {
+        if character.is_ascii_lowercase() || character.is_ascii_digit() || "._-".contains(character)
+        {
+            sanitized.push(character);
+            replacing = false;
+        } else if !replacing {
+            sanitized.push('-');
+            replacing = true;
+        }
     }
-    Some(parts[parts.len() - 2..].join("-"))
+    let trimmed = sanitized.trim_matches(['-', '.']);
+    if trimmed.is_empty() {
+        "project".to_owned()
+    } else {
+        trimmed.to_owned()
+    }
 }
 
 pub fn normalize_remote(raw: &str) -> String {
     let value = raw.trim();
     let host_path = if let Ok(url) = reqwest::Url::parse(value) {
-        format!(
-            "{}/{}",
-            url.host_str().unwrap_or(""),
-            url.path().trim_start_matches('/')
-        )
+        let authority = &value[value.find("://").map(|index| index + 3).unwrap_or(0)..];
+        let authority = authority.split('/').next().unwrap_or("");
+        let host = authority.rsplit('@').next().unwrap_or(authority);
+        format!("{}/{}", host, url.path().trim_start_matches('/'))
     } else if let Some((left, right)) = value.split_once(':') {
         format!("{}/{}", left.trim_start_matches("git@"), right)
     } else {
         value.trim_start_matches("git@").to_owned()
     };
-    host_path
-        .trim_end_matches('/')
-        .trim_end_matches(".git")
-        .to_ascii_lowercase()
+    let normalized = host_path.trim_end_matches('/').to_ascii_lowercase();
+    normalized
+        .strip_suffix(".git")
+        .unwrap_or(&normalized)
+        .to_owned()
 }
 
 pub fn name(explicit: Option<&str>) -> Result<String> {
@@ -101,7 +111,7 @@ pub fn name(explicit: Option<&str>) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_remote, remote_slug};
+    use super::{normalize_remote, slug_from_identity};
 
     #[test]
     fn remote_identity_matches_imported_project_slugs() {
@@ -111,22 +121,46 @@ mod tests {
             "ssh://git@github.com/illegalstudio/codejournal.git",
         ] {
             assert_eq!(
-                remote_slug(remote).as_deref(),
-                Some("illegalstudio-codejournal")
+                slug_from_identity(&normalize_remote(remote)),
+                "illegalstudio-codejournal"
             );
         }
     }
 
     #[test]
     fn remote_identity_matches_python_normalization() {
-        for remote in [
-            "git@github.com:illegalstudio/codejournal.git",
-            "https://github.com/illegalstudio/codejournal.git",
+        for (remote, expected) in [
+            (
+                "git@github.com:illegalstudio/codejournal.git",
+                "github.com/illegalstudio/codejournal",
+            ),
+            (
+                "https://github.com/illegalstudio/codejournal.git",
+                "github.com/illegalstudio/codejournal",
+            ),
+            (
+                "ssh://git@git.home.arpa:2222/nahime/ai.git",
+                "git.home.arpa:2222/nahime/ai",
+            ),
+            (
+                "https://user:pw@gitlab.com/group/sub/repo/",
+                "gitlab.com/group/sub/repo",
+            ),
+            ("https://github.com/Team/App.GIT", "github.com/team/app"),
         ] {
-            assert_eq!(
-                normalize_remote(remote),
-                "github.com/illegalstudio/codejournal"
-            );
+            assert_eq!(normalize_remote(remote), expected);
         }
+    }
+
+    #[test]
+    fn identity_slugs_match_python_for_short_and_dotted_paths() {
+        assert_eq!(slug_from_identity("example.com/repo"), "repo");
+        assert_eq!(slug_from_identity("gitlab.com/group/sub/repo"), "sub-repo");
+        assert_eq!(
+            slug_from_identity("github.com/team/my_repo"),
+            "team-my_repo"
+        );
+        assert_eq!(slug_from_identity("my project"), "my-project");
+        assert_eq!(slug_from_identity("my   project"), "my-project");
     }
 }

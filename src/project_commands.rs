@@ -1,7 +1,8 @@
 use crate::api::Api;
 use crate::project_args::ProjectAction;
 use crate::{
-    attribution, checkout_identity, git, output, project, project_paths, project_provides,
+    attribution, checkout_identity, git, output, project, project_detail, project_paths,
+    project_provides,
 };
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
@@ -28,27 +29,11 @@ pub fn run(
         }
         ProjectAction::Show => {
             let result = api.get(&format!("{base}/{slug}"))?;
-            let p = &result["project"];
-            let mut lines = vec![
-                format!("slug:            {slug}"),
-                format!("name:            {}", value(&p["name"])),
-                format!(
-                    "remote:          {}",
-                    p["remote_url"].as_str().unwrap_or("(none)")
-                ),
-                format!("id:              {}", value(&p["id"])),
-                format!("created:         {}", value(&p["created_at"])),
-                "checkouts:".to_owned(),
-            ];
-            for path in p["paths"].as_array().into_iter().flatten() {
-                lines.push(format!(
-                    "  {:<24} {:<10} {}",
-                    value(&path["kind"]),
-                    value(&path["host"]),
-                    value(&path["path"])
-                ));
-            }
-            output::emit(&result, &lines.join("\n"), json_mode)
+            output::emit(
+                &result,
+                &project_detail::format(&result["project"]),
+                json_mode,
+            )
         }
         ProjectAction::Edit {
             slug: new_slug,
@@ -136,8 +121,4 @@ pub fn run(
             )
         }
     }
-}
-
-fn value(value: &Value) -> &str {
-    value.as_str().unwrap_or("")
 }

@@ -67,6 +67,7 @@ mod plans;
 mod project;
 mod project_args;
 mod project_commands;
+mod project_detail;
 mod project_list;
 mod project_paths;
 mod project_provides;
