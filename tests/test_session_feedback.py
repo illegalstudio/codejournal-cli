@@ -260,6 +260,25 @@ class SessionFeedbackTest(unittest.TestCase):
                            env=env, capture_output=True, text=True, check=True)
         self.assertFalse(settings.exists())
 
+    def test_install_replaces_existing_python_hook_without_double_fire(self):
+        codex_home = self.base / "codex"
+        codex_home.mkdir()
+        env = dict(self.env, CODEX_HOME=str(codex_home))
+        settings = codex_home / "hooks.json"
+        settings.write_text(json.dumps({"hooks": {"Stop": [
+            {"hooks": [{"type": "command", "command":
+                        "/home/test/code-journal-hook codex Stop"}]},
+            {"hooks": [{"type": "command", "command": "unrelated Stop handler"}]},
+        ]}}))
+        subprocess.run([self.binary, "hooks", "install", "--agent", "codex"],
+                       env=env, capture_output=True, text=True, check=True)
+        groups = json.loads(settings.read_text())["hooks"]["Stop"]
+        commands = [hook["command"] for group in groups for hook in group["hooks"]]
+        self.assertEqual(len(commands), 2)
+        self.assertEqual(sum("CJ_RUST_HOOK=1" in command for command in commands), 1)
+        self.assertEqual(sum("code-journal-hook" in command for command in commands), 0)
+        self.assertIn("unrelated Stop handler", commands)
+
     def test_claude_hook_events_match_python_contract(self):
         claude_home = self.base / "claude"
         claude_home.mkdir()

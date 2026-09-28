@@ -133,7 +133,12 @@ pub fn write(path: &Path, settings: &Value) -> Result<Option<String>> {
 }
 
 fn is_ours(item: &Value) -> bool {
-    item["command"]
-        .as_str()
-        .is_some_and(|command| command.contains(MARKER))
+    item["command"].as_str().is_some_and(|command| {
+        command.contains(MARKER)
+            || ["claude", "codex"].into_iter().any(|agent| {
+                hook_events::ALL
+                    .into_iter()
+                    .any(|event| command.contains(&format!("code-journal-hook {agent} {event}")))
+            })
+    })
 }
