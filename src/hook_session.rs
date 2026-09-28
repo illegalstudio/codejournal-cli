@@ -12,7 +12,7 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
     let now = session_state::now();
     if state.started_at.is_empty() {
         state.started_at = now.clone();
-        state.agent = attribution::agent(None);
+        state.agent = runtime_agent(payload);
         state.session_id = session.to_owned();
         state.root = git::root().map(|path| path.display().to_string());
         state.repo_common = session_git::common_dir(cwd);
@@ -89,6 +89,28 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
             .spawn();
     }
     Ok(())
+}
+
+fn runtime_agent(payload: &Value) -> String {
+    if payload["cursor_version"].as_str().is_some() || std::env::var("CURSOR_VERSION").is_ok() {
+        "cursor".to_owned()
+    } else {
+        attribution::agent(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::runtime_agent;
+    use serde_json::json;
+
+    #[test]
+    fn cursor_payload_overrides_inherited_agent_identity() {
+        assert_eq!(
+            runtime_agent(&json!({"cursor_version": "2026.09"})),
+            "cursor"
+        );
+    }
 }
 
 pub(crate) fn queue(base: &Value, kind: &str, field: &str, value: Value) -> Result<()> {
