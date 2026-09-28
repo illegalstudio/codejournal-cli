@@ -1,0 +1,70 @@
+use crate::hook_args::HooksAction;
+use crate::hook_settings;
+use crate::output;
+use anyhow::{Context, Result, bail};
+use directories::BaseDirs;
+use serde_json::json;
+use std::path::PathBuf;
+
+pub fn run(action: &HooksAction) -> Result<()> {
+    let (agent, install, dry_run, status) = match action {
+        HooksAction::Install { agent, dry_run } => (agent.as_str(), true, *dry_run, false),
+        HooksAction::Uninstall { agent, dry_run } => (agent.as_str(), false, *dry_run, false),
+        HooksAction::Status { agent } => (agent.as_str(), false, true, true),
+    };
+    let agents = if agent == "all" {
+        vec!["codex", "claude"]
+    } else {
+        vec![agent]
+    };
+    let binary = std::env::current_exe()?.canonicalize()?;
+    let mut results = Vec::new();
+    for target_agent in agents {
+        let path = target(target_agent)?;
+        if agent == "all" && !path.parent().is_some_and(|parent| parent.exists()) {
+            continue;
+        }
+        let mut settings = hook_settings::read(&path)?;
+        let before = settings.clone();
+        let previously_installed = hook_settings::installed(&settings);
+        if !status {
+            hook_settings::update(&mut settings, &binary, install)?;
+        }
+        let changed = settings != before;
+        let backup = if !dry_run && changed {
+            hook_settings::write(&path, &settings)?
+        } else {
+            None
+        };
+        results.push(json!({"agent": target_agent, "settings": path, "installed":
+            if status { previously_installed } else { hook_settings::installed(&settings) },
+            "changed": changed, "dry_run": dry_run, "backup": backup}));
+    }
+    if results.is_empty() {
+        bail!("no supported agent settings directory found");
+    }
+    if !status && !dry_run && install {
+        eprintln!(
+            "Hooks installed. In Codex, review and trust them with /hooks before starting a new session."
+        );
+    }
+    output::json(&json!({"agents": results}))
+}
+
+fn target(agent: &str) -> Result<PathBuf> {
+    let home = BaseDirs::new()
+        .context("home directory unavailable")?
+        .home_dir()
+        .to_path_buf();
+    match agent {
+        "codex" => Ok(std::env::var_os("CODEX_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join(".codex"))
+            .join("hooks.json")),
+        "claude" => Ok(std::env::var_os("CLAUDE_CONFIG_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join(".claude"))
+            .join("settings.json")),
+        _ => bail!("unsupported agent: {agent}"),
+    }
+}

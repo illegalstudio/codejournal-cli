@@ -1,5 +1,5 @@
 use crate::api::Api;
-use crate::cli::TaskAction;
+use crate::task_args::TaskAction;
 use crate::{output, project, refs};
 use anyhow::{Context, Result, bail};
 use serde_json::json;

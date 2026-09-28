@@ -4,8 +4,14 @@ mod cli;
 mod commands;
 mod config;
 mod git;
+mod hook;
+mod hook_args;
+mod hook_settings;
+mod hook_setup;
 mod input;
 mod login;
+mod logs;
+mod notifications;
 mod output;
 mod path_ref;
 mod plan_args;
@@ -13,8 +19,16 @@ mod plans;
 mod project;
 mod refs;
 mod rules;
+mod session_git;
+mod session_state;
 mod shorthand;
+mod staleness;
+mod task_args;
 mod tasks;
+mod watch_args;
+mod watch_runner;
+mod watch_state;
+mod watches;
 
 use anyhow::Result;
 use clap::Parser;
@@ -29,6 +43,12 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
+    if let Command::Hook { event } = &cli.command {
+        return hook::run(event);
+    }
+    if let Command::Hooks { action } = &cli.command {
+        return hook_setup::run(action);
+    }
     if matches!(cli.command, Command::Login) {
         return login::run(cli.server.as_deref());
     }
@@ -46,6 +66,7 @@ fn run() -> Result<()> {
         Command::Whoami => output::json(&api.get("/api/v1/me")?),
         Command::Brief => commands::brief(&api, &tenant, project),
         Command::Search { query } => commands::search(&api, &tenant, project, &query),
+        Command::Garden { dry_run } => commands::garden(&api, &tenant, project, dry_run),
         Command::Add {
             kind,
             title,
@@ -62,9 +83,10 @@ fn run() -> Result<()> {
             body,
             body_file,
             refs,
+            no_auto_commits,
         } => {
             let body = input::body(body, body_file)?;
-            commands::log(&api, &tenant, project, &title, &body, refs)
+            logs::add(&api, &tenant, project, &title, &body, refs, no_auto_commits)
         }
         Command::Task { action } => tasks::run(&api, &tenant, project, action),
         Command::Project { action } => commands::project(&api, &tenant, project, action),
@@ -74,6 +96,12 @@ fn run() -> Result<()> {
         Command::Activity {
             action: ActivityAction::Publish,
         } => activity::publish(&api, &tenant, project),
-        Command::Login | Command::Logout => unreachable!(),
+        Command::Watch { action } => {
+            watches::run(&api, &server, &tenant, project, action, cli.json)
+        }
+        Command::Notifications { action } => notifications::run(&api, &tenant, project, action),
+        Command::Login | Command::Logout | Command::Hook { .. } | Command::Hooks { .. } => {
+            unreachable!()
+        }
     }
 }

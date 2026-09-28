@@ -1,4 +1,5 @@
 use crate::plan_args::PlanAction;
+use crate::task_args::TaskAction;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -8,6 +9,8 @@ pub struct Cli {
     pub server: Option<String>,
     #[arg(long, global = true, env = "CJ_PROJECT")]
     pub project: Option<String>,
+    #[arg(long, global = true)]
+    pub json: bool,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -44,6 +47,8 @@ pub enum Command {
         body_file: Option<String>,
         #[arg(long = "ref")]
         refs: Vec<String>,
+        #[arg(long)]
+        no_auto_commits: bool,
     },
     Task {
         #[command(subcommand)]
@@ -69,49 +74,24 @@ pub enum Command {
         #[command(subcommand)]
         action: ActivityAction,
     },
-}
-
-#[derive(Subcommand)]
-pub enum TaskAction {
-    List {
-        #[arg(long)]
-        all: bool,
+    Watch {
+        #[command(subcommand)]
+        action: crate::watch_args::WatchAction,
     },
-    Add {
-        title: String,
-        #[arg(long, default_value = "")]
-        body: String,
-        #[arg(long, default_value = "normal")]
-        priority: String,
-        #[arg(long = "ref")]
-        refs: Vec<String>,
-        #[arg(long)]
-        not_before: Option<String>,
-        #[arg(long = "to")]
-        target: Option<String>,
-        #[arg(long)]
-        from_entry: Option<String>,
+    Notifications {
+        #[command(subcommand)]
+        action: crate::watch_args::NotificationAction,
     },
-    Edit {
-        id: String,
+    Hook {
+        event: String,
+    },
+    Hooks {
+        #[command(subcommand)]
+        action: crate::hook_args::HooksAction,
+    },
+    Garden {
         #[arg(long)]
-        not_before: String,
-    },
-    Start {
-        id: String,
-    },
-    Done {
-        id: String,
-        #[arg(long)]
-        note: Option<String>,
-    },
-    Dismiss {
-        id: String,
-        #[arg(long)]
-        note: Option<String>,
-    },
-    Reopen {
-        id: String,
+        dry_run: bool,
     },
 }
 
