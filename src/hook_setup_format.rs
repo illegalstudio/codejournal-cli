@@ -53,12 +53,42 @@ pub fn render(results: &[Value], status: bool, install: bool, dry_run: bool) -> 
             }
         } else if dry_run {
             lines.push(format!(
-                "Would {} Code Journal hooks in {path}.",
+                "Would {} Code Journal hooks in {path}:",
                 if install { "install" } else { "remove" }
             ));
+            if install {
+                lines.push(serde_json::to_string_pretty(&row["preview"]).unwrap_or_default());
+            } else {
+                let removed = row["removed"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>();
+                lines.push(format!(
+                    "  events: {}",
+                    if removed.is_empty() {
+                        "none installed".to_owned()
+                    } else {
+                        removed.join(", ")
+                    }
+                ));
+            }
         } else if row["changed"] == true {
+            let events = if install {
+                &row["installed"]
+            } else {
+                &row["removed"]
+            };
+            let events = events
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(", ");
             lines.push(format!(
-                "{} Code Journal hooks for {agent} in {path}.",
+                "{} Code Journal hooks for {agent} in {path} ({events}).",
                 if install { "Installed" } else { "Removed" }
             ));
             if let Some(backup) = row["backup"].as_str() {

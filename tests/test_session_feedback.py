@@ -222,6 +222,10 @@ class SessionFeedbackTest(unittest.TestCase):
         def call(*args):
             return json.loads(subprocess.run([self.binary, "--json", "hooks", *args, "--agent", "codex"],
                                              env=env, capture_output=True, text=True, check=True).stdout)
+        dry = subprocess.run([self.binary, "hooks", "install", "--agent", "codex", "--dry-run"],
+                             env=env, capture_output=True, text=True, check=True)
+        self.assertIn("CJ_RUST_HOOK=1", dry.stdout)
+        self.assertEqual(json.loads(settings.read_text())["theme"], "dark")
         installed = call("install")
         self.assertTrue(installed["agents"][0]["changed"])
         current = json.loads(settings.read_text())
@@ -245,6 +249,16 @@ class SessionFeedbackTest(unittest.TestCase):
         call("uninstall")
         self.assertEqual(json.loads(settings.read_text())["hooks"]["PostToolUse"][0]
                          ["hooks"][0]["command"], "other-hook")
+
+    def test_uninstall_removes_codex_file_when_it_only_contains_our_hooks(self):
+        codex_home = self.base / "codex"
+        codex_home.mkdir()
+        env = dict(self.env, CODEX_HOME=str(codex_home))
+        settings = codex_home / "hooks.json"
+        for action in ("install", "uninstall"):
+            subprocess.run([self.binary, "hooks", action, "--agent", "codex"],
+                           env=env, capture_output=True, text=True, check=True)
+        self.assertFalse(settings.exists())
 
     def test_claude_hook_events_match_python_contract(self):
         claude_home = self.base / "claude"

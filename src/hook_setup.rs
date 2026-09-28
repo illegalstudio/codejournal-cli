@@ -6,6 +6,7 @@ use crate::output;
 use anyhow::{Context, Result, bail};
 use directories::BaseDirs;
 use serde_json::json;
+use std::fs;
 use std::path::PathBuf;
 
 pub fn run(action: &HooksAction, json_mode: bool) -> Result<()> {
@@ -32,16 +33,23 @@ pub fn run(action: &HooksAction, json_mode: bool) -> Result<()> {
             continue;
         }
         let before = settings.clone();
+        let removed = hook_settings::installed(&before);
         hook_settings::update(&mut settings, &binary, target_agent, install)?;
         let changed = settings != before;
         let backup = if !dry_run && changed {
-            hook_settings::write(&path, &settings)?
+            let backup = hook_settings::write(&path, &settings)?;
+            if !install && target_agent == "codex" && settings == json!({}) {
+                fs::remove_file(&path)?;
+            }
+            backup
         } else {
             None
         };
         results.push(json!({"agent": target_agent, "settings": path, "installed":
             hook_settings::installed(&settings),
-            "changed": changed, "dry_run": dry_run, "backup": backup}));
+            "changed": changed, "dry_run": dry_run, "backup": backup,
+            "removed": if install { Vec::new() } else { removed },
+            "preview": if dry_run && install { hook_settings::owned_groups(&settings) } else { json!(null) }}));
     }
     if results.is_empty() {
         bail!("no supported agent settings directory found");

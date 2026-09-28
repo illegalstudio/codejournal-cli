@@ -34,6 +34,27 @@ pub fn installed(settings: &Value) -> Vec<&'static str> {
         .collect()
 }
 
+pub fn owned_groups(settings: &Value) -> Value {
+    let mut owned = Map::new();
+    for event in hook_events::ALL {
+        let groups = settings["hooks"][event]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|group| {
+                group["hooks"]
+                    .as_array()
+                    .is_some_and(|items| items.iter().any(is_ours))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if !groups.is_empty() {
+            owned.insert(event.to_owned(), json!(groups));
+        }
+    }
+    json!({"hooks": owned})
+}
+
 pub fn update(settings: &mut Value, binary: &Path, agent: &str, install: bool) -> Result<()> {
     let hooks = settings
         .as_object_mut()
