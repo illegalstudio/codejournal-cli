@@ -1,6 +1,6 @@
 use crate::api::Api;
 use crate::feedback_args::{FeedbackAction, FeedbackAddArgs, FeedbackListArgs};
-use crate::{attribution, input, output, project};
+use crate::{attribution, checkout_identity, input, output, project, project_bootstrap};
 use anyhow::Result;
 use serde_json::{Value, json};
 
@@ -40,7 +40,13 @@ fn add(
     json_mode: bool,
 ) -> Result<()> {
     let body = input::body(args.body, args.body_file)?;
-    let project = project::slug(explicit_project).ok();
+    let project = if explicit_project.is_some() {
+        Some(project::slug(explicit_project)?)
+    } else if checkout_identity::current().is_some() {
+        Some(project_bootstrap::ensure(api, tenant, false)?)
+    } else {
+        None
+    };
     let response = api.post(
         &path(tenant),
         &json!({

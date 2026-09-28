@@ -1,6 +1,8 @@
 use crate::api::Api;
 use crate::watch_args::WatchAction;
-use crate::{attribution, notification_delivery, output, project, watch_runner, watch_state};
+use crate::{
+    attribution, notification_delivery, output, project_bootstrap, watch_runner, watch_state,
+};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use std::process::{Command, Stdio};
@@ -17,7 +19,11 @@ pub fn run(
     action: WatchAction,
     json_output: bool,
 ) -> Result<()> {
-    let project = project::slug(project_name)?;
+    let project = if project_name.is_none() && matches!(&action, WatchAction::Start { .. }) {
+        project_bootstrap::ensure(api, tenant, false)?
+    } else {
+        project_bootstrap::resolved_slug(api, tenant, project_name)?
+    };
     let path = format!("{}/watches", endpoint(tenant, &project));
     match action {
         WatchAction::Start {

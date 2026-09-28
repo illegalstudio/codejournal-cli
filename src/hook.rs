@@ -47,6 +47,7 @@ fn delegation(kind: &str, payload: &Value) -> Result<()> {
     });
     let event = serde_json::json!({"type": "delegation", "kind": kind,
         "session": id, "agent": "delegation", "project": project,
+        "project_explicit": payload["project"].as_str().is_some(),
         "host": payload["machine"].as_str(), "cwd": cwd,
         "ts": payload["at"].as_str().map(str::to_owned)
             .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),

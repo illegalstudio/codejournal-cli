@@ -29,6 +29,7 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
         .as_ref()
         .and_then(|_| project::slug(preferred.as_deref()).ok());
     let base = json!({"session": session, "agent": state.agent, "project": project,
+        "project_explicit": preferred.is_some(), "checkout_path": state.root,
         "host": attribution::host(), "cwd": state.cwd, "ts": now});
     if state.delegation_id.is_some() && state.last_event_at.is_none() {
         queue(&base, "guest", "delegation_id", json!(state.delegation_id))?;

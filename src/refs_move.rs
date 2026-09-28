@@ -1,5 +1,5 @@
 use crate::api::Api;
-use crate::{output, project};
+use crate::{output, project_bootstrap};
 use anyhow::{Result, bail};
 use clap::Subcommand;
 use serde_json::json;
@@ -22,7 +22,7 @@ pub fn run(
     if old.is_empty() || new.is_empty() || old == new {
         bail!("pass two different paths: cj refs move OLD NEW");
     }
-    let slug = project::slug(explicit)?;
+    let slug = project_bootstrap::resolved_slug(api, tenant, explicit)?;
     let result = api.post(
         &format!("/api/v1/tenants/{tenant}/projects/{slug}/refs/move"),
         &json!({"old": old, "new": new}),

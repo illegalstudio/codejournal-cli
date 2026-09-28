@@ -1,6 +1,6 @@
 use crate::{
-    api::Api, brief_focus, brief_format, config::Config, outbox, project, session_git,
-    session_state,
+    api::Api, brief_focus, brief_format, checkout_identity, config::Config, outbox, project,
+    project_bootstrap, session_git, session_state,
 };
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -37,8 +37,9 @@ pub fn brief(cwd: &Path, source: &str, agent: &str, session: &str) -> Result<()>
 fn online_brief(source: &str, agent: &str, session: &str) -> Option<String> {
     let config = Config::load().ok()?;
     let token = config.token().ok()?;
-    let api = Api::with_timeout(&config.server, &token, Duration::from_secs(3)).ok()?;
+    let mut api = Api::with_timeout(&config.server, &token, Duration::from_secs(3)).ok()?;
     let preferred = std::env::var("CJ_PROJECT").ok();
+    api.set_auto_project(preferred.is_none() && checkout_identity::current().is_some());
     let slug = project::slug(preferred.as_deref()).ok()?;
     let query = reqwest::Url::parse_with_params(
         "http://local/",
@@ -66,13 +67,10 @@ fn online_brief(source: &str, agent: &str, session: &str) -> Option<String> {
         }),
     )
     .or_else(|error| {
-        if !error.to_string().contains("404") {
+        if preferred.is_some() || !error.to_string().contains("404") {
             return Err(error);
         }
-        api.post(
-            &format!("/api/v1/tenants/{}/projects", config.tenant),
-            &json!({"slug": slug, "name": slug}),
-        )?;
+        project_bootstrap::ensure(&api, &config.tenant, false)?;
         brief_focus::load(
             &api,
             &base,

@@ -3,7 +3,6 @@ use crate::outbox;
 use anyhow::{Result, bail};
 use fs2::FileExt;
 use serde_json::json;
-use std::collections::BTreeSet;
 use std::fs::{self, OpenOptions};
 
 pub fn run(api: &Api, tenant: &str) -> Result<usize> {
@@ -19,16 +18,6 @@ pub fn run(api: &Api, tenant: &str) -> Result<usize> {
         let batch = outbox::entries()?.into_iter().take(100).collect::<Vec<_>>();
         if batch.is_empty() {
             break;
-        }
-        let projects = batch
-            .iter()
-            .filter_map(|(_, event)| event["project"].as_str())
-            .collect::<BTreeSet<_>>();
-        for project in projects {
-            api.post_noqueue(
-                &format!("/api/v1/tenants/{tenant}/projects"),
-                &json!({"slug": project, "name": project}),
-            )?;
         }
         let events = batch.iter().map(|(_, event)| event).collect::<Vec<_>>();
         let result = api.post_noqueue(

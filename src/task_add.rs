@@ -1,6 +1,6 @@
 use crate::api::Api;
 use crate::task_args::TaskAddArgs;
-use crate::{attribution, input, output, project, refs};
+use crate::{attribution, input, output, project, project_bootstrap, refs};
 use anyhow::Result;
 use serde_json::json;
 
@@ -11,7 +11,11 @@ pub fn run(
     args: TaskAddArgs,
     json_mode: bool,
 ) -> Result<()> {
-    let here = project::slug(explicit_project)?;
+    let here = if explicit_project.is_some() {
+        project::slug(explicit_project)?
+    } else {
+        project_bootstrap::ensure(api, tenant, false)?
+    };
     let destination = args.target.as_deref().unwrap_or(&here);
     let body = input::optional_body(args.body, args.body_file)?;
     let response = api.post(
