@@ -33,7 +33,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.body()
         ident = str(uuid.uuid4())
-        watch = dict(body, id=ident, command=json.dumps(body["command"]), status="running")
+        slug = self.path.split("/projects/")[1].split("/")[0]
+        watch = dict(body, id=ident, project_slug=slug,
+                     command=json.dumps(body["command"]), status="running")
         self.watches[ident] = watch
         self.respond({"watch": watch}, 201)
 
@@ -123,6 +125,10 @@ class WatchFeedbackTest(unittest.TestCase):
         listing = self.cli("watch", "list", "--all")
         self.assertIn("Fake CI", listing)
         self.assertIn("[sh -c echo FAILED; exit 3]", listing)
+        other = subprocess.run([self.binary, "--project", "another", "watch", "list", "--all"],
+                               env=self.env, cwd=ROOT, capture_output=True, text=True,
+                               timeout=5, check=True)
+        self.assertIn("Fake CI", other.stdout)
         self.assertIn("Cancelled watch", self.cli("watch", "cancel", running["id"][:8]))
         self.wait(running["id"], "cancelled")
         self.assertEqual(len(Handler.notifications), 2)

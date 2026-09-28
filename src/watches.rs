@@ -20,12 +20,21 @@ pub fn run(
     action: WatchAction,
     json_output: bool,
 ) -> Result<()> {
-    let project = if project_name.is_none() && matches!(&action, WatchAction::Start { .. }) {
-        project_bootstrap::ensure(api, tenant, false)?
+    let global = matches!(
+        &action,
+        WatchAction::List { .. } | WatchAction::Cancel { .. }
+    );
+    let project = if global {
+        None
+    } else if project_name.is_none() && matches!(&action, WatchAction::Start { .. }) {
+        Some(project_bootstrap::ensure(api, tenant, false)?)
     } else {
-        project_bootstrap::resolved_slug(api, tenant, project_name)?
+        Some(project_bootstrap::resolved_slug(api, tenant, project_name)?)
     };
-    let path = format!("{}/watches", endpoint(tenant, &project));
+    let path = project.as_ref().map_or_else(
+        || format!("/api/v1/tenants/{tenant}/watches"),
+        |slug| format!("{}/watches", endpoint(tenant, slug)),
+    );
     match action {
         WatchAction::Start {
             title,
@@ -35,7 +44,7 @@ pub fn run(
             command,
         } => {
             let cwd = std::env::current_dir()?.canonicalize()?;
-            let host = std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_owned());
+            let host = attribution::host();
             let created = api.post(
                 &path,
                 &json!({
@@ -54,7 +63,7 @@ pub fn run(
                     "--server",
                     server,
                     "--project",
-                    &project,
+                    project.as_deref().unwrap_or(""),
                     "watch",
                     "run",
                     id,
@@ -107,7 +116,7 @@ pub fn run(
             }
         }
         WatchAction::List { all } => {
-            let result = api.get(&format!("{path}?all={}", if all { 1 } else { 0 }))?;
+            let result = api.get(&local_list_path(&path, all)?)?;
             output::emit(&result, &watch_format::list(&result), json_output)
         }
         WatchAction::Cancel { id } => {
@@ -123,8 +132,11 @@ pub fn run(
             }
             let pid = watch_state::read_pid(full_id)
                 .context("this watch is not running on this machine")?;
+            let watch_project = watch["project_slug"]
+                .as_str()
+                .context("watch project missing")?;
             let result = api.patch(
-                &format!("{path}/{full_id}"),
+                &format!("{}/watches/{full_id}", endpoint(tenant, watch_project)),
                 &json!({"status": "cancelled"}),
             )?;
             terminate(pid);
@@ -141,7 +153,7 @@ pub fn run(
 }
 
 fn resolve(api: &Api, path: &str, prefix: &str) -> Result<Value> {
-    let listing = api.get(&format!("{path}?all=1"))?;
+    let listing = api.get(&local_list_path(path, true)?)?;
     let watches = listing["watches"]
         .as_array()
         .context("invalid watch listing")?;
@@ -158,6 +170,18 @@ fn resolve(api: &Api, path: &str, prefix: &str) -> Result<Value> {
         [] => bail!("no watch matches {prefix}"),
         _ => bail!("watch prefix {prefix} is ambiguous"),
     }
+}
+
+fn local_list_path(path: &str, all: bool) -> Result<String> {
+    let host = attribution::host();
+    let query = reqwest::Url::parse_with_params(
+        "http://local/",
+        [
+            ("all", if all { "1" } else { "0" }),
+            ("host", host.as_str()),
+        ],
+    )?;
+    Ok(format!("{path}?{}", query.query().unwrap_or("")))
 }
 
 fn terminate(pid: u32) {
