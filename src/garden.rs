@@ -59,7 +59,7 @@ pub fn run(
     };
     let payload = json!({"project": slug, "dry_run": dry_run, "applied": applied,
         "secrets": maintenance["secrets"], "topic_groups": certain,
-        "possible_topics": possible, "duplicates": review.duplicates,
+        "possible_topics": possible, "topic_counts": topics["topics"], "duplicates": review.duplicates,
         "stale_entries": stale, "other_branch_entries": elsewhere,
         "stale_docs": review.stale_docs, "idle_plans": review.idle_plans,
         "reported_wrong": maintenance["reported_wrong"], "doc_candidates": review.doc_candidates});

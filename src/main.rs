@@ -26,6 +26,7 @@ mod feedback_args;
 mod garden;
 mod garden_format;
 mod garden_review;
+mod garden_review_format;
 mod git;
 mod hook;
 mod hook_args;

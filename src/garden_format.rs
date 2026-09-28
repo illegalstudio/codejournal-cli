@@ -1,86 +1,99 @@
+use crate::{garden_review_format, git};
 use serde_json::Value;
 
 pub fn render(data: &Value) -> String {
-    let mode = if data["dry_run"] == true {
+    let dry_run = data["dry_run"] == true;
+    let mode = if dry_run {
         "dry run, nothing written"
     } else {
         "safe fixes applied"
     };
-    let mut lines = vec![
-        format!(
-            "Garden report for {} ({mode})",
-            data["project"].as_str().unwrap_or("")
-        ),
-        String::new(),
-    ];
+    let mut lines = vec![format!(
+        "Garden report for {} ({mode})",
+        data["project"].as_str().unwrap_or("")
+    )];
+    if let Some(root) = git::root() {
+        let branch = git::output(&["symbolic-ref", "--quiet", "--short", "HEAD"])
+            .unwrap_or_else(|| "detached".to_owned());
+        lines.push(format!(
+            "Path checks use this checkout: {} on branch {branch}. Paths that exist in a cited commit or branch, or on the default branch, count as another branch, not as stale.",
+            root.display()
+        ));
+    }
+    lines.push(String::new());
     lines.push(
-        if data["dry_run"] == true {
+        if dry_run {
             "Would apply automatically:"
         } else {
             "Applied automatically:"
         }
         .into(),
     );
-    if data["dry_run"] == true {
+    let mut applied = Vec::new();
+    if dry_run {
         let secrets = data["secrets"].as_array().map_or(0, Vec::len);
         if secrets > 0 {
-            lines.push(format!("  - mask secrets in {secrets} record(s)"));
+            applied.push(format!("mask secrets in {secrets} record(s)"));
         }
         for group in data["topic_groups"].as_array().into_iter().flatten() {
-            let names: Vec<_> = group
+            let names = group
                 .as_array()
                 .into_iter()
                 .flatten()
                 .filter_map(Value::as_str)
-                .collect();
+                .collect::<Vec<_>>();
             if names.len() > 1 {
-                lines.push(format!(
-                    "  - merge {} into #{}",
-                    names[1..].join(", "),
+                applied.push(format!(
+                    "merge {} into #{}",
+                    names[1..]
+                        .iter()
+                        .map(|name| format!("#{name}"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
                     names[0]
                 ));
             }
         }
     } else {
-        for item in data["applied"].as_array().into_iter().flatten() {
-            lines.push(format!("  - {}", item.as_str().unwrap_or("")));
-        }
+        applied.extend(
+            data["applied"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(str::to_owned),
+        );
     }
-    if lines.last().is_some_and(|line| line.ends_with(':')) {
+    if applied.is_empty() {
         lines.push("  (nothing)".into());
+    } else {
+        lines.extend(applied.into_iter().map(|item| format!("  - {item}")));
     }
     lines.extend([
         String::new(),
         "For you to review (use judgment, then act):".into(),
     ]);
-    for (key, label) in [
-        ("possible_topics", "Topics that may be the same"),
-        ("duplicates", "Entries that may duplicate"),
-        ("stale_entries", "Entries whose referenced code moved"),
-        ("reported_wrong", "Entries reported wrong"),
-        ("doc_candidates", "Busy topics without a doc"),
-        ("other_branch_entries", "Entries on another branch"),
-        ("stale_docs", "Docs whose code changed"),
-        ("idle_plans", "Active plans untouched for 14 days"),
-    ] {
-        if let Some(items) = data[key].as_array().filter(|items| !items.is_empty()) {
-            lines.push(format!("  {label}:"));
-            for item in items.iter().take(25) {
-                lines.push(format!(
-                    "    {}",
-                    item["title"]
-                        .as_str()
-                        .or_else(|| item["topic"].as_str())
-                        .unwrap_or_else(|| item.as_str().unwrap_or("see --json"))
-                ));
-            }
-        }
-    }
-    if lines
-        .last()
-        .is_some_and(|line| line == "For you to review (use judgment, then act):")
-    {
+    let before = lines.len();
+    garden_review_format::sections(data, &mut lines);
+    if lines.len() == before {
         lines.push("  (nothing)".into());
     }
     lines.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::render;
+    use serde_json::json;
+
+    #[test]
+    fn report_explains_staleness_and_shows_actionable_ids() {
+        let text = render(&json!({"project": "sample", "dry_run": true,
+            "stale_entries": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "title": "Old note", "staleness": {"gone": [], "changes": 5}}],
+            "reported_wrong": [{"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                "title": "Wrong note", "wrong": 2}]}));
+        assert!(text.contains("aaaaaaaa Old note  [verify: refs changed by 5 commits]"));
+        assert!(text.contains("bbbbbbbb Wrong note  [reported wrong 2x]"));
+    }
 }

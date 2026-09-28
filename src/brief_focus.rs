@@ -1,4 +1,4 @@
-use crate::{api::Api, api_cache, brief_manifests, git, outbox, request_outbox};
+use crate::{api::Api, api_cache, brief_manifests, git, outbox, project_provides, request_outbox};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -25,6 +25,9 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
     }
     if let Some(manifests) = brief_manifests::fingerprints() {
         body["manifest_names"] = manifests;
+    }
+    if git::root().is_some() {
+        body["provides_auto"] = json!(project_provides::detect());
     }
     match api.post_noqueue(&format!("{base}/brief"), &body) {
         Ok(result) => {
