@@ -53,6 +53,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path.endswith("/projects"):
+            self.respond({"project": {"slug": body["slug"]}})
+            return
+        if self.path.endswith("/paths"):
+            self.respond({"checkout": body})
+            return
         if self.path.endswith("/brief"):
             self.briefs.append(body)
             self.respond({"project": {"slug": "repo", "remote_url": None}, "rules": "Test",

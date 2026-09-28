@@ -9,6 +9,7 @@ pub struct Api {
     pub(crate) server: String,
     pub(crate) token: String,
     pub(crate) offline: bool,
+    pub(crate) auto_project: bool,
 }
 
 impl Api {
@@ -35,11 +36,16 @@ impl Api {
             server,
             token: token.to_owned(),
             offline: false,
+            auto_project: false,
         })
     }
 
     pub fn set_offline(&mut self, offline: bool) {
         self.offline = offline;
+    }
+
+    pub fn set_auto_project(&mut self, enabled: bool) {
+        self.auto_project = enabled;
     }
 
     pub fn server(&self) -> &str {

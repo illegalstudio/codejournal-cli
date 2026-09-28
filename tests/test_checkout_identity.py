@@ -86,8 +86,7 @@ class CheckoutIdentityTest(unittest.TestCase):
         subprocess.run([self.binary, "project", "init"], cwd=cwd, env=self.env,
                        check=True, capture_output=True, text=True, timeout=5)
         project = next(body for path, body in Handler.calls if path.endswith("/projects"))
-        checkout = next(body for path, body in Handler.calls if path.endswith("/paths"))
-        return project, checkout
+        return project, project
 
     def test_copy_on_write_snapshot_reuses_source_project(self):
         snapshot = self.base / "snapshot"

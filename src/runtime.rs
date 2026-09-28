@@ -44,6 +44,7 @@ pub fn run() -> Result<()> {
     let server = cli.server.as_deref().unwrap_or(&config.server).to_owned();
     let mut api = api::Api::new(&server, &config.token()?)?;
     api.set_offline(cli.offline);
+    api.set_auto_project(cli.project.is_none() && checkout_identity::current().is_some());
     let tenant = config.tenant.clone();
     let json_mode = cli.json;
     match dispatch::run(&api, &server, &tenant, cli) {

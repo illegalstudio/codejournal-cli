@@ -19,13 +19,24 @@ pub fn run(
     match action {
         ProjectAction::List => crate::project_list::run(api, tenant, json_mode),
         ProjectAction::Init { name } => {
-            let remote = checkout_identity::current().and_then(|checkout| checkout.origin);
-            let result = api.post(&base, &json!({"slug": slug, "name": project::name(name.as_deref())?,
-                "remote_url": remote, "provides": {"auto": project_provides::detect(), "manual": []}}))?;
-            if let Ok(path) = project_paths::current() {
-                let _ = project_paths::record(api, tenant, &slug, &path);
+            let checkout = checkout_identity::current();
+            let mut body = json!({"slug": slug, "name": project::name(name.as_deref())?,
+                "remote_url": checkout.as_ref().and_then(|item| item.origin.clone()),
+                "provides": {"auto": project_provides::detect(), "manual": []}});
+            if let Some(checkout) = &checkout {
+                body["host"] = json!(attribution::host());
+                body["path"] = json!(checkout.root);
+                body["kind"] = json!(checkout.kind);
+                body["branch"] = json!(checkout.branch);
+                body["main_path"] = json!(checkout.main_path());
             }
-            output::emit(&result, &format!("Initialized project {slug}."), json_mode)
+            let result = api.post(&base, &body)?;
+            let recorded_slug = result["project"]["slug"].as_str().unwrap_or(&slug);
+            output::emit(
+                &result,
+                &format!("Initialized project {recorded_slug}."),
+                json_mode,
+            )
         }
         ProjectAction::Show => {
             let result = api.get(&format!("{base}/{slug}"))?;

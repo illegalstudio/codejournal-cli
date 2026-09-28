@@ -1,5 +1,6 @@
 use crate::{
     api::Api,
+    project_bootstrap,
     request_outbox::{self, PendingRequest, QueuedWrite},
 };
 use anyhow::{Result, bail};
@@ -7,29 +8,42 @@ use reqwest::Method;
 use serde_json::Value;
 
 pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Result<Value> {
-    let request = request_outbox::new(&api.server, method, path, body);
+    let mut request = request_outbox::new(&api.server, method, path, body);
     let can_queue = path.starts_with("/api/v1/tenants/");
+    if let Some(tenant) = project_bootstrap::tenant_for_path(api, path) {
+        let slug = project_bootstrap::ensure(api, &tenant, false)?;
+        request.path = project_bootstrap::replace_slug(path, &slug);
+    }
     if api.offline {
         if !can_queue {
             bail!("this command is unavailable offline");
         }
         return queued(&request);
     }
-    let response = builder(api, &request)?.send();
-    let response = match response {
+    let response = match builder(api, &request)?.send() {
         Ok(response) => response,
         Err(_error) if can_queue => return queued(&request),
         Err(error) => return Err(error.into()),
     };
-    let status = response.status();
+    let mut status = response.status();
     if status.is_server_error() && can_queue {
         return queued(&request);
     }
-    let value: Value = match response.json() {
+    let mut value: Value = match response.json() {
         Ok(value) => value,
         Err(_error) if can_queue && status.is_success() => return queued(&request),
         Err(error) => return Err(error.into()),
     };
+    if status == reqwest::StatusCode::NOT_FOUND
+        && value["message"] == "Project not found"
+        && let Some(tenant) = project_bootstrap::tenant_for_path(api, path)
+    {
+        let slug = project_bootstrap::ensure(api, &tenant, true)?;
+        request.path = project_bootstrap::replace_slug(path, &slug);
+        let retry = builder(api, &request)?.send()?;
+        status = retry.status();
+        value = retry.json()?;
+    }
     if !status.is_success() {
         bail!("API returned {status}: {value}");
     }

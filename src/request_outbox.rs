@@ -1,15 +1,16 @@
-use crate::{api::Api, outbox};
+use crate::{api::Api, outbox, project_bootstrap};
 use anyhow::{Result, bail};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PendingRequest {
     pub id: String,
     pub server: String,
@@ -66,6 +67,18 @@ pub fn pending() -> Result<usize> {
     Ok(entries()?.len())
 }
 
+pub fn has_project_init(server: &str, path: &str, slug: &str) -> Result<bool> {
+    Ok(entries()?.into_iter().any(|(_, request)| {
+        request.server == server
+            && request.method == "POST"
+            && request.path == path
+            && request
+                .body
+                .as_ref()
+                .is_some_and(|body| body["slug"] == slug)
+    }))
+}
+
 pub fn flush(api: &Api) -> Result<usize> {
     let lock = OpenOptions::new()
         .write(true)
@@ -75,11 +88,22 @@ pub fn flush(api: &Api) -> Result<usize> {
         return Ok(0);
     }
     let mut count = 0;
+    let mut aliases = HashMap::<String, String>::new();
     for (path, request) in entries()? {
         if request.server != api.server() {
             continue;
         }
-        api.replay(&request)?;
+        let mut replay = request.clone();
+        for (old, new) in &aliases {
+            if replay.path == *old || replay.path.starts_with(&format!("{old}/")) {
+                replay.path = replay.path.replacen(old, new, 1);
+                break;
+            }
+        }
+        let response = api.replay(&replay)?;
+        if let Some((old, new)) = project_bootstrap::cache_created(api, &request, &response)? {
+            aliases.insert(old, new);
+        }
         fs::remove_file(path)?;
         count += 1;
     }

@@ -66,6 +66,7 @@ mod plan_write;
 mod plans;
 mod project;
 mod project_args;
+mod project_bootstrap;
 mod project_commands;
 mod project_detail;
 mod project_list;
