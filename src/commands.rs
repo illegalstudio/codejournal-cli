@@ -3,7 +3,7 @@ use crate::output;
 use crate::project;
 use crate::refs;
 use crate::{attribution, git, staleness};
-use anyhow::{Result, bail};
+use anyhow::Result;
 use serde_json::json;
 
 fn root(tenant: &str) -> String {
@@ -16,49 +16,6 @@ pub(crate) fn path(tenant: &str, explicit_project: Option<&str>) -> Result<Strin
         root(tenant),
         project::slug(explicit_project)?
     ))
-}
-
-pub fn garden(api: &Api, tenant: &str, project: Option<&str>, dry_run: bool) -> Result<()> {
-    if !dry_run {
-        bail!("only garden --dry-run is implemented");
-    }
-    let project_path = path(tenant, project)?;
-    let mut entries = Vec::new();
-    let mut page = 1_u64;
-    loop {
-        let mut result = api.get(&format!("{project_path}/garden?page={page}"))?;
-        if project.is_none() {
-            staleness::enrich(api, &project_path, &mut result)?;
-        }
-        entries.extend(result["entries"].as_array().cloned().unwrap_or_default());
-        let Some(next) = result["next_page"].as_u64() else {
-            break;
-        };
-        if next <= page {
-            bail!("invalid garden pagination");
-        }
-        page = next;
-    }
-    let stale: Vec<_> = entries
-        .iter()
-        .filter(|entry| {
-            entry["staleness"]["missing"]
-                .as_array()
-                .is_some_and(|items| !items.is_empty())
-        })
-        .cloned()
-        .collect();
-    let elsewhere: Vec<_> = entries
-        .iter()
-        .filter(|entry| {
-            entry["staleness"]["elsewhere"]
-                .as_array()
-                .is_some_and(|items| !items.is_empty())
-        })
-        .cloned()
-        .collect();
-    output::json(&json!({"dry_run": dry_run, "stale_entries": stale,
-        "other_branch_entries": elsewhere}))
 }
 
 pub fn add(

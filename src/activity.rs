@@ -1,9 +1,15 @@
 use crate::api::Api;
 use crate::{git, output, project};
 use anyhow::{Context, Result};
+use clap::Subcommand;
 use serde_json::json;
 use std::fs;
 use std::time::UNIX_EPOCH;
+
+#[derive(Subcommand)]
+pub enum ActivityAction {
+    Publish,
+}
 
 pub fn publish(api: &Api, tenant: &str, project_name: Option<&str>) -> Result<()> {
     let root = git::root().context("checkout activity requires a Git repository")?;

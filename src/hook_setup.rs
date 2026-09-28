@@ -51,7 +51,7 @@ pub fn run(action: &HooksAction) -> Result<()> {
     output::json(&json!({"agents": results}))
 }
 
-fn target(agent: &str) -> Result<PathBuf> {
+pub(crate) fn target(agent: &str) -> Result<PathBuf> {
     let home = BaseDirs::new()
         .context("home directory unavailable")?
         .home_dir()

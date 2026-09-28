@@ -1,87 +1,57 @@
-use crate::{session_git, session_state};
-use anyhow::{Context, Result};
+use crate::{hook_session, outbox, project, session_state};
+use anyhow::Result;
 use serde_json::Value;
 use std::io::Read;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 
-pub fn run(event: &str) -> Result<()> {
+pub fn run(event: &str, kind: Option<&str>) -> Result<()> {
     if std::env::var("CODE_JOURNAL_HOOKS").as_deref() == Ok("off") {
         return Ok(());
     }
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input)?;
-    let payload: Value = serde_json::from_str(&input).context("hook expects JSON on stdin")?;
-    let session = payload["session_id"]
+    let payload: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
+    if event == "delegation" {
+        return delegation(kind.unwrap_or("updated"), &payload);
+    }
+    let Some(session) = payload["session_id"]
         .as_str()
         .or_else(|| payload["conversation_id"].as_str())
         .map(str::to_owned)
-        .or_else(session_state::current_id);
+        .or_else(session_state::current_id)
+    else {
+        return Ok(());
+    };
     let cwd = payload["cwd"]
         .as_str()
         .map(PathBuf::from)
         .unwrap_or(std::env::current_dir()?);
-    if let Some(session) = session {
-        let mut state = session_state::load(&session)?;
-        if state.repo_common.is_none() {
-            state.repo_common = session_git::common_dir(&cwd);
-        }
-        if event == "PostToolUse" {
-            record_commit(&payload, &cwd, &mut state);
-        }
-        session_state::save(&session, &state)?;
-    }
-    if matches!(event, "SessionStart" | "PostToolUse") {
-        publish_activity(&cwd)?;
-    }
-    Ok(())
+    std::env::set_current_dir(&cwd)?;
+    hook_session::handle(event, &payload, &session, &cwd)
 }
 
-fn record_commit(payload: &Value, cwd: &std::path::Path, state: &mut session_state::SessionState) {
-    let command = payload["tool_input"]["command"]
-        .as_str()
-        .or_else(|| payload["tool_input"]["cmd"].as_str());
-    let Some(target) = command.and_then(|text| session_git::commit_target(text, cwd)) else {
-        return;
+fn delegation(kind: &str, payload: &Value) -> Result<()> {
+    let Some(snapshot) = payload["delegation"].as_object() else {
+        return Ok(());
     };
-    if session_git::common_dir(&target) != state.repo_common {
-        return;
-    }
-    let response = &payload["tool_response"];
-    let output = response["stdout"]
-        .as_str()
-        .or_else(|| response.as_str())
-        .or_else(|| payload["tool_output"].as_str())
-        .unwrap_or("");
-    let success = response["exit_code"]
-        .as_i64()
-        .or_else(|| response["exitCode"].as_i64())
-        .or_else(|| response["code"].as_i64())
-        == Some(0);
-    let commit = session_git::commit_from_output(&target, output).or_else(|| {
-        if success {
-            session_git::head(&target)
-        } else {
-            None
-        }
-    });
-    if let Some(sha) = commit {
-        if !state.commits.contains(&sha) {
-            state.commits.push(sha);
-        }
-    }
-}
-
-fn publish_activity(cwd: &std::path::Path) -> Result<()> {
-    if session_git::common_dir(cwd).is_none() {
+    let Some(id) = snapshot.get("id").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    if uuid::Uuid::parse_str(id).is_err() {
         return Ok(());
     }
-    Command::new(std::env::current_exe()?)
-        .args(["activity", "publish"])
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
-    Ok(())
+    let cwd = snapshot.get("cwd").and_then(Value::as_str).unwrap_or("");
+    let project = payload["project"].as_str().map(str::to_owned).or_else(|| {
+        std::env::set_current_dir(cwd).ok()?;
+        project::slug(None).ok()
+    });
+    let event = serde_json::json!({"type": "delegation", "kind": kind,
+        "session": id, "agent": "delegation", "project": project,
+        "host": payload["machine"].as_str(), "cwd": cwd,
+        "ts": payload["at"].as_str().map(str::to_owned)
+            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+        "delegation_id": id, "delegation": snapshot, "sender": payload["sender"],
+        "detail": payload["detail"], "delegation_host": payload["host"]});
+    outbox::enqueue(event)?;
+    outbox::spawn_flush()
 }

@@ -6,7 +6,17 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MARKER: &str = "CJ_RUST_HOOK=1";
-const EVENTS: [&str; 2] = ["SessionStart", "PostToolUse"];
+const EVENTS: [&str; 9] = [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Notification",
+    "PermissionRequest",
+    "Stop",
+    "PreCompact",
+    "SessionEnd",
+];
 
 pub fn read(path: &Path) -> Result<Value> {
     if !path.exists() {

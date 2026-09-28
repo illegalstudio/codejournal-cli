@@ -1,16 +1,22 @@
+use crate::{api_cache, api_write, request_outbox::PendingRequest};
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::Client;
 use serde_json::Value;
 use std::time::Duration;
 
 pub struct Api {
-    client: Client,
-    server: String,
-    token: String,
+    pub(crate) client: Client,
+    pub(crate) server: String,
+    pub(crate) token: String,
+    pub(crate) offline: bool,
 }
 
 impl Api {
     pub fn new(server: &str, token: &str) -> Result<Self> {
+        Self::with_timeout(server, token, Duration::from_secs(20))
+    }
+
+    pub fn with_timeout(server: &str, token: &str, timeout: Duration) -> Result<Self> {
         let server = server.trim_end_matches('/').to_owned();
         let url = reqwest::Url::parse(&server).context("invalid server URL")?;
         if url.scheme() != "https" && !is_local_http(&url) {
@@ -25,17 +31,60 @@ impl Api {
             bail!("server URL must contain only a scheme, host, and optional port");
         }
         Ok(Self {
-            client: Client::builder().timeout(Duration::from_secs(20)).build()?,
+            client: Client::builder().timeout(timeout).build()?,
             server,
             token: token.to_owned(),
+            offline: false,
         })
     }
 
+    pub fn set_offline(&mut self, offline: bool) {
+        self.offline = offline;
+    }
+
+    pub fn server(&self) -> &str {
+        &self.server
+    }
+
+    pub fn offline(&self) -> bool {
+        self.offline
+    }
+
     pub fn get(&self, path: &str) -> Result<Value> {
-        self.send(self.client.get(format!("{}{}", self.server, path)))
+        if self.offline {
+            return api_cache::read(&self.server, &self.token, path);
+        }
+        let request = self
+            .client
+            .get(format!("{}{}", self.server, path))
+            .bearer_auth(&self.token)
+            .header("Accept", "application/json");
+        let response = match request.send() {
+            Ok(response) => response,
+            Err(error) => {
+                return api_cache::read(&self.server, &self.token, path).with_context(|| {
+                    format!("API request failed and no cached response exists: {error}")
+                });
+            }
+        };
+        let status = response.status();
+        if status.is_server_error() {
+            return api_cache::read(&self.server, &self.token, path)
+                .with_context(|| format!("API returned {status} and no cached response exists"));
+        }
+        let value: Value = response.json().context("API returned invalid JSON")?;
+        if !status.is_success() {
+            bail!("API returned {status}: {value}");
+        }
+        let _ = api_cache::write(&self.server, &self.token, path, &value);
+        Ok(value)
     }
 
     pub fn post(&self, path: &str, body: &Value) -> Result<Value> {
+        api_write::mutate(self, "POST", path, Some(body.clone()))
+    }
+
+    pub fn post_noqueue(&self, path: &str, body: &Value) -> Result<Value> {
         self.send(
             self.client
                 .post(format!("{}{}", self.server, path))
@@ -44,23 +93,19 @@ impl Api {
     }
 
     pub fn delete(&self, path: &str) -> Result<Value> {
-        self.send(self.client.delete(format!("{}{}", self.server, path)))
+        api_write::mutate(self, "DELETE", path, None)
     }
 
     pub fn patch(&self, path: &str, body: &Value) -> Result<Value> {
-        self.send(
-            self.client
-                .patch(format!("{}{}", self.server, path))
-                .json(body),
-        )
+        api_write::mutate(self, "PATCH", path, Some(body.clone()))
     }
 
     pub fn put(&self, path: &str, body: &Value) -> Result<Value> {
-        self.send(
-            self.client
-                .put(format!("{}{}", self.server, path))
-                .json(body),
-        )
+        api_write::mutate(self, "PUT", path, Some(body.clone()))
+    }
+
+    pub fn replay(&self, request: &PendingRequest) -> Result<Value> {
+        api_write::replay(self, request)
     }
 
     fn send(&self, request: reqwest::blocking::RequestBuilder) -> Result<Value> {

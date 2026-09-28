@@ -1,20 +1,42 @@
 mod activity;
+mod add_args;
 mod api;
+mod api_cache;
+mod api_write;
 mod attribution;
 mod brief;
+mod brief_context_format;
+mod brief_focus;
 mod brief_format;
+mod browse;
+mod browse_list;
+mod browse_picker;
 mod cli;
 mod commands;
 mod config;
+mod desktop_delivery;
+mod digest;
+mod digest_format;
 mod dispatch;
 mod entry_search;
+mod export;
 mod feedback;
 mod feedback_args;
+mod garden;
+mod garden_format;
+mod garden_review;
 mod git;
 mod hook;
 mod hook_args;
+mod hook_commit;
+mod hook_files;
+mod hook_notify;
+mod hook_output;
+mod hook_runtime;
+mod hook_session;
 mod hook_settings;
 mod hook_setup;
+mod import;
 mod input;
 mod knowledge;
 mod knowledge_args;
@@ -23,7 +45,14 @@ mod log_args;
 mod log_list;
 mod login;
 mod logs;
+mod normalize;
+mod normalize_plan;
+mod notification_delivery;
+mod notification_send;
 mod notifications;
+mod open_dashboard;
+mod outbox;
+mod outbox_flush;
 mod output;
 mod path_ref;
 mod plan_args;
@@ -38,12 +67,17 @@ mod project_list;
 mod project_paths;
 mod refs;
 mod refs_move;
+mod request_outbox;
 mod rules;
+mod runtime;
 mod search_args;
 mod session_git;
+mod session_record;
 mod session_state;
+mod setup_agents;
 mod shorthand;
 mod staleness;
+mod storage_status;
 mod task_add;
 mod task_args;
 mod task_change;
@@ -58,39 +92,9 @@ mod watch_runner;
 mod watch_state;
 mod watches;
 
-use anyhow::Result;
-use clap::Parser;
-use cli::{Cli, Command};
-
 fn main() {
-    if let Err(error) = run() {
+    if let Err(error) = runtime::run() {
         eprintln!("Error: {error:#}");
         std::process::exit(1);
     }
-}
-
-fn run() -> Result<()> {
-    let cli = Cli::parse();
-    if let Some(cwd) = &cli.cwd {
-        std::env::set_current_dir(cwd)?;
-    }
-    if let Command::Hook { event } = &cli.command {
-        return hook::run(event);
-    }
-    if let Command::Hooks { action } = &cli.command {
-        return hook_setup::run(action);
-    }
-    if matches!(cli.command, Command::Login) {
-        return login::run(cli.server.as_deref());
-    }
-    let mut config = config::Config::load()?;
-    if matches!(cli.command, Command::Logout) {
-        let api = api::Api::new(&config.server, &config.token()?)?;
-        api.delete("/api/v1/device/token")?;
-        return config.logout();
-    }
-    let server = cli.server.as_deref().unwrap_or(&config.server).to_owned();
-    let api = api::Api::new(&server, &config.token()?)?;
-    let tenant = config.tenant.clone();
-    dispatch::run(&api, &server, &tenant, cli)
 }

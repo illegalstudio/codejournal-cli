@@ -1,6 +1,6 @@
 use crate::api::Api;
 use crate::watch_args::WatchAction;
-use crate::{output, project, watch_runner, watch_state};
+use crate::{attribution, notification_delivery, output, project, watch_runner, watch_state};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use std::process::{Command, Stdio};
@@ -24,6 +24,7 @@ pub fn run(
             title,
             notify_on,
             timeout,
+            agent,
             command,
         } => {
             let cwd = std::env::current_dir()?.canonicalize()?;
@@ -31,9 +32,9 @@ pub fn run(
             let created = api.post(
                 &path,
                 &json!({
-                    "title": title, "notify_on": notify_on, "timeout": timeout,
+                    "title": title, "notify_on": if notify_on == "end" { "all" } else { "failure" }, "timeout": timeout,
                     "command": command, "cwd": cwd, "host": host,
-                    "agent": std::env::var("CODE_JOURNAL_AGENT").ok(),
+                    "agent": attribution::agent(agent.as_deref()),
                 }),
             )?;
             let id = created["watch"]["id"]
@@ -69,10 +70,10 @@ pub fn run(
                 }
             };
             watch_state::write_pid(id, child.id())?;
+            let delivery = notification_delivery::available()?;
             if json_output {
                 output::json(&json!({"watch": created["watch"], "pid": child.id(),
-                    "delivery": {"channels": ["dashboard bell"],
-                    "note": "desktop and ntfy delivery are off"}}))
+                    "delivery": delivery}))
             } else {
                 let when = if notify_on == "failure" {
                     "fails or times out"
@@ -80,10 +81,17 @@ pub fn run(
                     "ends"
                 };
                 println!("Watching {} (pid {}): {title}", &id[..8], child.id());
-                println!("When it {when}, a notification goes to: dashboard bell.");
-                println!(
-                    "note: desktop and ntfy delivery are off; the dashboard bell is available when the dashboard is open."
-                );
+                let channels = delivery["channels"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                println!("When it {when}, a notification goes to: {channels}.");
+                if let Some(note) = delivery["note"].as_str() {
+                    println!("note: {note}.");
+                }
                 Ok(())
             }
         }

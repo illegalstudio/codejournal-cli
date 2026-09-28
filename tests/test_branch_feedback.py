@@ -18,6 +18,8 @@ ENTRY = {"id": ENTRY_ID, "title": "Branch helper", "refs": [
 
 class Handler(http.server.BaseHTTPRequestHandler):
     observations = []
+    maintenance = []
+    briefs = []
 
     def log_message(self, *_args):
         pass
@@ -37,11 +39,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                        "title": "No paths", "refs": []}], "next_page": None})
         elif "/entries?" in self.path:
             self.respond({"entries": [ENTRY]})
+        elif self.path.endswith("/topics"):
+            self.respond({"topics": []})
+        elif self.path.endswith("/garden/maintenance"):
+            self.respond({"secrets": [], "reported_wrong": []})
+        elif "/export?" in self.path:
+            self.respond({"records": []})
+        elif "/brief?" in self.path:
+            self.respond({"project": {"slug": "repo", "remote_url": None}, "rules": "Test",
+                          "counts": {}, "entries": [], "recent": []})
         else:
             self.respond({"entries": []})
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path.endswith("/brief"):
+            self.briefs.append(body)
+            self.respond({"project": {"slug": "repo", "remote_url": None}, "rules": "Test",
+                          "counts": {}, "entries": [], "recent": [],
+                          "focus": {"changes": body, "entries": [ENTRY], "docs": []}})
+            return
+        if self.path.endswith("/brief/focus"):
+            self.respond({"focus": {"changes": body, "entries": [ENTRY], "docs": []}})
+            return
+        if self.path.endswith("/garden/maintenance"):
+            self.maintenance.append(body)
+            self.respond({"applied": []})
+            return
         self.observations.append(body["observations"][0])
         observation = body["observations"][0]
         elsewhere = [{"path": "src/helper.rs", "where": "branch feat/helper"}]
@@ -68,6 +92,8 @@ class BranchFeedbackTest(unittest.TestCase):
 
     def setUp(self):
         Handler.observations.clear()
+        Handler.maintenance.clear()
+        Handler.briefs.clear()
         self.temp = tempfile.TemporaryDirectory(prefix="cj-branch-")
         self.addCleanup(self.temp.cleanup)
         base = pathlib.Path(self.temp.name)
@@ -108,6 +134,18 @@ class BranchFeedbackTest(unittest.TestCase):
         self.assertEqual(report["other_branch_entries"][0]["id"], ENTRY_ID)
         self.assertFalse(Handler.observations[0]["present"])
         self.assertEqual(Handler.observations[0]["branches"], ["feat/helper"])
+
+    def test_brief_highlights_changed_paths(self):
+        (self.repo / "untracked.txt").write_text("new\n")
+        report = self.cli("brief")
+        self.assertIn("untracked.txt", report["focus"]["changes"]["files"])
+        self.assertEqual(report["focus"]["entries"][0]["id"], ENTRY_ID)
+        self.assertEqual(len(Handler.briefs), 1)
+
+    def test_garden_applies_safe_fixes_through_api(self):
+        report = self.cli("garden")
+        self.assertFalse(report["dry_run"])
+        self.assertEqual(Handler.maintenance, [{"topic_groups": []}])
 
 
 if __name__ == "__main__":

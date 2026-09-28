@@ -1,5 +1,5 @@
 use crate::api::Api;
-use crate::watch_state;
+use crate::{notification_delivery, watch_state};
 use anyhow::{Context, Result};
 use serde_json::json;
 use std::fs::{self, OpenOptions};
@@ -27,12 +27,16 @@ pub fn run(api: &Api, path: &str, id: &str) -> Result<()> {
     }
     watch_state::remove_pid(id);
     let (status, exit_code) = outcome?;
-    api.patch(
+    let result = api.patch(
         &format!("{path}/{id}"),
         &json!({
             "status": status, "exit_code": exit_code, "tail": tail,
         }),
     )?;
+    if !result["notification"].is_null() {
+        let where_text = path.rsplit('/').nth(1).unwrap_or("project");
+        let _ = notification_delivery::deliver(&result["notification"], where_text);
+    }
     Ok(())
 }
 

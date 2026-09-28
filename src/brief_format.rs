@@ -1,3 +1,4 @@
+use crate::brief_context_format;
 use serde_json::Value;
 
 pub fn render(
@@ -38,6 +39,8 @@ pub fn render(
     } else {
         lines.push("  (none set: write them now with `cj rules set`)".into());
     }
+    brief_context_format::active(data, &mut lines);
+    brief_context_format::focus(data, &mut lines, compact);
     section(&mut lines, "Now due:", &data["now_due"], 20);
     section(
         &mut lines,
@@ -53,6 +56,7 @@ pub fn render(
     );
     section(&mut lines, "Open plans:", &data["plans"], 20);
     if !compact {
+        brief_context_format::global(data, &mut lines);
         section(
             &mut lines,
             "Docs (open with `cj doc show ID`):",
@@ -92,6 +96,7 @@ pub fn render(
             if topics.is_empty() { "(none)" } else { &topics }
         ));
     }
+    brief_context_format::tail(data, &mut lines, compact);
     lines.join("\n")
 }
 

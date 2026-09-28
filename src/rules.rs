@@ -1,7 +1,7 @@
 use crate::api::Api;
 use crate::{input, output, project};
 use anyhow::Result;
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use serde_json::json;
 
 #[derive(Subcommand)]
@@ -11,19 +11,21 @@ pub enum RulesAction {
     Set {
         #[arg(allow_hyphen_values = true)]
         text: Option<String>,
-        #[arg(long, conflicts_with = "body_file")]
-        body: Option<String>,
-        #[arg(long)]
-        body_file: Option<String>,
     },
     Append {
         #[arg(allow_hyphen_values = true)]
         text: Option<String>,
-        #[arg(long, conflicts_with = "body_file")]
-        body: Option<String>,
-        #[arg(long)]
-        body_file: Option<String>,
     },
+}
+
+#[derive(Args)]
+pub struct RulesArgs {
+    #[command(subcommand)]
+    pub action: Option<RulesAction>,
+    #[arg(long, global = true, conflicts_with = "body_file")]
+    pub body: Option<String>,
+    #[arg(long, global = true)]
+    pub body_file: Option<String>,
 }
 
 pub fn run(
@@ -31,6 +33,8 @@ pub fn run(
     tenant: &str,
     project_name: Option<&str>,
     action: Option<RulesAction>,
+    body: Option<String>,
+    body_file: Option<String>,
 ) -> Result<()> {
     let endpoint = format!(
         "/api/v1/tenants/{tenant}/projects/{}/rules",
@@ -43,19 +47,11 @@ pub fn run(
             Ok(())
         }
         Some(RulesAction::Clear) => output::json(&api.put(&endpoint, &json!({"rules": ""}))?),
-        Some(RulesAction::Set {
-            text,
-            body,
-            body_file,
-        }) => {
+        Some(RulesAction::Set { text }) => {
             let rules = input::body(body.or(text), body_file)?;
             output::json(&api.put(&endpoint, &json!({"rules": rules}))?)
         }
-        Some(RulesAction::Append {
-            text,
-            body,
-            body_file,
-        }) => {
+        Some(RulesAction::Append { text }) => {
             let rules = input::body(body.or(text), body_file)?;
             output::json(&api.put(&endpoint, &json!({"rules": rules, "append": true}))?)
         }

@@ -5,10 +5,12 @@ pub enum WatchAction {
     Start {
         #[arg(long)]
         title: String,
-        #[arg(long, default_value = "all", value_parser = ["all", "failure"])]
+        #[arg(long, default_value = "end", value_parser = ["end", "failure"])]
         notify_on: String,
         #[arg(long)]
         timeout: Option<u64>,
+        #[arg(long)]
+        agent: Option<String>,
         #[arg(last = true, required = true)]
         command: Vec<String>,
     },
@@ -48,6 +50,14 @@ pub enum NotificationAction {
     },
     Unread {
         ids: Vec<String>,
+        #[arg(long)]
+        all: bool,
+    },
+    Config {
+        #[arg(long, value_parser = ["on", "off"])]
+        desktop: Option<String>,
+        #[arg(long)]
+        ntfy: Option<String>,
     },
 }
 

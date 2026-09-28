@@ -9,7 +9,16 @@ use std::path::PathBuf;
 pub struct Config {
     pub server: String,
     pub tenant: String,
+    #[serde(default)]
+    pub notifications: NotificationSettings,
     fallback_token: Option<String>,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct NotificationSettings {
+    #[serde(default)]
+    pub desktop: bool,
+    pub ntfy_url: Option<String>,
 }
 
 impl Config {
@@ -21,9 +30,15 @@ impl Config {
     }
 
     pub fn store(server: String, tenant: String, token: String) -> Result<()> {
+        let notifications = Self::load()
+            .ok()
+            .filter(|current| current.server == server && current.tenant == tenant)
+            .map(|current| current.notifications)
+            .unwrap_or_default();
         let mut config = Self {
             server,
             tenant,
+            notifications,
             fallback_token: None,
         };
         if keyring::Entry::new("codejournal", &config.key())
@@ -63,7 +78,7 @@ impl Config {
         Ok(())
     }
 
-    fn save(&self) -> Result<()> {
+    pub fn save(&self) -> Result<()> {
         let path = path()?;
         let parent = path.parent().context("invalid config directory")?;
         fs::create_dir_all(parent)?;
@@ -94,7 +109,7 @@ impl Config {
     }
 }
 
-fn path() -> Result<PathBuf> {
+pub fn path() -> Result<PathBuf> {
     let dirs = ProjectDirs::from("com", "illegalstudio", "codejournal")
         .context("cannot find user config directory")?;
     let path = dirs.config_dir().join("config.json");

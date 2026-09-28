@@ -1,3 +1,4 @@
+use crate::activity::ActivityAction;
 use crate::plan_args::PlanAction;
 use crate::project_args::ProjectAction;
 use crate::task_args::TaskAction;
@@ -14,6 +15,8 @@ pub struct Cli {
     pub project: Option<String>,
     #[arg(long, global = true)]
     pub json: bool,
+    #[arg(long, global = true)]
+    pub offline: bool,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -21,9 +24,19 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Command {
     Login,
+    Setup(crate::setup_agents::SetupArgs),
     Logout,
     Whoami,
+    Status,
+    Sync,
     Brief(crate::brief::BriefArgs),
+    Browse(crate::browse::BrowseArgs),
+    Export(crate::export::ExportArgs),
+    Import {
+        file: std::path::PathBuf,
+    },
+    Open,
+    Web(crate::open_dashboard::WebArgs),
     Search(crate::search_args::SearchArgs),
     Recent {
         #[arg(long, default_value_t = 20)]
@@ -53,26 +66,7 @@ pub enum Command {
         #[command(subcommand)]
         action: crate::knowledge_args::EntryAction,
     },
-    Add {
-        #[arg(long)]
-        kind: String,
-        #[arg(long)]
-        title: String,
-        #[arg(long, conflicts_with = "body_file")]
-        body: Option<String>,
-        #[arg(long)]
-        body_file: Option<String>,
-        #[arg(long, value_delimiter = ',')]
-        topics: Vec<String>,
-        #[arg(long = "ref")]
-        refs: Vec<String>,
-        #[arg(long)]
-        agent: Option<String>,
-        #[arg(long)]
-        force: bool,
-        #[arg(long = "global")]
-        global_scope: bool,
-    },
+    Add(crate::add_args::AddArgs),
     Log {
         #[command(subcommand)]
         action: crate::log_args::LogAction,
@@ -94,6 +88,10 @@ pub enum Command {
         #[arg(long)]
         all_projects: bool,
     },
+    Normalize {
+        #[arg(long)]
+        dry_run: bool,
+    },
     Refs {
         #[command(subcommand)]
         action: crate::refs_move::RefsAction,
@@ -106,10 +104,7 @@ pub enum Command {
         #[command(subcommand)]
         action: PlanAction,
     },
-    Rules {
-        #[command(subcommand)]
-        action: Option<crate::rules::RulesAction>,
-    },
+    Rules(crate::rules::RulesArgs),
     Activity {
         #[command(subcommand)]
         action: ActivityAction,
@@ -118,6 +113,9 @@ pub enum Command {
         #[command(subcommand)]
         action: crate::watch_args::WatchAction,
     },
+    WatchRun {
+        id: String,
+    },
     Notifications {
         #[command(subcommand)]
         action: crate::watch_args::NotificationAction,
@@ -125,6 +123,14 @@ pub enum Command {
     Notify(crate::watch_args::NotifyArgs),
     Hook {
         event: String,
+        kind: Option<String>,
+    },
+    SessionRecord {
+        operation: String,
+    },
+    HookFlush {
+        #[arg(long)]
+        after: Option<u64>,
     },
     Hooks {
         #[command(subcommand)]
@@ -134,9 +140,5 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
-}
-
-#[derive(Subcommand)]
-pub enum ActivityAction {
-    Publish,
+    Digest(crate::digest::DigestArgs),
 }

@@ -22,7 +22,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         size = int(self.headers["Content-Length"])
         body = json.loads(self.rfile.read(size))
         self.calls.append((self.path, body))
-        data = json.dumps({"ok": True}).encode()
+        if self.path.endswith("/client-events"):
+            response = {"acknowledged": [event["id"] for event in body["events"]]}
+        elif self.path.endswith("/brief"):
+            response = {"project": {"slug": "p"}, "counts": {}, "rules": "Test rule"}
+        else:
+            response = {"ok": True}
+        data = json.dumps(response).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        data = json.dumps({"project": {"slug": "p"}, "counts": {}, "rules": "Test rule"}).encode()
         self.send_response(200)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
@@ -115,6 +128,68 @@ class SessionFeedbackTest(unittest.TestCase):
             time.sleep(0.05)
         self.assertTrue(any(path.endswith("/checkout-activity") for path, _ in Handler.calls))
 
+    def test_offline_brief_reuses_cached_online_brief_across_sessions(self):
+        self.hook("SessionStart", "session-one")
+        result = json.loads(self.cli("--offline", "--json", "brief", "--session-key", "session-two"))
+        self.assertEqual(result["rules"], "Test rule")
+
+    def test_delegation_hook_flushes_lifecycle_event_without_session(self):
+        self.env["CODE_JOURNAL_HOOK_SYNC"] = "1"
+        delegation_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        self.cli("hook", "delegation", "question", payload={
+            "delegation": {"id": delegation_id, "cwd": str(self.repo),
+                           "target": "claude", "status": "running"},
+            "sender": "guest", "detail": "Synthetic question"})
+        events = [item for path, body in Handler.calls if path.endswith("/client-events")
+                  for item in body["events"]]
+        self.assertEqual(events[0]["type"], "delegation")
+        self.assertEqual(events[0]["delegation_id"], delegation_id)
+        self.assertEqual(events[0]["kind"], "question")
+
+    def test_hook_events_are_acknowledged_and_removed_from_outbox(self):
+        self.env["CODE_JOURNAL_HOOK_SYNC"] = "1"
+        self.hook("SessionStart", "session-one")
+        self.hook("UserPromptSubmit", "session-one")
+        self.cli("hook", "PostToolUse", payload={"session_id": "session-one",
+            "cwd": str(self.repo), "tool_name": "Edit", "tool_input": {"file_path": "README.md"}})
+        self.cli("hook", "PermissionRequest", payload={"session_id": "session-one",
+            "cwd": str(self.repo), "tool_name": "Bash"})
+        self.hook("SessionEnd", "session-one")
+        events = [event for path, body in Handler.calls if path.endswith("/client-events")
+                  for event in body["events"]]
+        self.assertEqual([event["type"] for event in events],
+                         ["start", "prompt", "edit", "waiting", "end"])
+        self.assertEqual(events[2]["file"], "README.md")
+        self.assertFalse(list((self.base / "state").rglob("outbox/*.json")))
+
+    def test_hook_warns_about_edit_collision_and_reminds_once(self):
+        self.env["CODE_JOURNAL_HOOK_FLUSH"] = "off"
+        self.hook("SessionStart", "session-one")
+        self.hook("SessionStart", "session-two")
+        edited = {"session_id": "session-two", "cwd": str(self.repo),
+                  "tool_name": "Edit", "tool_input": {"file_path": "README.md"}}
+        self.cli("hook", "PostToolUse", payload=edited, session="session-two")
+        pre = dict(edited, session_id="session-one")
+        warning = json.loads(self.cli("hook", "PreToolUse", payload=pre))
+        self.assertIn("README.md was also edited", warning["hookSpecificOutput"]["additionalContext"])
+        self.cli("hook", "PostToolUse", payload=pre)
+        stop = {"session_id": "session-one", "cwd": str(self.repo)}
+        reminder = json.loads(self.cli("hook", "Stop", payload=stop))
+        self.assertEqual(reminder["decision"], "block")
+        self.assertEqual(self.cli("hook", "Stop", payload=stop), "")
+
+    def test_hook_uses_cached_brief_when_server_is_unavailable(self):
+        self.env["CODE_JOURNAL_HOOK_FLUSH"] = "off"
+        payload = {"session_id": "session-one", "cwd": str(self.repo)}
+        online = json.loads(self.cli("hook", "SessionStart", payload=payload))
+        self.assertIn("Test rule", online["hookSpecificOutput"]["additionalContext"])
+        config = self.base / "config" / "codejournal" / "config.json"
+        stored = json.loads(config.read_text())
+        stored["server"] = "http://127.0.0.1:1"
+        config.write_text(json.dumps(stored))
+        cached = json.loads(self.cli("hook", "SessionStart", payload=payload))
+        self.assertIn("Test rule", cached["hookSpecificOutput"]["additionalContext"])
+
     def test_hook_installer_preserves_existing_settings(self):
         codex_home = self.base / "codex"
         codex_home.mkdir()
@@ -131,11 +206,28 @@ class SessionFeedbackTest(unittest.TestCase):
         current = json.loads(settings.read_text())
         self.assertEqual(current["theme"], "dark")
         self.assertEqual(len(current["hooks"]["PostToolUse"]), 2)
-        self.assertEqual(len(call("status")["agents"][0]["installed"]), 2)
+        self.assertEqual(len(call("status")["agents"][0]["installed"]), 9)
         self.assertFalse(call("install")["agents"][0]["changed"])
         call("uninstall")
         self.assertEqual(json.loads(settings.read_text())["hooks"]["PostToolUse"][0]
                          ["hooks"][0]["command"], "other-hook")
+
+    def test_setup_agents_installs_skill_and_hooks_in_isolated_home(self):
+        codex_home = self.base / "codex"
+        codex_home.mkdir()
+        env = dict(self.env, CODEX_HOME=str(codex_home))
+        def call(*args):
+            return json.loads(subprocess.run([self.binary, "setup", "agents", *args,
+                "--agent", "codex"], env=env, capture_output=True, text=True,
+                check=True).stdout)
+        call("--dry-run")
+        skill = codex_home / "skills" / "code-journal" / "SKILL.md"
+        self.assertFalse(skill.exists())
+        call()
+        self.assertIn("cj brief", skill.read_text())
+        self.assertTrue(call("--status")["agents"][0]["skill_installed"])
+        call("--uninstall")
+        self.assertFalse(skill.exists())
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
-use crate::cli::{ActivityAction, Cli, Command};
+use crate::activity::ActivityAction;
+use crate::cli::{Cli, Command};
 use crate::*;
 use anyhow::Result;
 
@@ -6,7 +7,20 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
     let project = cli.project.as_deref();
     match cli.command {
         Command::Whoami => output::json(&api.get("/api/v1/me")?),
+        Command::Sync => storage_status::sync(&api, cli.json),
+        Command::HookFlush { after } => {
+            if let Some(seconds) = after {
+                std::thread::sleep(std::time::Duration::from_secs(seconds));
+            }
+            outbox_flush::run(&api, &tenant)?;
+            Ok(())
+        }
         Command::Brief(args) => brief::run(&api, &tenant, project, args, cli.json),
+        Command::Browse(args) => browse::run(&api, &tenant, project, args),
+        Command::Export(args) => export::run(&api, &tenant, project, args),
+        Command::Import { file } => import::run(&api, &tenant, file, cli.json),
+        Command::Open => open_dashboard::open(server, tenant, project, cli.json),
+        Command::Web(args) => open_dashboard::web(server, tenant, project, args, cli.json),
         Command::Search(args) => entry_search::run(&api, &tenant, project, args, cli.json),
         Command::Recent { limit, kind } => {
             entry_search::recent(&api, &tenant, project, limit, kind.as_deref(), cli.json)
@@ -32,31 +46,32 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
             )
         }
         Command::Entry { action } => knowledge_mutations::entry(&api, &tenant, action, cli.json),
-        Command::Garden { dry_run } => commands::garden(&api, &tenant, project, dry_run),
-        Command::Add {
-            kind,
-            title,
-            body,
-            body_file,
-            topics,
-            refs,
-            agent,
-            force,
-            global_scope,
-        } => {
-            let body = input::body(body, body_file)?;
+        Command::Garden { dry_run } => {
+            crate::garden::run(&api, &tenant, project, dry_run, cli.json)
+        }
+        Command::Digest(args) => digest::run(
+            &api,
+            &tenant,
+            project,
+            &args.since,
+            args.project_only,
+            args.send,
+            cli.json,
+        ),
+        Command::Add(args) => {
+            let body = input::body(args.body, args.body_file)?;
             commands::add(
                 &api,
                 &tenant,
                 project,
-                &kind,
-                &title,
+                &args.kind,
+                &args.title,
                 &body,
-                topics,
-                refs,
-                agent,
-                force,
-                global_scope,
+                args.topics,
+                args.refs,
+                args.agent,
+                args.force,
+                args.global_scope,
                 cli.json,
             )
         }
@@ -70,21 +85,43 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
         Command::Checkouts { all_projects } => {
             project_paths::list(&api, &tenant, project, all_projects, cli.json)
         }
+        Command::Normalize { dry_run } => normalize::run(&api, &tenant, dry_run, cli.json),
         Command::Refs { action } => refs_move::run(&api, &tenant, project, action, cli.json),
         Command::Plan { action } => plans::run(&api, &tenant, project, "plans", action, cli.json),
         Command::Doc { action } => plans::run(&api, &tenant, project, "docs", action, cli.json),
-        Command::Rules { action } => rules::run(&api, &tenant, project, action),
+        Command::Rules(args) => rules::run(
+            &api,
+            &tenant,
+            project,
+            args.action,
+            args.body,
+            args.body_file,
+        ),
         Command::Activity {
             action: ActivityAction::Publish,
         } => activity::publish(&api, &tenant, project),
         Command::Watch { action } => {
             watches::run(&api, &server, &tenant, project, action, cli.json)
         }
+        Command::WatchRun { id } => watches::run(
+            &api,
+            &server,
+            &tenant,
+            project,
+            crate::watch_args::WatchAction::Run { id },
+            cli.json,
+        ),
         Command::Notifications { action } => {
             notifications::run(&api, &tenant, project, action, cli.json)
         }
-        Command::Notify(args) => notifications::notify(&api, &tenant, project, args, cli.json),
-        Command::Login | Command::Logout | Command::Hook { .. } | Command::Hooks { .. } => {
+        Command::Notify(args) => notification_send::run(&api, &tenant, project, args, cli.json),
+        Command::Login
+        | Command::Setup(..)
+        | Command::Logout
+        | Command::Status
+        | Command::Hook { .. }
+        | Command::SessionRecord { .. }
+        | Command::Hooks { .. } => {
             unreachable!()
         }
     }

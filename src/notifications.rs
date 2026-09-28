@@ -1,6 +1,6 @@
 use crate::api::Api;
-use crate::watch_args::{NotificationAction, NotifyArgs};
-use crate::{attribution, git, input, output, project};
+use crate::watch_args::NotificationAction;
+use crate::{notification_delivery, output, project};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
@@ -72,7 +72,15 @@ pub fn run(
             output::emit(&result, &lines.join("\n"), json_mode)
         }
         NotificationAction::Read { ids, all } => mark(api, tenant, ids, all, true, json_mode),
-        NotificationAction::Unread { ids } => mark(api, tenant, ids, false, false, json_mode),
+        NotificationAction::Unread { ids, all } => {
+            if all {
+                bail!("--all only applies to `read`");
+            }
+            mark(api, tenant, ids, false, false, json_mode)
+        }
+        NotificationAction::Config { desktop, ntfy } => {
+            notification_delivery::configure(desktop, ntfy, json_mode)
+        }
     }
 }
 
@@ -98,36 +106,6 @@ fn mark(
             result["changed"],
             if read { "read" } else { "unread" }
         ),
-        json_mode,
-    )
-}
-
-pub fn notify(
-    api: &Api,
-    tenant: &str,
-    name: Option<&str>,
-    args: NotifyArgs,
-    json_mode: bool,
-) -> Result<()> {
-    let title = args.title.split_whitespace().collect::<Vec<_>>().join(" ");
-    if title.is_empty() {
-        bail!("a notification needs a title");
-    }
-    let body = input::body(args.body, args.body_file)?;
-    let cwd = std::env::current_dir()?;
-    let branch = git::output(&["branch", "--show-current"]);
-    let result = api.post(
-        &endpoint(tenant),
-        &json!({
-            "project": project::slug(name)?, "kind": args.kind, "title": title, "body": body,
-            "agent": attribution::agent(args.agent.as_deref()), "host": attribution::host(),
-            "checkout_path": cwd, "checkout_kind": "main", "branch": branch,
-            "tmux": std::env::var("TMUX").ok(),
-        }),
-    )?;
-    output::emit(
-        &result,
-        &format!("Notified the user ({}): {title}", args.kind),
         json_mode,
     )
 }

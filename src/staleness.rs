@@ -6,6 +6,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 pub fn enrich(api: &Api, project_path: &str, result: &mut Value) -> Result<()> {
+    if api.offline() {
+        return Ok(());
+    }
     let Some(entries) = result["entries"].as_array() else {
         return Ok(());
     };
@@ -68,10 +71,12 @@ pub fn enrich(api: &Api, project_path: &str, result: &mut Value) -> Result<()> {
             )
         })
         .collect();
-    let response = api.post(
+    let Ok(response) = api.post_noqueue(
         &format!("{project_path}/path-checks"),
         &json!({"ids": ids, "observations": observations}),
-    )?;
+    ) else {
+        return Ok(());
+    };
     let checks = response["checks"]
         .as_object()
         .ok_or_else(|| anyhow::anyhow!("invalid path checks"))?;

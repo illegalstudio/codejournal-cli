@@ -1,0 +1,65 @@
+use crate::cli::{Cli, Command};
+use crate::*;
+use anyhow::Result;
+use clap::Parser;
+
+pub fn run() -> Result<()> {
+    let cli = Cli::parse();
+    if let Some(cwd) = &cli.cwd {
+        std::env::set_current_dir(cwd)?;
+    }
+    if let Command::Hook { event, kind } = &cli.command {
+        let _ = hook::run(event, kind.as_deref());
+        return Ok(());
+    }
+    if let Command::SessionRecord { operation } = &cli.command {
+        return session_record::run(operation);
+    }
+    if let Command::Hooks { action } = &cli.command {
+        return hook_setup::run(action);
+    }
+    if let Command::Setup(args) = &cli.command {
+        if args.database.is_some() || args.sync_url.is_some() || args.auth_token.is_some() {
+            anyhow::bail!(
+                "Turso setup options are no longer used; run `cj login` for the hosted journal"
+            );
+        }
+        return match &args.action {
+            Some(action) => setup_agents::run(action),
+            None => login::run(cli.server.as_deref()),
+        };
+    }
+    if matches!(cli.command, Command::Login) {
+        return login::run(cli.server.as_deref());
+    }
+    if matches!(cli.command, Command::Status) {
+        return storage_status::status(cli.json);
+    }
+    let mut config = config::Config::load()?;
+    if matches!(cli.command, Command::Logout) {
+        let api = api::Api::new(&config.server, &config.token()?)?;
+        api.delete("/api/v1/device/token")?;
+        return config.logout();
+    }
+    let server = cli.server.as_deref().unwrap_or(&config.server).to_owned();
+    let mut api = api::Api::new(&server, &config.token()?)?;
+    api.set_offline(cli.offline);
+    let tenant = config.tenant.clone();
+    let json_mode = cli.json;
+    match dispatch::run(&api, &server, &tenant, cli) {
+        Err(error)
+            if error
+                .downcast_ref::<request_outbox::QueuedWrite>()
+                .is_some() =>
+        {
+            let queued = error.downcast_ref::<request_outbox::QueuedWrite>().unwrap();
+            if json_mode {
+                println!("{}", serde_json::json!({"queued": true, "id": queued.0}));
+            } else {
+                println!("Queued for synchronization: {}", queued.0);
+            }
+            Ok(())
+        }
+        result => result,
+    }
+}

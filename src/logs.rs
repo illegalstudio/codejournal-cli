@@ -59,6 +59,11 @@ fn add(
         state.logged.extend(linked.clone());
         session_state::save(&id, &state)?;
     }
+    if let Some(id) = session_state::current_id() {
+        let mut state = session_state::load(&id)?;
+        state.last_log_at = Some(session_state::now());
+        session_state::save(&id, &state)?;
+    }
     let log = &result["log"];
     let id = log["id"].as_str().unwrap_or("").replace('-', "");
     let mut text = format!(
