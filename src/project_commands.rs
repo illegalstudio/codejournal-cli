@@ -45,10 +45,10 @@ pub fn run(
         } => {
             let mut input = serde_json::Map::new();
             if let Some(slug) = new_slug.as_ref() {
-                input.insert("slug".into(), json!(slug));
+                input.insert("slug".into(), json!(slug.trim().to_ascii_lowercase()));
             }
             if let Some(name) = name {
-                input.insert("name".into(), json!(name));
+                input.insert("name".into(), json!(name.trim()));
             }
             if let Some(remote) = remote {
                 input.insert(
@@ -70,12 +70,14 @@ pub fn run(
                 let existing = api.get(&format!("{base}/{slug}"))?;
                 let current = &existing["project"]["provides"];
                 let auto = current["auto"].as_array().cloned().unwrap_or_default();
-                let manual = provides
+                let mut manual = provides
                     .split(',')
                     .map(str::trim)
                     .filter(|name| !name.is_empty())
                     .map(str::to_ascii_lowercase)
                     .collect::<Vec<_>>();
+                manual.sort();
+                manual.dedup();
                 input.insert("provides".into(), json!({"auto": auto, "manual": manual}));
             }
             if input.is_empty() {
@@ -86,7 +88,8 @@ pub fn run(
             let result = api.patch(&format!("{base}/{slug}"), &Value::Object(input))?;
             if from_git {
                 let path = project_paths::current()?;
-                project_paths::record(api, tenant, new_slug.as_deref().unwrap_or(&slug), &path)?;
+                let updated_slug = result["project"]["slug"].as_str().unwrap_or(&slug);
+                project_paths::record(api, tenant, updated_slug, &path)?;
             }
             output::emit(
                 &result,
