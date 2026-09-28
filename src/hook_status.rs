@@ -48,3 +48,12 @@ pub fn collect(agent: &str, path: &Path, settings: &Value) -> Result<Value> {
         "disabled_by_env": std::env::var("CODE_JOURNAL_HOOKS").as_deref() == Ok("off"),
     }))
 }
+
+pub fn invalid(agent: &str, path: &Path, error: &str) -> Value {
+    let missing = hook_events::ALL
+        .into_iter()
+        .filter(|event| hook_events::spec(agent, event).is_some())
+        .collect::<Vec<_>>();
+    json!({"agent": agent, "settings": path, "error": error,
+        "installed": [], "missing": missing})
+}

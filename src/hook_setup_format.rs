@@ -12,6 +12,10 @@ pub fn render(results: &[Value], status: bool, install: bool, dry_run: bool) -> 
         };
         if status {
             lines.push(format!("{label}: {path}"));
+            if let Some(error) = row["error"].as_str() {
+                lines.push(format!("  error: {error}"));
+                continue;
+            }
             let events = row["installed"]
                 .as_array()
                 .into_iter()

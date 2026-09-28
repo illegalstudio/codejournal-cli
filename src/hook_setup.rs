@@ -27,7 +27,18 @@ pub fn run(action: &HooksAction, json_mode: bool) -> Result<()> {
         if agent == "all" && !path.parent().is_some_and(|parent| parent.exists()) {
             continue;
         }
-        let mut settings = hook_settings::read(&path)?;
+        let mut settings = match hook_settings::read(&path) {
+            Ok(settings) => settings,
+            Err(error) if status => {
+                results.push(hook_status::invalid(
+                    target_agent,
+                    &path,
+                    &error.to_string(),
+                ));
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         if status {
             results.push(hook_status::collect(target_agent, &path, &settings)?);
             continue;

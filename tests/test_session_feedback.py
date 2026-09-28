@@ -279,6 +279,21 @@ class SessionFeedbackTest(unittest.TestCase):
         self.assertEqual(sum("code-journal-hook" in command for command in commands), 0)
         self.assertIn("unrelated Stop handler", commands)
 
+    def test_hook_status_reports_invalid_settings_without_failing(self):
+        codex_home = self.base / "codex"
+        codex_home.mkdir()
+        (codex_home / "hooks.json").write_text("{invalid json")
+        env = dict(self.env, CODEX_HOME=str(codex_home))
+        status = subprocess.run([self.binary, "--json", "hooks", "status", "--agent", "codex"],
+                                env=env, capture_output=True, text=True, check=True)
+        payload = json.loads(status.stdout)
+        self.assertIn("invalid JSON", payload["error"])
+        self.assertEqual(payload["installed"], [])
+        self.assertIn("SessionEnd", payload["missing"])
+        human = subprocess.run([self.binary, "hooks", "status", "--agent", "codex"],
+                               env=env, capture_output=True, text=True, check=True)
+        self.assertIn("error:", human.stdout)
+
     def test_claude_hook_events_match_python_contract(self):
         claude_home = self.base / "claude"
         claude_home.mkdir()
