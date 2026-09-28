@@ -69,9 +69,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.observations.append(body["observations"][0])
         observation = body["observations"][0]
         elsewhere = [{"path": "src/helper.rs", "where": "branch feat/helper"}]
-        check = {"missing": [], "elsewhere": elsewhere} if "feat/helper" in observation["branches"] else {
-            "missing": ["src/helper.rs"], "elsewhere": []
-        }
+        if observation["present"]:
+            check = {"missing": [], "elsewhere": []}
+        elif "feat/helper" in observation["branches"]:
+            check = {"missing": [], "elsewhere": elsewhere}
+        else:
+            check = {"missing": [observation["path"]], "elsewhere": []}
         self.respond({"checks": {ENTRY_ID: check}})
 
 
@@ -146,6 +149,21 @@ class BranchFeedbackTest(unittest.TestCase):
         report = self.cli("garden")
         self.assertFalse(report["dry_run"])
         self.assertEqual(Handler.maintenance, [{"topic_groups": []}])
+
+    def test_five_commits_to_a_present_path_make_entry_stale(self):
+        prior = ENTRY["refs"]
+        ENTRY.update({"refs": [{"kind": "path", "value": "README.md"}], "created_at": "2020-01-01T00:00:00Z"})
+        try:
+            for number in range(5):
+                (self.repo / "README.md").write_text(f"change {number}\n")
+                self.git("add", "README.md")
+                self.git("commit", "-m", f"change {number}")
+            report = self.cli("garden", "--dry-run")
+            self.assertEqual(report["stale_entries"][0]["id"], ENTRY_ID)
+            self.assertGreaterEqual(report["stale_entries"][0]["staleness"]["changes"], 5)
+        finally:
+            ENTRY["refs"] = prior
+            ENTRY.pop("created_at", None)
 
 
 if __name__ == "__main__":

@@ -84,12 +84,45 @@ pub fn enrich(api: &Api, project_path: &str, result: &mut Value) -> Result<()> {
         for entry in entries {
             if let Some(id) = entry["id"].as_str() {
                 if let Some(check) = checks.get(id) {
-                    entry["staleness"] = check.clone();
+                    let mut check = check.clone();
+                    let present = entry["refs"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter(|item| item["kind"] == "path")
+                        .filter_map(|item| item["value"].as_str())
+                        .filter(|path| safe_path(path) && root.join(path).exists())
+                        .collect::<Vec<_>>();
+                    let changes = changes_since(entry["created_at"].as_str(), &present);
+                    let missing = check["missing"]
+                        .as_array()
+                        .is_some_and(|rows| !rows.is_empty());
+                    check["gone"] = check["missing"].clone();
+                    check["changes"] = json!(changes);
+                    check["stale"] = json!(missing || changes >= 5);
+                    entry["staleness"] = check;
                 }
             }
         }
     }
     Ok(())
+}
+
+fn changes_since(created_at: Option<&str>, paths: &[&str]) -> u64 {
+    if paths.is_empty() {
+        return 0;
+    }
+    let Some(since) = created_at.and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+    else {
+        return 0;
+    };
+    let after = since + chrono::Duration::seconds(1);
+    let cutoff = format!("--since={}", after.format("%Y-%m-%dT%H:%M:%SZ"));
+    let mut args = vec!["rev-list", "--count", cutoff.as_str(), "HEAD", "--"];
+    args.extend(paths);
+    git::output(&args)
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0)
 }
 
 fn safe_path(path: &str) -> bool {

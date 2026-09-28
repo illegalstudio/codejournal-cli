@@ -23,9 +23,7 @@ pub fn run(
     let mut page = 1_u64;
     loop {
         let mut result = api.get(&format!("{path}/garden?page={page}"))?;
-        if project.is_none() {
-            staleness::enrich(api, &path, &mut result)?;
-        }
+        staleness::enrich(api, &path, &mut result)?;
         entries.extend(result["entries"].as_array().cloned().unwrap_or_default());
         let Some(next) = result["next_page"].as_u64() else {
             break;
@@ -37,12 +35,12 @@ pub fn run(
     }
     let stale: Vec<_> = entries
         .iter()
-        .filter(|entry| has_refs(entry, "missing"))
+        .filter(|entry| entry["staleness"]["stale"] == true)
         .cloned()
         .collect();
     let elsewhere: Vec<_> = entries
         .iter()
-        .filter(|entry| !has_refs(entry, "missing") && has_refs(entry, "elsewhere"))
+        .filter(|entry| entry["staleness"]["stale"] != true && has_refs(entry, "elsewhere"))
         .cloned()
         .collect();
     let export = api.get(&format!("/api/v1/tenants/{tenant}/export?project={slug}"))?;

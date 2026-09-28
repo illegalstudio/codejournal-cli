@@ -27,8 +27,11 @@ pub fn collect(records: &[Value], _entries: &[Value]) -> Review {
             let overlap = first.intersection(&second).count();
             let score = overlap as f64 / union as f64;
             if score >= 0.6 {
-                duplicates.push(json!({"a": {"id": a["id"], "title": a["title"]},
-                    "b": {"id": b["id"], "title": b["title"]}, "score": (score * 100.0).round() / 100.0}));
+                duplicates.push(
+                    json!({"a": {"id": a["id"], "title": a["title"], "created_at": a["created_at"]},
+                    "b": {"id": b["id"], "title": b["title"], "created_at": b["created_at"]},
+                    "score": (score * 100.0).round() / 100.0}),
+                );
             }
         }
     }
@@ -57,7 +60,9 @@ pub fn collect(records: &[Value], _entries: &[Value]) -> Review {
             }
         }
     }
-    let doc_candidates = counts
+    let mut counted = counts.into_iter().collect::<Vec<_>>();
+    counted.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let doc_candidates = counted
         .into_iter()
         .filter(|(_, count)| *count >= 8)
         .filter(|(name, _)| {
