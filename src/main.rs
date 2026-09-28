@@ -1,79 +1,24 @@
+mod activity;
 mod api;
+mod cli;
 mod commands;
 mod config;
+mod git;
+mod input;
 mod login;
 mod output;
+mod path_ref;
+mod plan_args;
+mod plans;
 mod project;
+mod refs;
+mod rules;
+mod shorthand;
+mod tasks;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
-
-#[derive(Parser)]
-#[command(version, about = "Code Journal device client")]
-struct Cli {
-    #[arg(long, global = true, env = "CJ_SERVER_URL")]
-    server: Option<String>,
-    #[arg(long, global = true, env = "CJ_PROJECT")]
-    project: Option<String>,
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    Login,
-    Logout,
-    Whoami,
-    Brief,
-    Search {
-        query: String,
-    },
-    Add {
-        #[arg(long)]
-        kind: String,
-        #[arg(long)]
-        title: String,
-        #[arg(long)]
-        body: String,
-        #[arg(long, value_delimiter = ',')]
-        topics: Vec<String>,
-    },
-    Log {
-        #[arg(long)]
-        title: String,
-        #[arg(long)]
-        body: String,
-    },
-    Task {
-        #[command(subcommand)]
-        action: TaskAction,
-    },
-    Project {
-        #[command(subcommand)]
-        action: ProjectAction,
-    },
-}
-
-#[derive(Subcommand)]
-enum TaskAction {
-    List,
-    Add {
-        title: String,
-        #[arg(long, default_value = "")]
-        body: String,
-        #[arg(long, default_value = "normal")]
-        priority: String,
-    },
-}
-
-#[derive(Subcommand)]
-enum ProjectAction {
-    List,
-    Init {
-        #[arg(long)]
-        name: Option<String>,
-    },
-}
+use clap::Parser;
+use cli::{ActivityAction, Cli, Command};
 
 fn main() {
     if let Err(error) = run() {
@@ -94,34 +39,41 @@ fn run() -> Result<()> {
         return config.logout();
     }
     let server = cli.server.as_deref().unwrap_or(&config.server).to_owned();
-    let token = config.token()?;
-    let api = api::Api::new(&server, &token)?;
-    let slug = config.tenant.clone();
+    let api = api::Api::new(&server, &config.token()?)?;
+    let tenant = config.tenant.clone();
+    let project = cli.project.as_deref();
     match cli.command {
         Command::Whoami => output::json(&api.get("/api/v1/me")?),
-        Command::Brief => commands::brief(&api, &slug, cli.project.as_deref()),
-        Command::Search { query } => commands::search(&api, &slug, cli.project.as_deref(), &query),
+        Command::Brief => commands::brief(&api, &tenant, project),
+        Command::Search { query } => commands::search(&api, &tenant, project, &query),
         Command::Add {
             kind,
             title,
             body,
+            body_file,
             topics,
-        } => commands::add(
-            &api,
-            &slug,
-            cli.project.as_deref(),
-            &kind,
-            &title,
-            &body,
-            topics,
-        ),
-        Command::Log { title, body } => {
-            commands::log(&api, &slug, cli.project.as_deref(), &title, &body)
+            refs,
+        } => {
+            let body = input::body(body, body_file)?;
+            commands::add(&api, &tenant, project, &kind, &title, &body, topics, refs)
         }
-        Command::Task { action } => commands::task(&api, &slug, cli.project.as_deref(), action),
-        Command::Project { action } => {
-            commands::project(&api, &slug, cli.project.as_deref(), action)
+        Command::Log {
+            title,
+            body,
+            body_file,
+            refs,
+        } => {
+            let body = input::body(body, body_file)?;
+            commands::log(&api, &tenant, project, &title, &body, refs)
         }
+        Command::Task { action } => tasks::run(&api, &tenant, project, action),
+        Command::Project { action } => commands::project(&api, &tenant, project, action),
+        Command::Plan { action } => plans::run(&api, &tenant, project, "plans", action),
+        Command::Doc { action } => plans::run(&api, &tenant, project, "docs", action),
+        Command::Rules { action } => rules::run(&api, &tenant, project, action),
+        Command::Activity {
+            action: ActivityAction::Publish,
+        } => activity::publish(&api, &tenant, project),
         Command::Login | Command::Logout => unreachable!(),
     }
 }

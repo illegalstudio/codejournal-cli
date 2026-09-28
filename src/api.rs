@@ -47,6 +47,22 @@ impl Api {
         self.send(self.client.delete(format!("{}{}", self.server, path)))
     }
 
+    pub fn patch(&self, path: &str, body: &Value) -> Result<Value> {
+        self.send(
+            self.client
+                .patch(format!("{}{}", self.server, path))
+                .json(body),
+        )
+    }
+
+    pub fn put(&self, path: &str, body: &Value) -> Result<Value> {
+        self.send(
+            self.client
+                .put(format!("{}{}", self.server, path))
+                .json(body),
+        )
+    }
+
     fn send(&self, request: reqwest::blocking::RequestBuilder) -> Result<Value> {
         let response = request
             .bearer_auth(&self.token)

@@ -433,6 +433,7 @@ dependencies = [
  "clap",
  "directories",
  "keyring",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

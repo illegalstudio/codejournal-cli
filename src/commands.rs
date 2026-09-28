@@ -1,7 +1,8 @@
 use crate::api::Api;
+use crate::cli::ProjectAction;
 use crate::output;
 use crate::project;
-use crate::{ProjectAction, TaskAction};
+use crate::refs;
 use anyhow::Result;
 use serde_json::json;
 
@@ -38,33 +39,28 @@ pub fn add(
     title: &str,
     body: &str,
     topics: Vec<String>,
+    raw_refs: Vec<String>,
 ) -> Result<()> {
+    let refs = refs::parse_all(&raw_refs)?;
     output::json(&api.post(
         &format!("{}/entries", path(tenant, project)?),
-        &json!({"kind": kind, "title": title, "body": body, "topics": topics}),
+        &json!({"kind": kind, "title": title, "body": body, "topics": topics, "refs": refs}),
     )?)
 }
 
-pub fn log(api: &Api, tenant: &str, project: Option<&str>, title: &str, body: &str) -> Result<()> {
+pub fn log(
+    api: &Api,
+    tenant: &str,
+    project: Option<&str>,
+    title: &str,
+    body: &str,
+    raw_refs: Vec<String>,
+) -> Result<()> {
+    let refs = refs::parse_all(&raw_refs)?;
     output::json(&api.post(
         &format!("{}/logs", path(tenant, project)?),
-        &json!({"title": title, "body": body}),
+        &json!({"title": title, "body": body, "refs": refs}),
     )?)
-}
-
-pub fn task(api: &Api, tenant: &str, project: Option<&str>, action: TaskAction) -> Result<()> {
-    let endpoint = format!("{}/tasks", path(tenant, project)?);
-    match action {
-        TaskAction::List => output::json(&api.get(&endpoint)?),
-        TaskAction::Add {
-            title,
-            body,
-            priority,
-        } => output::json(&api.post(
-            &endpoint,
-            &json!({"title": title, "body": body, "priority": priority}),
-        )?),
-    }
 }
 
 pub fn project(
