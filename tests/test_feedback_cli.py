@@ -15,6 +15,7 @@ PLAN_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
 class Handler(http.server.BaseHTTPRequestHandler):
     calls = []
+    entry_response = None
 
     def log_message(self, *_args):
         pass
@@ -47,7 +48,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         size = int(self.headers.get("Content-Length", "0"))
         body = json.loads(self.rfile.read(size))
         self.calls.append((self.command, self.path, body))
-        self.respond(200, {"rules": body["rules"]} if self.path.endswith("/rules") else {"ok": True})
+        response = {"rules": body["rules"]} if self.path.endswith("/rules") else {"ok": True}
+        if self.path.endswith("/entries") and self.entry_response is not None:
+            response = self.entry_response
+        self.respond(200, response)
 
     do_PATCH = record
     do_POST = record
@@ -72,6 +76,7 @@ class FeedbackCliTest(unittest.TestCase):
 
     def setUp(self):
         Handler.calls.clear()
+        Handler.entry_response = None
         self.temp = tempfile.TemporaryDirectory(prefix="cj-feedback-")
         self.addCleanup(self.temp.cleanup)
         config = pathlib.Path(self.temp.name) / "codejournal"
@@ -144,6 +149,12 @@ class FeedbackCliTest(unittest.TestCase):
         result = self.command("add", "--kind", "gotcha", "--title", "Laravel framework issue",
                               "--body", "Seen locally")
         self.assertNotIn("hint:", result.stdout)
+        Handler.entry_response = {"entry": {"id": "abcdef12-0000-4000-8000-000000000000"},
+                                  "mentions": [{"slug": "toolbox", "names": ["acme/toolbox"]}]}
+        suggested = self.command("add", "--kind", "gotcha", "--title", "Toolbox issue",
+                                 "--body", "acme/toolbox failed")
+        self.assertIn("cj task add --to toolbox --from-entry abcdef12", suggested.stdout)
+        Handler.entry_response = None
         self.command("task", "add", "--title", "Forwarded work", "--to", "target", "--from-entry", "abcdef12",
                      "--not-before", "tomorrow")
         self.assertEqual(Handler.calls[-1][1], "/api/v1/tenants/demo/projects/target/tasks")

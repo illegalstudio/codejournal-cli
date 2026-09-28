@@ -76,6 +76,7 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
         }
         _ => {}
     }
+    state.last_event_at = Some(now);
     session_state::save(session, &state)?;
     if event != "PreToolUse" {
         let _ = outbox::spawn_flush();

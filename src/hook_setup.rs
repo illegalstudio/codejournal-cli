@@ -1,6 +1,7 @@
 use crate::hook_args::HooksAction;
 use crate::hook_settings;
 use crate::hook_setup_format;
+use crate::hook_status;
 use crate::output;
 use anyhow::{Context, Result, bail};
 use directories::BaseDirs;
@@ -26,11 +27,12 @@ pub fn run(action: &HooksAction, json_mode: bool) -> Result<()> {
             continue;
         }
         let mut settings = hook_settings::read(&path)?;
-        let before = settings.clone();
-        let previously_installed = hook_settings::installed(&settings);
-        if !status {
-            hook_settings::update(&mut settings, &binary, target_agent, install)?;
+        if status {
+            results.push(hook_status::collect(target_agent, &path, &settings)?);
+            continue;
         }
+        let before = settings.clone();
+        hook_settings::update(&mut settings, &binary, target_agent, install)?;
         let changed = settings != before;
         let backup = if !dry_run && changed {
             hook_settings::write(&path, &settings)?
@@ -38,14 +40,20 @@ pub fn run(action: &HooksAction, json_mode: bool) -> Result<()> {
             None
         };
         results.push(json!({"agent": target_agent, "settings": path, "installed":
-            if status { previously_installed } else { hook_settings::installed(&settings) },
+            hook_settings::installed(&settings),
             "changed": changed, "dry_run": dry_run, "backup": backup}));
     }
     if results.is_empty() {
         bail!("no supported agent settings directory found");
     }
     let text = hook_setup_format::render(&results, status, install, dry_run);
-    output::emit(&json!({"agents": results}), &text, json_mode)
+    let mut payload = json!({"agents": results});
+    if results.len() == 1 {
+        for (key, value) in results[0].as_object().context("invalid hook result")? {
+            payload[key] = value.clone();
+        }
+    }
+    output::emit(&payload, &text, json_mode)
 }
 
 pub(crate) fn target(agent: &str) -> Result<PathBuf> {

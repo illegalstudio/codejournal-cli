@@ -51,9 +51,23 @@ pub fn add(
         .as_str()
         .unwrap_or("")
         .replace('-', "");
-    output::emit(
-        &response,
-        &format!("Recorded {} ({kind}): {title}", &id[..id.len().min(8)]),
-        json_mode,
-    )
+    let short_id = &id[..id.len().min(8)];
+    let mut text = format!("Recorded {short_id} ({kind}): {title}");
+    if let Some(mentions) = response["mentions"].as_array() {
+        for mention in mentions {
+            let slug = mention["slug"].as_str().unwrap_or("");
+            let names = mention["names"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .take(2)
+                .filter_map(|name| name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            text.push_str(&format!(
+                "\nhint: this entry mentions {names}, the user's project {slug}. If it is a problem or missing feature of that project, forward it: `cj task add --to {slug} --from-entry {short_id} --title ...`"
+            ));
+        }
+    }
+    output::emit(&response, &text, json_mode)
 }

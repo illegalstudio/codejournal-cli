@@ -43,6 +43,7 @@ mod hook_session;
 mod hook_settings;
 mod hook_setup;
 mod hook_setup_format;
+mod hook_status;
 mod import;
 mod input;
 mod knowledge;
