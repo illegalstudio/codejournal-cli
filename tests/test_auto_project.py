@@ -13,6 +13,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 class Handler(http.server.BaseHTTPRequestHandler):
     calls = []
+    get_calls = []
     created = False
     canonical = None
 
@@ -20,8 +21,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        encoded = b'{"user": {}}'
-        self.send_response(200)
+        self.get_calls.append(self.path)
+        if "/projects/resolve?" in self.path:
+            status, payload = 200, {"project": {"slug": Handler.canonical or "new-project"}}
+        elif self.path.endswith("/projects/new-project-2"):
+            status, payload = 200, {"project": {"slug": "new-project-2", "name": "New", "counts": {}, "paths": []}}
+        elif self.path.endswith("/projects/new-project") and Handler.canonical:
+            status, payload = 404, {"message": "Wrong project"}
+        else:
+            status, payload = 200, {"user": {}}
+        encoded = json.dumps(payload).encode()
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
@@ -66,6 +76,7 @@ class AutoProjectTest(unittest.TestCase):
 
     def setUp(self):
         Handler.calls.clear()
+        Handler.get_calls.clear()
         Handler.created = False
         Handler.canonical = None
         self.temp = tempfile.TemporaryDirectory(prefix="cj-auto-project-")
@@ -141,6 +152,18 @@ class AutoProjectTest(unittest.TestCase):
             "/api/v1/tenants/demo/projects",
             "/api/v1/tenants/demo/projects/new-project-2/entries",
         ])
+
+    def test_first_read_resolves_existing_project_without_creating_it(self):
+        Handler.canonical = "new-project-2"
+        result = subprocess.run([self.binary, "--json", "project", "show"], cwd=self.repo,
+                                env=self.env, capture_output=True, text=True, timeout=8)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["project"]["slug"], "new-project-2")
+        self.assertTrue(any("/projects/resolve?" in path for path in Handler.get_calls))
+        self.assertEqual(Handler.calls, [])
+        cached = subprocess.run([self.binary, "--offline", "--json", "project", "show"],
+                                cwd=self.repo, env=self.env, capture_output=True, text=True, timeout=8)
+        self.assertEqual(cached.returncode, 0, cached.stderr)
 
 
 if __name__ == "__main__":

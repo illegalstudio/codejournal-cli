@@ -1,4 +1,4 @@
-use crate::{api_cache, api_write, request_outbox::PendingRequest};
+use crate::{api_cache, api_write, project_bootstrap, request_outbox::PendingRequest};
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::Client;
 use serde_json::Value;
@@ -57,8 +57,9 @@ impl Api {
     }
 
     pub fn get(&self, path: &str) -> Result<Value> {
+        let path = project_bootstrap::read_path(self, path)?;
         if self.offline {
-            return api_cache::read(&self.server, &self.token, path);
+            return api_cache::read(&self.server, &self.token, &path);
         }
         let request = self
             .client
@@ -68,21 +69,21 @@ impl Api {
         let response = match request.send() {
             Ok(response) => response,
             Err(error) => {
-                return api_cache::read(&self.server, &self.token, path).with_context(|| {
+                return api_cache::read(&self.server, &self.token, &path).with_context(|| {
                     format!("API request failed and no cached response exists: {error}")
                 });
             }
         };
         let status = response.status();
         if status.is_server_error() {
-            return api_cache::read(&self.server, &self.token, path)
+            return api_cache::read(&self.server, &self.token, &path)
                 .with_context(|| format!("API returned {status} and no cached response exists"));
         }
         let value: Value = response.json().context("API returned invalid JSON")?;
         if !status.is_success() {
             bail!("API returned {status}: {value}");
         }
-        let _ = api_cache::write(&self.server, &self.token, path, &value);
+        let _ = api_cache::write(&self.server, &self.token, &path, &value);
         Ok(value)
     }
 
@@ -91,6 +92,7 @@ impl Api {
     }
 
     pub fn post_noqueue(&self, path: &str, body: &Value) -> Result<Value> {
+        let path = project_bootstrap::read_path(self, path)?;
         self.send(
             self.client
                 .post(format!("{}{}", self.server, path))

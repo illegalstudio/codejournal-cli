@@ -32,7 +32,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        if "/garden?page=1" in self.path:
+        if "/projects/resolve?" in self.path:
+            self.respond({"project": {"slug": "repo"}})
+        elif "/garden?page=1" in self.path:
             self.respond({"entries": [ENTRY], "next_page": 2})
         elif "/garden?page=2" in self.path:
             self.respond({"entries": [{"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",

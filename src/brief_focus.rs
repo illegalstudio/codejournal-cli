@@ -1,16 +1,22 @@
-use crate::{api::Api, api_cache, brief_manifests, git, outbox, project_provides, request_outbox};
+use crate::{
+    api::Api, api_cache, brief_manifests, git, outbox, project_bootstrap, project_provides,
+    request_outbox,
+};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<Value> {
+    let canonical = project_bootstrap::read_path(api, base)?;
+    let cache_path = cache_path.replacen(base, &canonical, 1);
+    let base = canonical.as_str();
     let shared_cache = format!(
         "{base}/brief-cache?limit={}&pinned_limit={}&log_limit={}",
         body["limit"], body["pinned_limit"], body["log_limit"]
     );
     if api.offline() {
         return api_cache::read(api.server(), &api.token, &shared_cache)
-            .or_else(|_| api.get(cache_path))
+            .or_else(|_| api.get(&cache_path))
             .map(|result| localize(result, "offline"));
     }
     if let Some(changes) = changed_files() {
@@ -31,12 +37,12 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
     }
     match api.post_noqueue(&format!("{base}/brief"), &body) {
         Ok(result) => {
-            let _ = api_cache::write(api.server(), &api.token, cache_path, &result);
+            let _ = api_cache::write(api.server(), &api.token, &cache_path, &result);
             let _ = api_cache::write(api.server(), &api.token, &shared_cache, &result);
             Ok(localize(result, "remote"))
         }
         Err(_) => api_cache::read(api.server(), &api.token, &shared_cache)
-            .or_else(|_| api.get(cache_path))
+            .or_else(|_| api.get(&cache_path))
             .map(|result| localize(result, "offline")),
     }
 }

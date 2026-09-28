@@ -1,10 +1,15 @@
 use crate::api_cache;
 use crate::request_outbox::{self, PendingRequest, QueuedWrite};
 use crate::{api::Api, attribution, checkout_identity, project, project_provides};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use serde_json::json;
 
 pub fn tenant_for_path(api: &Api, path: &str) -> Option<String> {
+    let parts = matching_parts(api, path)?;
+    (parts.len() >= 7 && parts[6] != "paths").then(|| parts[3].to_owned())
+}
+
+fn matching_parts<'a>(api: &Api, path: &'a str) -> Option<Vec<&'a str>> {
     if !api.auto_project {
         return None;
     }
@@ -12,14 +17,50 @@ pub fn tenant_for_path(api: &Api, path: &str) -> Option<String> {
         .split('/')
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>();
-    if parts.len() < 7
-        || parts[0..3] != ["api", "v1", "tenants"]
-        || parts[4] != "projects"
-        || parts[6] == "paths"
-    {
+    if parts.len() < 6 || parts[0..3] != ["api", "v1", "tenants"] || parts[4] != "projects" {
         return None;
     }
-    (project::slug(None).ok()?.as_str() == parts[5]).then(|| parts[3].to_owned())
+    (project::slug(None).ok()?.as_str() == parts[5]).then_some(parts)
+}
+
+pub fn read_path(api: &Api, path: &str) -> Result<String> {
+    let Some(parts) = matching_parts(api, path) else {
+        return Ok(path.to_owned());
+    };
+    let tenant = parts[3];
+    let checkout =
+        checkout_identity::current().ok_or_else(|| anyhow::anyhow!("Git checkout missing"))?;
+    let key = cache_key(
+        tenant,
+        &checkout.root.to_string_lossy(),
+        checkout.origin.as_deref(),
+    );
+    if let Ok(cached) = api_cache::read(api.server(), &api.token, &key)
+        && let Some(slug) = cached["slug"].as_str()
+    {
+        return Ok(replace_slug(path, slug));
+    }
+    if api.offline() {
+        bail!("no cached project identity for this checkout");
+    }
+    let query = reqwest::Url::parse_with_params(
+        "http://local/",
+        &[
+            ("remote_url", checkout.origin.as_deref().unwrap_or("")),
+            ("host", attribution::host().as_str()),
+            ("path", checkout.root.to_string_lossy().as_ref()),
+        ],
+    )?;
+    let endpoint = format!(
+        "/api/v1/tenants/{tenant}/projects/resolve?{}",
+        query.query().unwrap_or("")
+    );
+    let found = api.get(&endpoint)?;
+    let canonical = found["project"]["slug"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("project resolver returned no slug"))?;
+    api_cache::write(api.server(), &api.token, &key, &json!({"slug": canonical}))?;
+    Ok(replace_slug(path, canonical))
 }
 
 pub fn ensure(api: &Api, tenant: &str, force: bool) -> Result<String> {
