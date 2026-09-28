@@ -58,6 +58,19 @@ pub fn build(api: &Api, tenant: &str) -> Result<Value> {
             .and_then(|remote| candidates.iter().find(|item| item["remote_url"] == *remote));
         let target_slug = target
             .map(|item| value(&item["slug"]))
+            .or_else(|| {
+                remote
+                    .is_none()
+                    .then(|| {
+                        paths.iter().find(|item| {
+                            item["host"] == host
+                                && item["kind"] == "main"
+                                && item["path"] == info.anchor.display().to_string()
+                        })
+                    })
+                    .flatten()
+                    .map(|item| value(&item["project_slug"]))
+            })
             .unwrap_or_else(|| value(&row["project_slug"]));
         if target_slug != value(&row["project_slug"])
             && merged.insert(value(&row["project_slug"]).to_owned())
@@ -71,8 +84,10 @@ pub fn build(api: &Api, tenant: &str) -> Result<Value> {
             || row["branch"].as_str() != branch.as_deref()
             || row["main_path"].as_str() != main_path.as_deref()
         {
-            updates.push(json!({"slug": target_slug, "path": row["path"],
-                "new_kind": kind, "new_branch": branch, "new_main_path": main_path}));
+            updates.push(
+                json!({"slug": target_slug, "path": row["path"], "kind": row["kind"],
+                "new_kind": kind, "new_branch": branch, "new_main_path": main_path}),
+            );
         }
         if let Some(main) = main_path {
             if !paths

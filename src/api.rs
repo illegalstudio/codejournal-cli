@@ -100,6 +100,14 @@ impl Api {
         )
     }
 
+    pub fn put_noqueue(&self, path: &str, body: &Value) -> Result<Value> {
+        self.send(
+            self.client
+                .put(format!("{}{}", self.server, path))
+                .json(body),
+        )
+    }
+
     pub fn delete(&self, path: &str) -> Result<Value> {
         api_write::mutate(self, "DELETE", path, None)
     }

@@ -1,6 +1,7 @@
 use crate::{api::Api, output};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -33,38 +34,31 @@ pub fn run(api: &Api, tenant: &str, file: PathBuf, json_mode: bool) -> Result<()
     {
         bail!("import file contains an unsupported record type");
     }
-    let path = format!("/api/v1/tenants/{tenant}/import");
-    let mut aliases = HashMap::<String, String>::new();
-    let mut counts = json!({"projects": 0, "entries": 0, "logs": 0, "plans": 0,
+    let path = format!(
+        "/api/v1/tenants/{tenant}/import/batches/{}",
+        batch_id(&text)
+    );
+    let empty = json!({"projects": 0, "entries": 0, "logs": 0, "plans": 0,
         "notifications": 0, "tasks": 0, "feedback": 0, "skipped": 0});
-    for chunk in records.chunks(100) {
+    for (sequence, chunk) in records.chunks(100).enumerate() {
         let batch = chunk
             .iter()
-            .map(|row| annotate(row, &ids, &aliases))
+            .map(|row| annotate(row, &ids))
             .collect::<Result<Vec<_>>>()?;
-        let response = api.post_noqueue(&path, &json!({"records": batch}))?;
-        for (name, value) in response["counts"].as_object().into_iter().flatten() {
-            counts[name] = json!(counts[name].as_u64().unwrap_or(0) + value.as_u64().unwrap_or(0));
-        }
-        for (source, target) in response["project_map"].as_object().into_iter().flatten() {
-            if let Some(target) = target.as_str() {
-                aliases.insert(source.to_owned(), target.to_owned());
-            }
-        }
+        api.put_noqueue(
+            &format!("{path}/chunks/{sequence}"),
+            &json!({"records": batch}),
+        )?;
     }
-    let links = records
-        .iter()
-        .filter_map(|row| {
-            if row["type"] == "entry" && row["superseded_by"].as_str().is_some() {
-                Some(json!({"id": row["id"], "superseded_by": row["superseded_by"]}))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    for chunk in links.chunks(100) {
-        api.post_noqueue(&format!("{path}/resolve"), &json!({"links": chunk}))?;
-    }
+    let counts = if records.is_empty() {
+        empty
+    } else {
+        api.post_noqueue(
+            &format!("{path}/finalize"),
+            &json!({"chunks": records.len().div_ceil(100)}),
+        )?["counts"]
+            .clone()
+    };
     let message = format!(
         "Imported {} entries across {} projects ({} skipped).",
         counts["entries"], counts["projects"], counts["skipped"]
@@ -72,11 +66,7 @@ pub fn run(api: &Api, tenant: &str, file: PathBuf, json_mode: bool) -> Result<()
     output::emit(&counts, &message, json_mode)
 }
 
-fn annotate(
-    row: &Value,
-    ids: &HashMap<String, String>,
-    aliases: &HashMap<String, String>,
-) -> Result<Value> {
+fn annotate(row: &Value, ids: &HashMap<String, String>) -> Result<Value> {
     let mut value = row.clone();
     for (id_field, slug_field) in [
         ("project_id", "project_slug"),
@@ -89,10 +79,19 @@ fn annotate(
             let slug = ids
                 .get(id)
                 .with_context(|| format!("import project {id} is missing"))?;
-            value[slug_field] = json!(aliases.get(slug).unwrap_or(slug));
+            value[slug_field] = json!(slug);
         }
     }
     Ok(value)
+}
+
+fn batch_id(text: &str) -> uuid::Uuid {
+    let hash = Sha256::digest(text.as_bytes());
+    let mut bytes = [0_u8; 16];
+    bytes.copy_from_slice(&hash[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x50;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    uuid::Uuid::from_bytes(bytes)
 }
 
 fn rank(kind: &str) -> u8 {

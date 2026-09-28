@@ -7,34 +7,11 @@ pub fn run(api: &Api, tenant: &str, dry_run: bool, json_mode: bool) -> Result<()
         bail!("normalize needs a writable journal; use --dry-run offline");
     }
     let mut plan = normalize_plan::build(api, tenant)?;
-    let base = format!("/api/v1/tenants/{tenant}/projects");
-    if !dry_run {
-        for row in rows(&plan["merges"]) {
-            api.post_noqueue(
-                &format!("{base}/merge"),
-                &json!({"source": row["from"], "into": row["into"]}),
-            )?;
-        }
-        for row in rows(&plan["removals"]) {
-            let slug = merged_slug(&plan, value(&row["slug"]));
-            api.post_noqueue(
-                &format!("{base}/{slug}/paths/remove"),
-                &json!({"host": plan["host"], "path": row["path"]}),
-            )?;
-        }
-        for row in rows(&plan["updates"]) {
-            api.post_noqueue(
-                &format!("{base}/{}/paths", value(&row["slug"])),
-                &json!({"host": plan["host"], "path": row["path"], "kind": row["new_kind"],
-                    "branch": row["new_branch"], "main_path": row["new_main_path"]}),
-            )?;
-        }
-        for row in rows(&plan["add_main"]) {
-            api.post_noqueue(
-                &format!("{base}/{}/paths", value(&row["slug"])),
-                &json!({"host": plan["host"], "path": row["path"], "kind": "main"}),
-            )?;
-        }
+    if !dry_run && plan["changes"] != 0 {
+        api.post_noqueue(
+            &format!("/api/v1/tenants/{tenant}/checkouts/normalize"),
+            &plan,
+        )?;
     }
     plan["dry_run"] = json!(dry_run);
     let mut lines = vec![format!(
@@ -60,8 +37,21 @@ pub fn run(api: &Api, tenant: &str, dry_run: bool, json_mode: bool) -> Result<()
         ("keep", "kept"),
     ] {
         for row in rows(&plan[key]) {
+            let detail = match key {
+                "removals" | "kept" => format!("  ({})", value(&row["reason"])),
+                "updates" => format!(
+                    "  {} -> {}{}",
+                    value(&row["kind"]),
+                    value(&row["new_kind"]),
+                    row["new_branch"]
+                        .as_str()
+                        .map(|branch| format!(" {branch}"))
+                        .unwrap_or_default()
+                ),
+                _ => String::new(),
+            };
             lines.push(format!(
-                "  {label:<16} {:<28} {}",
+                "  {label:<16} {:<28} {}{detail}",
                 value(&row["slug"]),
                 value(&row["path"])
             ));
@@ -70,15 +60,12 @@ pub fn run(api: &Api, tenant: &str, dry_run: bool, json_mode: bool) -> Result<()
     if plan["changes"] == 0 {
         lines.push("  nothing to change".to_owned());
     }
+    if let Some(other_hosts) = plan["other_hosts"].as_u64().filter(|count| *count > 0) {
+        lines.push(format!(
+            "  {other_hosts} record(s) on other hosts left untouched; run normalize there too"
+        ));
+    }
     output::emit(&plan, &lines.join("\n"), json_mode)
-}
-
-fn merged_slug<'a>(plan: &'a Value, slug: &'a str) -> &'a str {
-    rows(&plan["merges"])
-        .iter()
-        .find(|row| row["from"] == slug)
-        .map(|row| value(&row["into"]))
-        .unwrap_or(slug)
 }
 
 fn rows(value: &Value) -> &[Value] {

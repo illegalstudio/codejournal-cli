@@ -26,6 +26,7 @@ RECORDS = [
 
 class Handler(http.server.BaseHTTPRequestHandler):
     batches = []
+    finalizations = []
 
     def log_message(self, *_args):
         pass
@@ -43,15 +44,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             self.respond({"error": "missing"})
 
+    def do_PUT(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        self.batches.append((self.path, body["records"]))
+        self.respond({"stored": True})
+
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        if self.path.endswith("/import"):
-            self.batches.append(body["records"])
-            self.respond({"counts": {"projects": 1, "entries": 1, "plans": 1,
-                "logs": 1, "notifications": 0, "tasks": 0, "feedback": 0, "skipped": 0},
-                "project_map": {"fixture": "fixture"}})
-        else:
-            self.respond({"resolved": 0})
+        self.finalizations.append((self.path, body))
+        self.respond({"counts": {"projects": 1, "entries": 1, "plans": 1,
+            "logs": 1, "notifications": 0, "tasks": 0, "feedback": 0, "skipped": 0},
+            "project_map": {"fixture": "fixture"}})
 
 
 class TransferTest(unittest.TestCase):
@@ -71,6 +74,7 @@ class TransferTest(unittest.TestCase):
 
     def setUp(self):
         Handler.batches.clear()
+        Handler.finalizations.clear()
         self.temp = tempfile.TemporaryDirectory(prefix="cj-transfer-")
         self.addCleanup(self.temp.cleanup)
         self.base = pathlib.Path(self.temp.name)
@@ -93,7 +97,9 @@ class TransferTest(unittest.TestCase):
         source = self.base / "records.jsonl"
         source.write_text(exported)
         self.assertIn("Imported 1 entries", self.cli("import", str(source)))
-        batch = Handler.batches[0]
+        batch = Handler.batches[0][1]
+        self.assertTrue(Handler.batches[0][0].endswith("/chunks/0"))
+        self.assertEqual(Handler.finalizations[0][1], {"chunks": 1})
         self.assertEqual([row["type"] for row in batch],
                          ["project", "entry", "plan", "log"])
         self.assertEqual(batch[1]["id"], "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")

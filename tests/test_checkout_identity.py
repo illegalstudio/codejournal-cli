@@ -146,6 +146,24 @@ class CheckoutIdentityTest(unittest.TestCase):
         self.assertEqual(report["updates"][0]["new_kind"], "worktree")
         self.assertEqual(report["updates"][0]["new_main_path"], str(self.source))
 
+    def test_normalize_merges_remote_free_worktree_into_main_owner(self):
+        worktree = self.base / "worktree"
+        self.git(self.source, "worktree", "add", "-b", "feature", str(worktree))
+        host = socket.gethostname()
+        Handler.checkouts.extend([
+            {"project_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+             "project_slug": "source", "remote_url": None, "host": host,
+             "path": str(self.source), "kind": "main", "branch": None, "main_path": None},
+            {"project_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+             "project_slug": "legacy-worktree", "remote_url": None, "host": host,
+             "path": str(worktree), "kind": "main", "branch": None, "main_path": None},
+        ])
+        result = subprocess.run([self.binary, "--json", "normalize", "--dry-run"],
+                                cwd=worktree, env=self.env, capture_output=True, text=True,
+                                timeout=5, check=True)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["merges"], [{"from": "legacy-worktree", "into": "source"}])
+
     def test_path_add_rejects_a_different_origin(self):
         self.git(self.source, "remote", "add", "origin", "git@github.com:other/foreign.git")
         Handler.remote = "github.com/acme/source"
