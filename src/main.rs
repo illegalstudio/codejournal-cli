@@ -13,6 +13,7 @@ mod brief_manifests;
 mod browse;
 mod browse_list;
 mod browse_picker;
+mod checkout_identity;
 mod cli;
 mod commands;
 mod config;

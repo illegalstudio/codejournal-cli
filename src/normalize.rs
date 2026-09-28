@@ -25,8 +25,8 @@ pub fn run(api: &Api, tenant: &str, dry_run: bool, json_mode: bool) -> Result<()
         for row in rows(&plan["updates"]) {
             api.post_noqueue(
                 &format!("{base}/{}/paths", value(&row["slug"])),
-                &json!({"host": plan["host"], "path": row["path"], "kind": row["kind"],
-                    "branch": row["branch"], "main_path": row["main_path"]}),
+                &json!({"host": plan["host"], "path": row["path"], "kind": row["new_kind"],
+                    "branch": row["new_branch"], "main_path": row["new_main_path"]}),
             )?;
         }
         for row in rows(&plan["add_main"]) {

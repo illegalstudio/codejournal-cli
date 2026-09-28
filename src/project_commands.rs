@@ -1,6 +1,8 @@
 use crate::api::Api;
 use crate::project_args::ProjectAction;
-use crate::{attribution, git, output, project, project_paths, project_provides};
+use crate::{
+    attribution, checkout_identity, git, output, project, project_paths, project_provides,
+};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
@@ -16,8 +18,7 @@ pub fn run(
     match action {
         ProjectAction::List => crate::project_list::run(api, tenant, json_mode),
         ProjectAction::Init { name } => {
-            let remote = git::output(&["remote", "get-url", "origin"])
-                .map(|url| project::normalize_remote(&url));
+            let remote = checkout_identity::current().and_then(|checkout| checkout.origin);
             let result = api.post(&base, &json!({"slug": slug, "name": project::name(name.as_deref())?,
                 "remote_url": remote, "provides": {"auto": project_provides::detect(), "manual": []}}))?;
             if let Ok(path) = project_paths::current() {

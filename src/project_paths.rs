@@ -1,5 +1,5 @@
 use crate::api::Api;
-use crate::{attribution, output};
+use crate::{attribution, checkout_identity, output};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -63,30 +63,42 @@ fn checkout(path: &Path) -> Result<PathBuf> {
 }
 
 pub fn record(api: &Api, tenant: &str, slug: &str, path: &Path) -> Result<Value> {
-    let root = checkout(path)?;
-    let common = git_at(&root, &["rev-parse", "--git-common-dir"]).unwrap_or_default();
-    let common = root.join(common).canonicalize().unwrap_or_default();
-    let main = common
-        .parent()
-        .filter(|_| common.file_name().is_some_and(|name| name == ".git"));
-    let worktree = main.is_some_and(|main| main != root);
+    let checkout = checkout_identity::at(path, 0)
+        .with_context(|| format!("{} is not inside a Git checkout", path.display()))?;
     let result = api.post(
         &format!("/api/v1/tenants/{tenant}/projects/{slug}/paths"),
         &json!({
-            "host": attribution::host(), "path": root,
-            "kind": if worktree { "worktree" } else { "main" },
-            "branch": git_at(&root, &["branch", "--show-current"]),
-            "main_path": if worktree { main.map(Path::to_path_buf) } else { None },
+            "host": attribution::host(), "path": checkout.root,
+            "kind": checkout.kind, "branch": checkout.branch,
+            "main_path": checkout.main_path(),
         }),
     )?;
     Ok(result)
 }
 
 pub fn add(api: &Api, tenant: &str, slug: &str, path: &Path, json_mode: bool) -> Result<()> {
+    let checkout = checkout_identity::at(path, 0)
+        .with_context(|| format!("{} is not inside a Git checkout", path.display()))?;
+    let project = api.get(&format!("/api/v1/tenants/{tenant}/projects/{slug}"))?;
+    if let (Some(remote), Some(stored)) = (
+        checkout.origin.as_deref(),
+        project["project"]["remote_url"].as_str(),
+    ) {
+        if remote != stored {
+            bail!(
+                "{} has remote {remote}, but {slug} uses {stored}; update the project remote first with `cj project edit --remote` or `--from-git`",
+                path.display()
+            );
+        }
+    }
     let result = record(api, tenant, slug, path)?;
     output::emit(
         &result,
-        &format!("Recorded checkout {} for {slug}.", path.display()),
+        &format!(
+            "Recorded {} checkout {} for {slug}.",
+            checkout.kind,
+            checkout.root.display()
+        ),
         json_mode,
     )
 }

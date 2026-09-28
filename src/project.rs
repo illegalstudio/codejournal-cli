@@ -1,15 +1,26 @@
-use crate::git;
+use crate::checkout_identity;
 use anyhow::{Context, Result, bail};
-use std::path::Path;
 
 pub fn slug(explicit: Option<&str>) -> Result<String> {
     let value = match explicit {
         Some(value) => value.to_owned(),
-        None => git::output(&["remote", "get-url", "origin"])
-            .and_then(|remote| remote_slug(&remote))
+        None => checkout_identity::current()
+            .and_then(|checkout| {
+                checkout
+                    .origin
+                    .as_deref()
+                    .and_then(remote_slug)
+                    .or_else(|| {
+                        checkout
+                            .anchor
+                            .file_name()
+                            .and_then(|part| part.to_str())
+                            .map(str::to_owned)
+                    })
+            })
             .unwrap_or_else(|| {
-                git::root()
-                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+                std::env::current_dir()
+                    .unwrap_or_default()
                     .file_name()
                     .and_then(|part| part.to_str())
                     .unwrap_or("project")
@@ -69,11 +80,22 @@ pub fn normalize_remote(raw: &str) -> String {
 pub fn name(explicit: Option<&str>) -> Result<String> {
     match explicit {
         Some(value) => Ok(value.to_owned()),
-        None => Ok(Path::new(&std::env::current_dir()?)
-            .file_name()
-            .and_then(|part| part.to_str())
-            .context("cannot determine project name")?
-            .to_owned()),
+        None => {
+            let checkout = checkout_identity::current();
+            if let Some(remote) = checkout
+                .as_ref()
+                .and_then(|checkout| checkout.origin.as_ref())
+            {
+                return Ok(remote.rsplit('/').next().unwrap_or(remote).to_owned());
+            }
+            Ok(checkout
+                .map(|checkout| checkout.anchor)
+                .unwrap_or(std::env::current_dir()?)
+                .file_name()
+                .and_then(|part| part.to_str())
+                .context("cannot determine project name")?
+                .to_owned())
+        }
     }
 }
 
