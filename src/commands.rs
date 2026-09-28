@@ -1,9 +1,8 @@
 use crate::api::Api;
-use crate::cli::ProjectAction;
 use crate::output;
 use crate::project;
 use crate::refs;
-use crate::{git, staleness};
+use crate::{attribution, git, staleness};
 use anyhow::{Result, bail};
 use serde_json::json;
 
@@ -17,29 +16,6 @@ pub(crate) fn path(tenant: &str, explicit_project: Option<&str>) -> Result<Strin
         root(tenant),
         project::slug(explicit_project)?
     ))
-}
-
-pub fn brief(api: &Api, tenant: &str, project: Option<&str>) -> Result<()> {
-    let project_path = path(tenant, project)?;
-    let mut result = api.get(&format!("{project_path}/brief"))?;
-    if project.is_none() {
-        staleness::enrich(api, &project_path, &mut result)?;
-    }
-    output::json(&result)
-}
-
-pub fn search(api: &Api, tenant: &str, project: Option<&str>, query: &str) -> Result<()> {
-    let query = reqwest::Url::parse_with_params("http://local/", &[("q", query)])?;
-    let project_path = path(tenant, project)?;
-    let mut result = api.get(&format!(
-        "{}/search?{}",
-        project_path,
-        query.query().unwrap_or("")
-    ))?;
-    if project.is_none() {
-        staleness::enrich(api, &project_path, &mut result)?;
-    }
-    output::json(&result)
 }
 
 pub fn garden(api: &Api, tenant: &str, project: Option<&str>, dry_run: bool) -> Result<()> {
@@ -94,6 +70,10 @@ pub fn add(
     body: &str,
     topics: Vec<String>,
     raw_refs: Vec<String>,
+    agent: Option<String>,
+    force: bool,
+    global_scope: bool,
+    json_mode: bool,
 ) -> Result<()> {
     let mut raw_refs = raw_refs;
     if project.is_none() {
@@ -104,24 +84,19 @@ pub fn add(
         }
     }
     let refs = refs::parse_all(&raw_refs)?;
-    output::json(&api.post(
+    let response = api.post(
         &format!("{}/entries", path(tenant, project)?),
-        &json!({"kind": kind, "title": title, "body": body, "topics": topics, "refs": refs}),
-    )?)
-}
-
-pub fn project(
-    api: &Api,
-    tenant: &str,
-    explicit: Option<&str>,
-    action: ProjectAction,
-) -> Result<()> {
-    let endpoint = format!("{}/projects", root(tenant));
-    match action {
-        ProjectAction::List => output::json(&api.get(&endpoint)?),
-        ProjectAction::Init { name } => output::json(&api.post(
-            &endpoint,
-            &json!({"slug": project::slug(explicit)?, "name": project::name(name.as_deref())?}),
-        )?),
-    }
+        &json!({"kind": kind, "title": title, "body": body, "topics": topics, "refs": refs,
+            "agent": attribution::agent(agent.as_deref()), "host": attribution::host(),
+            "force": force, "scope": if global_scope { "global" } else { "project" }}),
+    )?;
+    let id = response["entry"]["id"]
+        .as_str()
+        .unwrap_or("")
+        .replace('-', "");
+    output::emit(
+        &response,
+        &format!("Recorded {} ({kind}): {title}", &id[..id.len().min(8)]),
+        json_mode,
+    )
 }

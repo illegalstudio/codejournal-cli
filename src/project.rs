@@ -47,6 +47,25 @@ fn remote_slug(remote: &str) -> Option<String> {
     Some(parts[parts.len() - 2..].join("-"))
 }
 
+pub fn normalize_remote(raw: &str) -> String {
+    let value = raw.trim();
+    let host_path = if let Ok(url) = reqwest::Url::parse(value) {
+        format!(
+            "{}/{}",
+            url.host_str().unwrap_or(""),
+            url.path().trim_start_matches('/')
+        )
+    } else if let Some((left, right)) = value.split_once(':') {
+        format!("{}/{}", left.trim_start_matches("git@"), right)
+    } else {
+        value.trim_start_matches("git@").to_owned()
+    };
+    host_path
+        .trim_end_matches('/')
+        .trim_end_matches(".git")
+        .to_ascii_lowercase()
+}
+
 pub fn name(explicit: Option<&str>) -> Result<String> {
     match explicit {
         Some(value) => Ok(value.to_owned()),
@@ -60,7 +79,7 @@ pub fn name(explicit: Option<&str>) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::remote_slug;
+    use super::{normalize_remote, remote_slug};
 
     #[test]
     fn remote_identity_matches_imported_project_slugs() {
@@ -69,7 +88,23 @@ mod tests {
             "https://github.com/illegalstudio/codejournal.git",
             "ssh://git@github.com/illegalstudio/codejournal.git",
         ] {
-            assert_eq!(remote_slug(remote).as_deref(), Some("illegalstudio-codejournal"));
+            assert_eq!(
+                remote_slug(remote).as_deref(),
+                Some("illegalstudio-codejournal")
+            );
+        }
+    }
+
+    #[test]
+    fn remote_identity_matches_python_normalization() {
+        for remote in [
+            "git@github.com:illegalstudio/codejournal.git",
+            "https://github.com/illegalstudio/codejournal.git",
+        ] {
+            assert_eq!(
+                normalize_remote(remote),
+                "github.com/illegalstudio/codejournal"
+            );
         }
     }
 }

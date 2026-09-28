@@ -1,74 +1,43 @@
 use crate::api::Api;
 use crate::task_args::TaskAction;
-use crate::{output, project, refs};
-use anyhow::{Context, Result, bail};
-use serde_json::json;
+use crate::{task_add, task_change, task_read, task_show};
+use anyhow::Result;
 
-pub fn run(api: &Api, tenant: &str, project_name: Option<&str>, action: TaskAction) -> Result<()> {
-    let source = project::slug(project_name)?;
-    let endpoint = |slug: &str| format!("/api/v1/tenants/{tenant}/projects/{slug}/tasks");
+pub fn run(
+    api: &Api,
+    tenant: &str,
+    project: Option<&str>,
+    action: TaskAction,
+    json_mode: bool,
+) -> Result<()> {
     match action {
-        TaskAction::List { all } => output::json(&api.get(&format!(
-            "{}{}",
-            endpoint(&source),
-            if all { "?all=1" } else { "" }
-        ))?),
-        TaskAction::Add {
-            title,
-            body,
-            priority,
-            refs: raw_refs,
-            not_before,
-            target,
-            from_entry,
-        } => {
-            if from_entry.is_some() && target.is_none() {
-                bail!("--from-entry requires --to");
-            }
-            let destination = target.as_deref().unwrap_or(&source);
-            output::json(&api.post(&endpoint(destination), &json!({
-                "title": title, "body": body, "priority": priority,
-                "refs": refs::parse_all(&raw_refs)?, "not_before": not_before,
-                "source_project": target.as_ref().map(|_| source), "source_entry_id": from_entry,
-            }))?)
+        TaskAction::Add(args) => task_add::run(api, tenant, project, args, json_mode),
+        TaskAction::List(args) => task_read::list(api, tenant, project, args, json_mode),
+        TaskAction::Show { id } => task_show::show(api, tenant, &id, json_mode),
+        TaskAction::Start { id, note, agent } => {
+            task_change::status(api, tenant, project, &id, "start", note, agent, json_mode)
         }
-        TaskAction::Edit { id, not_before } => mutate(
-            api,
-            &endpoint(&source),
-            &id,
-            json!({"not_before": not_before}),
-        ),
-        TaskAction::Start { id } => {
-            mutate(api, &endpoint(&source), &id, json!({"action": "start"}))
+        TaskAction::Done { id, note, agent } => {
+            task_change::status(api, tenant, project, &id, "done", note, agent, json_mode)
         }
-        TaskAction::Done { id, note } => mutate(
-            api,
-            &endpoint(&source),
-            &id,
-            json!({"action": "done", "note": note}),
-        ),
-        TaskAction::Dismiss { id, note } => mutate(
-            api,
-            &endpoint(&source),
-            &id,
-            json!({"action": "dismiss", "note": note}),
-        ),
-        TaskAction::Reopen { id } => {
-            mutate(api, &endpoint(&source), &id, json!({"action": "reopen"}))
+        TaskAction::Dismiss { id, note, agent } => {
+            task_change::status(api, tenant, project, &id, "dismiss", note, agent, json_mode)
         }
+        TaskAction::Reopen { id, note, agent } => {
+            task_change::status(api, tenant, project, &id, "reopen", note, agent, json_mode)
+        }
+        TaskAction::Note {
+            id,
+            note,
+            body_file,
+            agent,
+        } => task_change::note(api, tenant, project, &id, note, body_file, agent, json_mode),
+        TaskAction::Link { id, refs, agent } => {
+            task_change::refs(api, tenant, project, &id, refs, agent, false, json_mode)
+        }
+        TaskAction::Unlink { id, refs, agent } => {
+            task_change::refs(api, tenant, project, &id, refs, agent, true, json_mode)
+        }
+        TaskAction::Edit(args) => task_change::edit(api, tenant, project, args, json_mode),
     }
-}
-
-fn mutate(api: &Api, endpoint: &str, prefix: &str, body: serde_json::Value) -> Result<()> {
-    let listing = api.get(&format!("{endpoint}?all=1"))?;
-    let rows = listing["tasks"].as_array().context("invalid task list")?;
-    let matches: Vec<&str> = rows
-        .iter()
-        .filter_map(|row| row["id"].as_str())
-        .filter(|id| id.replace('-', "").starts_with(&prefix.replace('-', "")))
-        .collect();
-    let [id] = matches.as_slice() else {
-        bail!("task ID is missing or ambiguous: {prefix}")
-    };
-    output::json(&api.patch(&format!("{endpoint}/{id}"), &body)?)
 }

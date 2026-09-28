@@ -2,7 +2,16 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum PlanAction {
-    List,
+    List {
+        #[arg(long, default_value = "open")]
+        status: String,
+        #[arg(long)]
+        grep: Option<String>,
+        #[arg(long)]
+        path: Option<String>,
+        #[arg(long)]
+        all_projects: bool,
+    },
     Create {
         #[arg(long)]
         title: String,
@@ -14,9 +23,17 @@ pub enum PlanAction {
         status: Option<String>,
         #[arg(long)]
         not_before: Option<String>,
+        #[arg(long = "ref")]
+        refs: Vec<String>,
+        #[arg(long)]
+        agent: Option<String>,
     },
     Show {
         id: String,
+        #[arg(long)]
+        revision: Option<u32>,
+        #[arg(long)]
+        history: bool,
         #[arg(long)]
         body: bool,
     },
@@ -28,14 +45,31 @@ pub enum PlanAction {
         body: Option<String>,
         #[arg(long)]
         body_file: Option<String>,
+        #[arg(long = "ref")]
+        refs: Vec<String>,
+        #[arg(long)]
+        note: Option<String>,
+        #[arg(long = "base", alias = "based-on")]
+        based_on: Option<u32>,
+        #[arg(long)]
+        agent: Option<String>,
+    },
+    Status {
+        id: String,
+        status: String,
         #[arg(long)]
         note: Option<String>,
         #[arg(long)]
-        based_on: Option<u32>,
+        agent: Option<String>,
+    },
+    Move {
+        id: String,
+        #[arg(long = "to")]
+        target: String,
         #[arg(long)]
-        status: Option<String>,
+        note: Option<String>,
         #[arg(long)]
-        not_before: Option<String>,
+        agent: Option<String>,
     },
     Schedule {
         id: String,

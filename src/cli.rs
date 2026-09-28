@@ -1,10 +1,13 @@
 use crate::plan_args::PlanAction;
+use crate::project_args::ProjectAction;
 use crate::task_args::TaskAction;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(version, about = "Code Journal device client")]
 pub struct Cli {
+    #[arg(long, global = true)]
+    pub cwd: Option<std::path::PathBuf>,
     #[arg(long, global = true, env = "CJ_SERVER_URL")]
     pub server: Option<String>,
     #[arg(long, global = true, env = "CJ_PROJECT")]
@@ -20,9 +23,35 @@ pub enum Command {
     Login,
     Logout,
     Whoami,
-    Brief,
-    Search {
-        query: String,
+    Brief(crate::brief::BriefArgs),
+    Search(crate::search_args::SearchArgs),
+    Recent {
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+        #[arg(long)]
+        kind: Option<String>,
+    },
+    Show {
+        id: String,
+        #[arg(long)]
+        no_track: bool,
+    },
+    Topics {
+        #[command(subcommand)]
+        action: Option<crate::knowledge_args::TopicsAction>,
+    },
+    Supersede {
+        id: String,
+        #[arg(long)]
+        by: String,
+    },
+    Obsolete {
+        id: String,
+    },
+    Answer(crate::knowledge_args::AnswerArgs),
+    Entry {
+        #[command(subcommand)]
+        action: crate::knowledge_args::EntryAction,
     },
     Add {
         #[arg(long)]
@@ -37,26 +66,37 @@ pub enum Command {
         topics: Vec<String>,
         #[arg(long = "ref")]
         refs: Vec<String>,
+        #[arg(long)]
+        agent: Option<String>,
+        #[arg(long)]
+        force: bool,
+        #[arg(long = "global")]
+        global_scope: bool,
     },
     Log {
-        #[arg(long)]
-        title: String,
-        #[arg(long, conflicts_with = "body_file")]
-        body: Option<String>,
-        #[arg(long)]
-        body_file: Option<String>,
-        #[arg(long = "ref")]
-        refs: Vec<String>,
-        #[arg(long)]
-        no_auto_commits: bool,
+        #[command(subcommand)]
+        action: crate::log_args::LogAction,
     },
     Task {
         #[command(subcommand)]
         action: TaskAction,
     },
+    Feedback {
+        #[command(subcommand)]
+        action: crate::feedback_args::FeedbackAction,
+    },
     Project {
         #[command(subcommand)]
         action: ProjectAction,
+    },
+    Projects,
+    Checkouts {
+        #[arg(long)]
+        all_projects: bool,
+    },
+    Refs {
+        #[command(subcommand)]
+        action: crate::refs_move::RefsAction,
     },
     Plan {
         #[command(subcommand)]
@@ -82,6 +122,7 @@ pub enum Command {
         #[command(subcommand)]
         action: crate::watch_args::NotificationAction,
     },
+    Notify(crate::watch_args::NotifyArgs),
     Hook {
         event: String,
     },
@@ -92,15 +133,6 @@ pub enum Command {
     Garden {
         #[arg(long)]
         dry_run: bool,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum ProjectAction {
-    List,
-    Init {
-        #[arg(long)]
-        name: Option<String>,
     },
 }
 

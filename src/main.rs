@@ -1,30 +1,58 @@
 mod activity;
 mod api;
+mod attribution;
+mod brief;
+mod brief_format;
 mod cli;
 mod commands;
 mod config;
+mod dispatch;
+mod entry_search;
+mod feedback;
+mod feedback_args;
 mod git;
 mod hook;
 mod hook_args;
 mod hook_settings;
 mod hook_setup;
 mod input;
+mod knowledge;
+mod knowledge_args;
+mod knowledge_mutations;
+mod log_args;
+mod log_list;
 mod login;
 mod logs;
 mod notifications;
 mod output;
 mod path_ref;
 mod plan_args;
+mod plan_changes;
+mod plan_read;
+mod plan_write;
 mod plans;
 mod project;
+mod project_args;
+mod project_commands;
+mod project_list;
+mod project_paths;
 mod refs;
+mod refs_move;
 mod rules;
+mod search_args;
 mod session_git;
 mod session_state;
 mod shorthand;
 mod staleness;
+mod task_add;
 mod task_args;
+mod task_change;
+mod task_read;
+mod task_show;
 mod tasks;
+mod topic_similarity;
+mod topic_stem;
+mod topics;
 mod watch_args;
 mod watch_runner;
 mod watch_state;
@@ -32,7 +60,7 @@ mod watches;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{ActivityAction, Cli, Command};
+use cli::{Cli, Command};
 
 fn main() {
     if let Err(error) = run() {
@@ -43,6 +71,9 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
+    if let Some(cwd) = &cli.cwd {
+        std::env::set_current_dir(cwd)?;
+    }
     if let Command::Hook { event } = &cli.command {
         return hook::run(event);
     }
@@ -61,47 +92,5 @@ fn run() -> Result<()> {
     let server = cli.server.as_deref().unwrap_or(&config.server).to_owned();
     let api = api::Api::new(&server, &config.token()?)?;
     let tenant = config.tenant.clone();
-    let project = cli.project.as_deref();
-    match cli.command {
-        Command::Whoami => output::json(&api.get("/api/v1/me")?),
-        Command::Brief => commands::brief(&api, &tenant, project),
-        Command::Search { query } => commands::search(&api, &tenant, project, &query),
-        Command::Garden { dry_run } => commands::garden(&api, &tenant, project, dry_run),
-        Command::Add {
-            kind,
-            title,
-            body,
-            body_file,
-            topics,
-            refs,
-        } => {
-            let body = input::body(body, body_file)?;
-            commands::add(&api, &tenant, project, &kind, &title, &body, topics, refs)
-        }
-        Command::Log {
-            title,
-            body,
-            body_file,
-            refs,
-            no_auto_commits,
-        } => {
-            let body = input::body(body, body_file)?;
-            logs::add(&api, &tenant, project, &title, &body, refs, no_auto_commits)
-        }
-        Command::Task { action } => tasks::run(&api, &tenant, project, action),
-        Command::Project { action } => commands::project(&api, &tenant, project, action),
-        Command::Plan { action } => plans::run(&api, &tenant, project, "plans", action),
-        Command::Doc { action } => plans::run(&api, &tenant, project, "docs", action),
-        Command::Rules { action } => rules::run(&api, &tenant, project, action),
-        Command::Activity {
-            action: ActivityAction::Publish,
-        } => activity::publish(&api, &tenant, project),
-        Command::Watch { action } => {
-            watches::run(&api, &server, &tenant, project, action, cli.json)
-        }
-        Command::Notifications { action } => notifications::run(&api, &tenant, project, action),
-        Command::Login | Command::Logout | Command::Hook { .. } | Command::Hooks { .. } => {
-            unreachable!()
-        }
-    }
+    dispatch::run(&api, &server, &tenant, cli)
 }

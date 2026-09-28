@@ -32,9 +32,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.respond(200, {"plans": [{"id": PLAN_ID}]})
         elif self.path.endswith("/docs"):
             self.respond(200, {"docs": [{"id": PLAN_ID}]})
-        elif self.path.endswith(f"/plans/{PLAN_ID}"):
+        elif self.path.endswith(f"/plans/{PLAN_ID}") or self.path.endswith("/plans/aaaaaaaa"):
             self.respond(200, {"plan": {"id": PLAN_ID, "body": "## Steps\n- [ ] ship"}, "revisions": []})
-        elif self.path.endswith(f"/docs/{PLAN_ID}"):
+        elif self.path.endswith(f"/docs/{PLAN_ID}") or self.path.endswith("/docs/aaaaaaaa"):
             self.respond(200, {"doc": {"id": PLAN_ID, "body": "Documentation body"}, "revisions": []})
         elif self.path.endswith("/tasks?all=1"):
             self.respond(200, {"tasks": [{"id": PLAN_ID}]})
@@ -109,7 +109,7 @@ class FeedbackCliTest(unittest.TestCase):
                                  capture_output=True, timeout=3, check=True)
         shown.stdout.close()
         self.assertEqual(shown.wait(timeout=2), 0)
-        self.assertEqual(Handler.calls[-1][2]["body"], "## Steps\n- [ ] ship\n")
+        self.assertEqual(Handler.calls[-1][2]["body"], "## Steps\n- [ ] ship")
         shown_doc = subprocess.Popen([self.binary, "--project", "p", "doc", "show", "aaaaaaaa", "--body"],
                                      cwd=REPO, env=self.env, stdout=subprocess.PIPE)
         subprocess.run([self.binary, "--project", "p", "doc", "update", "aaaaaaaa", "--body-file", "-"],
@@ -117,7 +117,7 @@ class FeedbackCliTest(unittest.TestCase):
                        timeout=3, check=True)
         shown_doc.stdout.close()
         self.assertEqual(shown_doc.wait(timeout=2), 0)
-        self.assertEqual(Handler.calls[-1][2]["body"], "Documentation body\n")
+        self.assertEqual(Handler.calls[-1][2]["body"], "Documentation body")
         self.command("rules", "set", "- Run make test.")
         self.command("rules", "append", "- Keep commits small.")
         self.assertEqual([call[2]["rules"] for call in Handler.calls[-2:]],
@@ -135,7 +135,7 @@ class FeedbackCliTest(unittest.TestCase):
         result = self.command("add", "--kind", "gotcha", "--title", "Laravel framework issue",
                               "--body", "Seen locally")
         self.assertNotIn("hint:", result.stdout)
-        self.command("task", "add", "Forwarded work", "--to", "target", "--from-entry", "abcdef12",
+        self.command("task", "add", "--title", "Forwarded work", "--to", "target", "--from-entry", "abcdef12",
                      "--not-before", "tomorrow")
         self.assertEqual(Handler.calls[-1][1], "/api/v1/tenants/demo/projects/target/tasks")
         self.assertEqual(Handler.calls[-1][2]["source_project"], "p")

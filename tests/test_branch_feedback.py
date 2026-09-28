@@ -35,7 +35,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif "/garden?page=2" in self.path:
             self.respond({"entries": [{"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
                                        "title": "No paths", "refs": []}], "next_page": None})
-        elif "/search?" in self.path:
+        elif "/entries?" in self.path:
             self.respond({"entries": [ENTRY]})
         else:
             self.respond({"entries": []})
@@ -96,7 +96,7 @@ class BranchFeedbackTest(unittest.TestCase):
         subprocess.run(["git", *args], cwd=self.repo, check=True, capture_output=True)
 
     def cli(self, *args):
-        return json.loads(subprocess.run([self.binary, *args], cwd=self.repo, env=self.env,
+        return json.loads(subprocess.run([self.binary, "--json", *args], cwd=self.repo, env=self.env,
                                          capture_output=True, text=True, timeout=5, check=True).stdout)
 
     def test_branch_path_is_elsewhere_in_search_and_garden(self):
