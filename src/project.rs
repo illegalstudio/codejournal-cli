@@ -5,19 +5,7 @@ pub fn slug(explicit: Option<&str>) -> Result<String> {
     let value = match explicit {
         Some(value) => value.to_owned(),
         None => checkout_identity::current()
-            .and_then(|checkout| {
-                checkout
-                    .origin
-                    .as_deref()
-                    .map(slug_from_identity)
-                    .or_else(|| {
-                        checkout
-                            .anchor
-                            .file_name()
-                            .and_then(|part| part.to_str())
-                            .map(slug_from_identity)
-                    })
-            })
+            .map(|checkout| slug_for(&checkout))
             .unwrap_or_else(|| {
                 std::env::current_dir()
                     .unwrap_or_default()
@@ -35,6 +23,21 @@ pub fn slug(explicit: Option<&str>) -> Result<String> {
         bail!("invalid project slug: {value}");
     }
     Ok(value)
+}
+
+pub fn slug_for(checkout: &checkout_identity::Checkout) -> String {
+    checkout
+        .origin
+        .as_deref()
+        .map(slug_from_identity)
+        .or_else(|| {
+            checkout
+                .anchor
+                .file_name()
+                .and_then(|part| part.to_str())
+                .map(slug_from_identity)
+        })
+        .unwrap_or_else(|| "project".to_owned())
 }
 
 fn slug_from_identity(identity: &str) -> String {
@@ -91,21 +94,28 @@ pub fn name(explicit: Option<&str>) -> Result<String> {
     match explicit {
         Some(value) => Ok(value.to_owned()),
         None => {
-            let checkout = checkout_identity::current();
-            if let Some(remote) = checkout
-                .as_ref()
-                .and_then(|checkout| checkout.origin.as_ref())
-            {
-                return Ok(remote.rsplit('/').next().unwrap_or(remote).to_owned());
+            if let Some(checkout) = checkout_identity::current() {
+                return Ok(name_for(&checkout));
             }
-            Ok(checkout
-                .map(|checkout| checkout.anchor)
-                .unwrap_or(std::env::current_dir()?)
+            Ok(std::env::current_dir()?
                 .file_name()
                 .and_then(|part| part.to_str())
                 .context("cannot determine project name")?
                 .to_owned())
         }
+    }
+}
+
+pub fn name_for(checkout: &checkout_identity::Checkout) -> String {
+    if let Some(remote) = &checkout.origin {
+        remote.rsplit('/').next().unwrap_or(remote).to_owned()
+    } else {
+        checkout
+            .anchor
+            .file_name()
+            .and_then(|part| part.to_str())
+            .unwrap_or("project")
+            .to_owned()
     }
 }
 

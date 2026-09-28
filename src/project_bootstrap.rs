@@ -145,7 +145,7 @@ pub fn cache_created(
     )))
 }
 
-fn cache_key(tenant: &str, path: &str, remote: Option<&str>) -> String {
+pub(crate) fn cache_key(tenant: &str, path: &str, remote: Option<&str>) -> String {
     format!("/local-project/{tenant}/{path}/{}", remote.unwrap_or(""))
 }
 

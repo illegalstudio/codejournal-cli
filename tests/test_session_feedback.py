@@ -2,6 +2,7 @@ import http.server
 import json
 import os
 import pathlib
+import socket
 import subprocess
 import tempfile
 import threading
@@ -14,6 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 class Handler(http.server.BaseHTTPRequestHandler):
     calls = []
+    canonical = None
 
     def log_message(self, *_args):
         pass
@@ -24,6 +26,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.calls.append((self.path, body))
         if self.path.endswith("/client-events"):
             response = {"acknowledged": [event["id"] for event in body["events"]]}
+        elif self.path.endswith("/projects"):
+            response = {"project": {"slug": Handler.canonical or body["slug"]}}
         elif self.path.endswith("/brief"):
             response = {"project": {"slug": "p"}, "counts": {}, "rules": "Test rule"}
         else:
@@ -59,6 +63,7 @@ class SessionFeedbackTest(unittest.TestCase):
 
     def setUp(self):
         Handler.calls.clear()
+        Handler.canonical = None
         self.temp = tempfile.TemporaryDirectory(prefix="cj-session-")
         self.addCleanup(self.temp.cleanup)
         self.base = pathlib.Path(self.temp.name)
@@ -161,6 +166,22 @@ class SessionFeedbackTest(unittest.TestCase):
                          ["start", "prompt", "edit", "waiting", "end"])
         self.assertEqual(events[2]["file"], "README.md")
         self.assertFalse(list((self.base / "state").rglob("outbox/*.json")))
+
+    def test_queued_hook_event_resolves_checkout_before_delivery(self):
+        Handler.canonical = "repo-2"
+        outbox = self.base / "state" / "codejournal" / "outbox"
+        outbox.mkdir(parents=True)
+        event = {"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "type": "start",
+                 "session": "collision", "agent": "codex", "project": "repo",
+                 "project_explicit": False, "host": socket.gethostname(), "cwd": str(self.repo),
+                 "checkout_path": str(self.repo), "ts": "2026-09-28T12:00:00Z"}
+        (outbox / "0001.json").write_text(json.dumps(event))
+        self.cli("sync")
+        project = next(body for path, body in Handler.calls if path.endswith("/projects"))
+        delivered = next(body["events"][0] for path, body in Handler.calls
+                         if path.endswith("/client-events"))
+        self.assertEqual((project["path"], project["kind"]), (str(self.repo), "main"))
+        self.assertEqual(delivered["project"], "repo-2")
 
     def test_hook_warns_about_edit_collision_and_reminds_once(self):
         self.env["CODE_JOURNAL_HOOK_FLUSH"] = "off"

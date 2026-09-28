@@ -36,6 +36,7 @@ mod hook_commit;
 mod hook_files;
 mod hook_notify;
 mod hook_output;
+mod hook_project;
 mod hook_runtime;
 mod hook_session;
 mod hook_settings;

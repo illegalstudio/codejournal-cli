@@ -1,9 +1,11 @@
 use crate::api::Api;
-use crate::outbox;
+use crate::{hook_project, outbox};
 use anyhow::{Result, bail};
 use fs2::FileExt;
 use serde_json::json;
+use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
+use std::path::Path;
 
 pub fn run(api: &Api, tenant: &str) -> Result<usize> {
     let lock = OpenOptions::new()
@@ -19,7 +21,25 @@ pub fn run(api: &Api, tenant: &str) -> Result<usize> {
         if batch.is_empty() {
             break;
         }
-        let events = batch.iter().map(|(_, event)| event).collect::<Vec<_>>();
+        let mut identities = HashMap::<String, Option<String>>::new();
+        let mut events = Vec::new();
+        for (_, original) in &batch {
+            let mut event = original.clone();
+            if event["project_explicit"] != true
+                && let Some(path) = event["checkout_path"].as_str()
+            {
+                let slug = if let Some(cached) = identities.get(path) {
+                    cached.clone()
+                } else {
+                    let resolved = hook_project::resolve(api, tenant, Path::new(path))?;
+                    identities.insert(path.to_owned(), resolved.clone());
+                    resolved
+                };
+                event["project"] = json!(slug);
+                event["project_resolved"] = json!(slug.is_some());
+            }
+            events.push(event);
+        }
         let result = api.post_noqueue(
             &format!("/api/v1/tenants/{tenant}/client-events"),
             &json!({"events": events}),
