@@ -66,6 +66,7 @@ mod project_args;
 mod project_commands;
 mod project_list;
 mod project_paths;
+mod project_provides;
 mod refs;
 mod refs_move;
 mod request_outbox;
