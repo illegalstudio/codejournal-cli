@@ -15,6 +15,7 @@ pub fn agent(explicit: Option<&str>) -> String {
     explicit
         .map(str::to_owned)
         .or_else(|| variable("AGENT"))
+        .or_else(|| crate::agent_process::nearest().map(str::to_owned))
         .or_else(|| {
             std::env::var("CLAUDECODE")
                 .ok()
