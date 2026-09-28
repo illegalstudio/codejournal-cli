@@ -1,5 +1,5 @@
 use crate::api::Api;
-use crate::{notification_delivery, output, project};
+use crate::{notification_delivery, output, project_bootstrap};
 use anyhow::Result;
 use clap::Args;
 use serde_json::json;
@@ -25,7 +25,10 @@ pub fn run(
 ) -> Result<()> {
     let mut params = vec![("since", since.to_owned())];
     if project_only {
-        params.push(("project", project::slug(name)?));
+        params.push((
+            "project",
+            project_bootstrap::resolved_slug(api, tenant, name)?,
+        ));
     }
     let url = reqwest::Url::parse_with_params("http://local/", &params)?;
     let mut result = api.get(&format!(

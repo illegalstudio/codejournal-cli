@@ -13,6 +13,8 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
     if let Some(tenant) = project_bootstrap::tenant_for_path(api, path) {
         let slug = project_bootstrap::ensure(api, &tenant, false)?;
         request.path = project_bootstrap::replace_slug(path, &slug);
+    } else if method == "PATCH" || path.contains("/paths") {
+        request.path = project_bootstrap::read_path(api, path)?;
     }
     if api.offline {
         if !can_queue {

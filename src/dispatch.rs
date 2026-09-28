@@ -19,8 +19,8 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
         Command::Browse(args) => browse::run(&api, &tenant, project, args),
         Command::Export(args) => export::run(&api, &tenant, project, args),
         Command::Import { file } => import::run(&api, &tenant, file, cli.json),
-        Command::Open => open_dashboard::open(server, tenant, project, cli.json),
-        Command::Web(args) => open_dashboard::web(server, tenant, project, args, cli.json),
+        Command::Open => open_dashboard::open(api, server, tenant, project, cli.json),
+        Command::Web(args) => open_dashboard::web(api, server, tenant, project, args, cli.json),
         Command::Search(args) => entry_search::run(&api, &tenant, project, args, cli.json),
         Command::Recent { limit, kind } => {
             entry_search::recent(&api, &tenant, project, limit, kind.as_deref(), cli.json)

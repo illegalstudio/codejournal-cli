@@ -28,7 +28,10 @@ pub fn list(
     let query = if all_projects {
         String::new()
     } else {
-        format!("?project={}", crate::project::slug(name)?)
+        format!(
+            "?project={}",
+            crate::project_bootstrap::resolved_slug(api, tenant, name)?
+        )
     };
     let result = api.get(&format!("/api/v1/tenants/{tenant}/checkouts{query}"))?;
     let mut lines = Vec::new();

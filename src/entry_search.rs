@@ -1,6 +1,6 @@
 use crate::api::Api;
 use crate::search_args::SearchArgs;
-use crate::{output, project, staleness};
+use crate::{output, project_bootstrap, staleness};
 use anyhow::Result;
 use serde_json::{Value, json};
 
@@ -17,7 +17,10 @@ pub fn run(
 ) -> Result<()> {
     let mut params = vec![("limit", args.limit.to_string())];
     if !args.all_projects {
-        params.push(("project", project::slug(explicit_project)?));
+        params.push((
+            "project",
+            project_bootstrap::resolved_slug(api, tenant, explicit_project)?,
+        ));
     }
     for (key, value) in [
         ("q", args.query),
@@ -49,7 +52,7 @@ pub fn recent(
     kind: Option<&str>,
     json_mode: bool,
 ) -> Result<()> {
-    let slug = project::slug(explicit_project)?;
+    let slug = project_bootstrap::resolved_slug(api, tenant, explicit_project)?;
     let mut params = vec![("project", slug), ("limit", limit.to_string())];
     if let Some(kind) = kind {
         params.push(("kind", kind.to_owned()));

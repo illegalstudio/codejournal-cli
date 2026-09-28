@@ -1,4 +1,4 @@
-use crate::{api::Api, project};
+use crate::{api::Api, project_bootstrap};
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use std::io::{IsTerminal, Write};
@@ -37,7 +37,7 @@ pub fn run(api: &Api, tenant: &str, current: Option<&str>, args: BrowseArgs) -> 
     let scope = if args.all_projects || slug == Some("*") {
         None
     } else {
-        Some(project::slug(slug)?)
+        Some(project_bootstrap::resolved_slug(api, tenant, slug)?)
     };
     let mut lines = crate::browse_list::entries(api, tenant, scope.as_deref(), args.all_statuses)?;
     if args.list {

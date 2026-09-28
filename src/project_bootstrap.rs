@@ -63,6 +63,15 @@ pub fn read_path(api: &Api, path: &str) -> Result<String> {
     Ok(replace_slug(path, canonical))
 }
 
+pub fn resolved_slug(api: &Api, tenant: &str, explicit: Option<&str>) -> Result<String> {
+    if explicit.is_some() || !api.auto_project {
+        return project::slug(explicit);
+    }
+    let current = project::slug(None)?;
+    let path = read_path(api, &format!("/api/v1/tenants/{tenant}/projects/{current}"))?;
+    Ok(path.rsplit('/').next().unwrap_or(&current).to_owned())
+}
+
 pub fn ensure(api: &Api, tenant: &str, force: bool) -> Result<String> {
     let slug = project::slug(None)?;
     let base = format!("/api/v1/tenants/{tenant}/projects");

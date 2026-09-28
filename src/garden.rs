@@ -1,5 +1,5 @@
 use crate::{
-    api::Api, commands, garden_format, garden_review, output, staleness, topic_similarity,
+    api::Api, garden_format, garden_review, output, project_bootstrap, staleness, topic_similarity,
 };
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
@@ -14,8 +14,8 @@ pub fn run(
     if api.offline() && !dry_run {
         bail!("garden applies fixes and needs a writable journal; use --dry-run offline");
     }
-    let path = commands::path(tenant, project)?;
-    let slug = path.rsplit('/').next().unwrap_or("");
+    let slug = project_bootstrap::resolved_slug(api, tenant, project)?;
+    let path = format!("/api/v1/tenants/{tenant}/projects/{slug}");
     let topics = api.get(&format!("/api/v1/tenants/{tenant}/topics"))?;
     let (certain, possible) = topic_similarity::groups(&topics["topics"]);
     let maintenance = api.get(&format!("{path}/garden/maintenance"))?;

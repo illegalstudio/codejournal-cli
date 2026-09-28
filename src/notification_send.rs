@@ -1,6 +1,6 @@
 use crate::api::Api;
 use crate::watch_args::NotifyArgs;
-use crate::{attribution, git, input, notification_delivery, output, project};
+use crate::{attribution, git, input, notification_delivery, output, project, project_bootstrap};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
@@ -18,7 +18,11 @@ pub fn run(
     let body = input::optional_body(args.body, args.body_file)?;
     let cwd = std::env::current_dir()?;
     let branch = git::output(&["branch", "--show-current"]);
-    let slug = project::slug(name)?;
+    let slug = if name.is_some() {
+        project::slug(name)?
+    } else {
+        project_bootstrap::ensure(api, tenant, false)?
+    };
     let mut result = api.post(
         &format!("/api/v1/tenants/{tenant}/notifications"),
         &json!({

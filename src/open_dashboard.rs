@@ -1,4 +1,4 @@
-use crate::{output, project};
+use crate::{api::Api, output, project_bootstrap};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use serde_json::json;
@@ -21,10 +21,19 @@ pub enum WebAction {
     Run,
 }
 
-pub fn open(server: &str, tenant: &str, project_name: Option<&str>, json_mode: bool) -> Result<()> {
+pub fn open(
+    api: &Api,
+    server: &str,
+    tenant: &str,
+    project_name: Option<&str>,
+    json_mode: bool,
+) -> Result<()> {
     let base = format!("{}/t/{tenant}/", server.trim_end_matches('/'));
     let url = if crate::git::root().is_some() {
-        format!("{base}#/p/{}", project::slug(project_name)?)
+        format!(
+            "{base}#/p/{}",
+            project_bootstrap::resolved_slug(api, tenant, project_name)?
+        )
     } else {
         base
     };
@@ -35,6 +44,7 @@ pub fn open(server: &str, tenant: &str, project_name: Option<&str>, json_mode: b
 }
 
 pub fn web(
+    api: &Api,
     server: &str,
     tenant: &str,
     project_name: Option<&str>,
@@ -44,7 +54,7 @@ pub fn web(
     match args.action {
         WebAction::Start | WebAction::Status => {
             if args.open {
-                open(server, tenant, project_name, json_mode)
+                open(api, server, tenant, project_name, json_mode)
             } else {
                 let url = format!("{}/t/{tenant}/", server.trim_end_matches('/'));
                 output::emit(
@@ -59,6 +69,6 @@ pub fn web(
             "The dashboard is served by Code Journal; no local server is running.",
             json_mode,
         ),
-        WebAction::Run => open(server, tenant, project_name, json_mode),
+        WebAction::Run => open(api, server, tenant, project_name, json_mode),
     }
 }

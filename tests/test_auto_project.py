@@ -28,6 +28,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             status, payload = 200, {"project": {"slug": "new-project-2", "name": "New", "counts": {}, "paths": []}}
         elif self.path.endswith("/projects/new-project") and Handler.canonical:
             status, payload = 404, {"message": "Wrong project"}
+        elif "/entries?" in self.path:
+            status, payload = 200, {"project": Handler.canonical or "new-project", "entries": []}
         else:
             status, payload = 200, {"user": {}}
         encoded = json.dumps(payload).encode()
@@ -164,6 +166,27 @@ class AutoProjectTest(unittest.TestCase):
         cached = subprocess.run([self.binary, "--offline", "--json", "project", "show"],
                                 cwd=self.repo, env=self.env, capture_output=True, text=True, timeout=8)
         self.assertEqual(cached.returncode, 0, cached.stderr)
+
+    def test_path_add_uses_resolved_project_slug(self):
+        Handler.canonical = "new-project-2"
+        result = subprocess.run([self.binary, "project", "path-add", str(self.repo)],
+                                cwd=self.repo, env=self.env, capture_output=True, text=True, timeout=8)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([path for path, _ in Handler.calls], [
+            "/api/v1/tenants/demo/projects/new-project-2/paths",
+        ])
+
+    def test_search_and_open_use_resolved_project_slug(self):
+        Handler.canonical = "new-project-2"
+        searched = subprocess.run([self.binary, "--json", "search", "sample"], cwd=self.repo,
+                                  env=self.env, capture_output=True, text=True, timeout=8)
+        self.assertEqual(searched.returncode, 0, searched.stderr)
+        self.assertTrue(any("/entries?" in path and "project=new-project-2" in path
+                            for path in Handler.get_calls))
+        opened = subprocess.run([self.binary, "--json", "open"], cwd=self.repo,
+                                env=self.env, capture_output=True, text=True, timeout=8)
+        self.assertEqual(opened.returncode, 0, opened.stderr)
+        self.assertTrue(json.loads(opened.stdout)["url"].endswith("#/p/new-project-2"))
 
 
 if __name__ == "__main__":
