@@ -1,0 +1,20 @@
+[package]
+name = "codejournal-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Code Journal device client"
+license = "MIT"
+
+[[bin]]
+name = "cj"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4.6", features = ["derive", "env"] }
+directories = "6"
+keyring = "4.2"
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+webbrowser = "1"
