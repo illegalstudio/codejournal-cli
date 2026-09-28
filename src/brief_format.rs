@@ -25,12 +25,14 @@ pub fn render(
         })
         .unwrap_or_default();
     lines.push(format!(
-        "Entries: {} | Storage: remote | Pending outbox: 0",
+        "Entries: {} | Storage: {} | Pending outbox: {}",
         if summary.is_empty() {
             "0 entries"
         } else {
             &summary
-        }
+        },
+        data["mode"].as_str().unwrap_or("remote"),
+        data["pending_outbox"].as_u64().unwrap_or(0),
     ));
     lines.push(String::new());
     lines.push("Project rules (follow for the whole session):".into());
@@ -40,6 +42,7 @@ pub fn render(
         lines.push("  (none set: write them now with `cj rules set`)".into());
     }
     brief_context_format::active(data, &mut lines);
+    brief_context_format::projects_used_here(data, &mut lines);
     brief_context_format::focus(data, &mut lines, compact);
     section(&mut lines, "Now due:", &data["now_due"], 20);
     section(

@@ -8,6 +8,7 @@ mod brief;
 mod brief_context_format;
 mod brief_focus;
 mod brief_format;
+mod brief_manifests;
 mod browse;
 mod browse_list;
 mod browse_picker;

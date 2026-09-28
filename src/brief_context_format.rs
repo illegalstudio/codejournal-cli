@@ -70,6 +70,34 @@ pub fn global(data: &Value, lines: &mut Vec<String>) {
     }
 }
 
+pub fn projects_used_here(data: &Value, lines: &mut Vec<String>) {
+    let Some(items) = data["projects_used_here"]
+        .as_array()
+        .filter(|items| !items.is_empty())
+    else {
+        return;
+    };
+    let labels = items
+        .iter()
+        .map(|row| {
+            let names = row["names"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .take(2)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{names} ({})", value(&row["slug"]))
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    lines.push(String::new());
+    lines.push(format!(
+        "Your projects used here (forward problems in them with `cj task add --to SLUG`): {labels}"
+    ));
+}
+
 pub fn focus(data: &Value, lines: &mut Vec<String>, compact: bool) {
     let focus = &data["focus"];
     let entries = focus["entries"]

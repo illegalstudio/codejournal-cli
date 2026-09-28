@@ -1,14 +1,17 @@
-use crate::{api::Api, api_cache, git};
+use crate::{api::Api, api_cache, brief_manifests, git, outbox, request_outbox};
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<Value> {
-    let shared_cache = format!("{base}/brief-cache?limit={}&pinned_limit={}&log_limit={}",
-        body["limit"], body["pinned_limit"], body["log_limit"]);
+    let shared_cache = format!(
+        "{base}/brief-cache?limit={}&pinned_limit={}&log_limit={}",
+        body["limit"], body["pinned_limit"], body["log_limit"]
+    );
     if api.offline() {
         return api_cache::read(api.server(), &api.token, &shared_cache)
-            .or_else(|_| api.get(cache_path));
+            .or_else(|_| api.get(cache_path))
+            .map(|result| localize(result, "offline"));
     }
     if let Some(changes) = changed_files() {
         if changes["files"]
@@ -20,15 +23,26 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
             body["compared_to"] = changes["compared_to"].clone();
         }
     }
+    if let Some(manifests) = brief_manifests::fingerprints() {
+        body["manifest_names"] = manifests;
+    }
     match api.post_noqueue(&format!("{base}/brief"), &body) {
         Ok(result) => {
             let _ = api_cache::write(api.server(), &api.token, cache_path, &result);
             let _ = api_cache::write(api.server(), &api.token, &shared_cache, &result);
-            Ok(result)
+            Ok(localize(result, "remote"))
         }
         Err(_) => api_cache::read(api.server(), &api.token, &shared_cache)
-            .or_else(|_| api.get(cache_path)),
+            .or_else(|_| api.get(cache_path))
+            .map(|result| localize(result, "offline")),
     }
+}
+
+fn localize(mut result: Value, mode: &str) -> Value {
+    result["mode"] = Value::String(mode.to_owned());
+    result["pending_outbox"] =
+        Value::from(outbox::pending().unwrap_or(0) + request_outbox::pending().unwrap_or(0));
+    result
 }
 
 pub fn changed_files() -> Option<Value> {
