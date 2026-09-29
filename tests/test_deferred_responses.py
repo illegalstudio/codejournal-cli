@@ -12,20 +12,23 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 VERSION = re.search(r'^version = "([^"]+)"', (ROOT / "Cargo.toml").read_text(), re.M).group(1)
 UPGRADE = f"cj {VERSION} is no longer supported by this server. Install cj 9.0.0 or newer, then retry."
+LIMITED = "This workspace's plan allows 60 API requests per minute. Retry in 30 seconds."
+REFUSALS = {426: {"message": UPGRADE, "minimum_version": "9.0.0"},
+            429: {"message": LIMITED, "limit": 60, "retry_after": 30}}
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
     headers_seen = []
     writes = []
-    outdated = False
+    refusal = None
 
     def log_message(self, *_args):
         pass
 
     def respond(self, status, payload):
         self.headers_seen.append((self.headers.get("X-Cj-Version"), self.headers.get("User-Agent")))
-        if self.outdated:
-            status, payload = 426, {"message": UPGRADE, "minimum_version": "9.0.0"}
+        if self.refusal:
+            status, payload = self.refusal, REFUSALS[self.refusal]
         data = json.dumps(payload).encode()
         self.send_response(status)
         self.send_header("Content-Length", str(len(data)))
@@ -43,12 +46,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        if not self.outdated:
+        if not self.refusal:
             self.writes.append((self.headers.get("Idempotency-Key"), body))
         self.respond(201, {"entry": {"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}})
 
 
-class ClientVersionTest(unittest.TestCase):
+class DeferredResponseTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         subprocess.run(["cargo", "build", "--locked"], cwd=ROOT, check=True, capture_output=True)
@@ -66,8 +69,8 @@ class ClientVersionTest(unittest.TestCase):
     def setUp(self):
         Handler.headers_seen.clear()
         Handler.writes.clear()
-        Handler.outdated = False
-        self.temp = tempfile.TemporaryDirectory(prefix="cj-version-")
+        Handler.refusal = None
+        self.temp = tempfile.TemporaryDirectory(prefix="cj-deferred-")
         self.addCleanup(self.temp.cleanup)
         base = pathlib.Path(self.temp.name)
         config = base / "config" / "codejournal"
@@ -88,26 +91,33 @@ class ClientVersionTest(unittest.TestCase):
         self.assertEqual(version, VERSION)
         self.assertTrue(agent.startswith(f"cj/{VERSION} ("))
 
-    def test_outdated_read_without_cache_shows_the_upgrade_message(self):
-        Handler.outdated = True
-        result = self.cli("projects", check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(UPGRADE, result.stderr)
+    def test_refused_read_without_cache_shows_the_server_message(self):
+        for status, message in ((426, UPGRADE), (429, LIMITED)):
+            with self.subTest(status=status):
+                Handler.refusal = status
+                result = self.cli("projects", check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
 
-    def test_outdated_read_falls_back_to_the_cache_with_a_warning(self):
+    def test_refused_read_falls_back_to_the_cache_with_a_warning(self):
         online = json.loads(self.cli("projects").stdout)
-        Handler.outdated = True
-        result = self.cli("projects")
-        self.assertEqual(json.loads(result.stdout), online)
-        self.assertIn(f"warning: {UPGRADE}", result.stderr)
+        for status, message in ((426, UPGRADE), (429, LIMITED)):
+            with self.subTest(status=status):
+                Handler.refusal = status
+                result = self.cli("projects")
+                self.assertEqual(json.loads(result.stdout), online)
+                self.assertIn(f"warning: {message}", result.stderr)
 
-    def test_outdated_write_stays_queued_until_the_upgrade(self):
-        Handler.outdated = True
-        result = self.cli("add", "--kind", "gotcha", "--title", "Kept note", "--body", "Test")
-        queued = json.loads(result.stdout)
-        self.assertTrue(queued["queued"])
-        self.assertIn(f"warning: {UPGRADE}", result.stderr)
-        self.assertEqual(Handler.writes, [])
-        Handler.outdated = False
-        self.assertEqual(json.loads(self.cli("sync").stdout)["flushed"], 1)
-        self.assertEqual(Handler.writes[0][0], queued["id"])
+    def test_refused_write_stays_queued_for_sync(self):
+        for status, message in ((426, UPGRADE), (429, LIMITED)):
+            with self.subTest(status=status):
+                Handler.writes.clear()
+                Handler.refusal = status
+                result = self.cli("add", "--kind", "gotcha", "--title", "Kept note", "--body", "Test")
+                queued = json.loads(result.stdout)
+                self.assertTrue(queued["queued"])
+                self.assertIn(f"warning: {message}", result.stderr)
+                self.assertEqual(Handler.writes, [])
+                Handler.refusal = None
+                self.assertEqual(json.loads(self.cli("sync").stdout)["flushed"], 1)
+                self.assertEqual(Handler.writes[0][0], queued["id"])

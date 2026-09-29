@@ -1,6 +1,6 @@
 use crate::{
-    api_cache, api_version, api_write, output, project_bootstrap, request_outbox::PendingRequest,
-    secret_redaction,
+    api_cache, api_status, api_version, api_write, output, project_bootstrap,
+    request_outbox::PendingRequest, secret_redaction,
 };
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::Client;
@@ -86,14 +86,14 @@ impl Api {
                 .with_context(|| format!("API returned {status} and no cached response exists"));
         }
         let value: Value = sanitized(response.json().context("API returned invalid JSON")?);
-        if api_version::upgrade_required(status) {
-            api_version::warn(&value);
+        if api_status::deferred(status) {
+            api_status::warn(status, &value);
             return api_cache::read(&self.server, &self.token, &path)
                 .map(sanitized)
-                .with_context(|| api_version::message(&value));
+                .with_context(|| api_status::message(status, &value));
         }
         if !status.is_success() {
-            return Err(api_version::error(status, &value));
+            return Err(api_status::error(status, &value));
         }
         let _ = api_cache::write(&self.server, &self.token, &path, &value);
         Ok(value)
@@ -149,7 +149,7 @@ impl Api {
         let status = response.status();
         let value: Value = sanitized(response.json().context("API returned invalid JSON")?);
         if !status.is_success() {
-            return Err(api_version::error(status, &value));
+            return Err(api_status::error(status, &value));
         }
         Ok(value)
     }

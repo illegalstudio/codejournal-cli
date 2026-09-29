@@ -1,5 +1,5 @@
 use crate::api::public_client;
-use crate::api_version;
+use crate::api_status;
 use crate::config::Config;
 use anyhow::{Context, Result, bail};
 use reqwest::StatusCode;
@@ -28,8 +28,12 @@ pub fn run(explicit_server: Option<&str>) -> Result<()> {
         .post(format!("{server}/api/v1/device/requests"))
         .header("Accept", "application/json")
         .send()?;
-    if api_version::upgrade_required(response.status()) {
-        bail!(api_version::message(&response.json().unwrap_or_default()));
+    if api_status::deferred(response.status()) {
+        let status = response.status();
+        bail!(api_status::message(
+            status,
+            &response.json().unwrap_or_default()
+        ));
     }
     if !response.status().is_success() {
         bail!("could not start login: {}", response.text()?);
