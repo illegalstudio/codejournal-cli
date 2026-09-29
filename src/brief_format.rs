@@ -34,6 +34,12 @@ pub fn render(
         data["mode"].as_str().unwrap_or("remote"),
         data["pending_outbox"].as_u64().unwrap_or(0),
     ));
+    for notice in data["notices"].as_array().into_iter().flatten() {
+        lines.push(format!("Plan: {}", value(notice)));
+    }
+    if data["locked"] == true {
+        return lines.join("\n");
+    }
     lines.push(String::new());
     lines.push("Project rules (follow for the whole session):".into());
     if let Some(rules) = data["rules"].as_str().filter(|text| !text.is_empty()) {

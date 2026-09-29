@@ -25,9 +25,10 @@ pub fn message(status: StatusCode, value: &Value) -> String {
     }
 }
 
-/// Error for a failed request, with only the explanation when the work was deferred.
+/// Error for a failed request, with only the explanation when the work was deferred or the plan
+/// locks the project (402).
 pub fn error(status: StatusCode, value: &Value) -> Error {
-    if deferred(status) {
+    if deferred(status) || status == StatusCode::PAYMENT_REQUIRED {
         anyhow!(message(status, value))
     } else {
         anyhow!("API returned {status}: {value}")
