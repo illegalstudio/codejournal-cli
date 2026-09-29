@@ -74,6 +74,8 @@ mod project_args;
 mod project_bootstrap;
 mod project_commands;
 mod project_detail;
+mod project_folder;
+mod project_init;
 mod project_list;
 mod project_paths;
 mod project_provides;

@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Parser;
 
 pub fn run() -> Result<()> {
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
     if let Some(cwd) = &cli.cwd {
         std::env::set_current_dir(cwd)?;
     }
@@ -44,6 +44,12 @@ pub fn run() -> Result<()> {
     let server = cli.server.as_deref().unwrap_or(&config.server).to_owned();
     let mut api = api::Api::new(&server, &config.token_for(&server)?)?;
     api.set_offline(cli.offline);
+    if cli.project.is_none()
+        && checkout_identity::current().is_none()
+        && let project_folder::Scope::Named(slug) = project_folder::registered(&api, &config.tenant)
+    {
+        cli.project = Some(slug);
+    }
     api.set_auto_project(cli.project.is_none() && checkout_identity::current().is_some());
     let tenant = config.tenant.clone();
     let json_mode = cli.json;

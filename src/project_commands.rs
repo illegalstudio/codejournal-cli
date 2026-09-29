@@ -1,9 +1,6 @@
 use crate::api::Api;
 use crate::project_args::ProjectAction;
-use crate::{
-    attribution, checkout_identity, git, output, project, project_detail, project_paths,
-    project_provides,
-};
+use crate::{attribution, git, output, project, project_detail, project_paths};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
@@ -14,31 +11,15 @@ pub fn run(
     action: ProjectAction,
     json_mode: bool,
 ) -> Result<()> {
-    let slug = project::slug(explicit)?;
+    let slug = || project::slug(explicit);
     let base = format!("/api/v1/tenants/{tenant}/projects");
     match action {
         ProjectAction::List => crate::project_list::run(api, tenant, json_mode),
         ProjectAction::Init { name } => {
-            let checkout = checkout_identity::current();
-            let mut body = json!({"slug": slug, "name": project::name(name.as_deref())?,
-                "remote_url": checkout.as_ref().and_then(|item| item.origin.clone()),
-                "provides": {"auto": project_provides::detect(), "manual": []}});
-            if let Some(checkout) = &checkout {
-                body["host"] = json!(attribution::host());
-                body["path"] = json!(checkout.root);
-                body["kind"] = json!(checkout.kind);
-                body["branch"] = json!(checkout.branch);
-                body["main_path"] = json!(checkout.main_path());
-            }
-            let result = api.post(&base, &body)?;
-            let recorded_slug = result["project"]["slug"].as_str().unwrap_or(&slug);
-            output::emit(
-                &result,
-                &format!("Initialized project {recorded_slug}."),
-                json_mode,
-            )
+            crate::project_init::run(api, tenant, explicit, name.as_deref(), json_mode)
         }
         ProjectAction::Show => {
+            let slug = slug()?;
             let result = api.get(&format!("{base}/{slug}"))?;
             output::emit(
                 &result,
@@ -54,6 +35,7 @@ pub fn run(
             from_git,
             provides,
         } => {
+            let slug = slug()?;
             let mut input = serde_json::Map::new();
             if let Some(slug) = new_slug.as_ref() {
                 input.insert("slug".into(), json!(slug.trim().to_ascii_lowercase()));
@@ -111,11 +93,13 @@ pub fn run(
                 json_mode,
             )
         }
-        ProjectAction::PathAdd { path } => project_paths::add(api, tenant, &slug, &path, json_mode),
+        ProjectAction::PathAdd { path } => {
+            project_paths::add(api, tenant, &slug()?, &path, json_mode)
+        }
         ProjectAction::PathRemove { path, host } => project_paths::remove(
             api,
             tenant,
-            &slug,
+            &slug()?,
             &path,
             host.unwrap_or_else(attribution::host),
             json_mode,

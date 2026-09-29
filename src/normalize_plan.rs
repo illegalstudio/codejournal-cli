@@ -31,6 +31,9 @@ pub fn build(api: &Api, tenant: &str) -> Result<Value> {
     let mut kept = Vec::new();
     for row in local {
         let path = Path::new(value(&row["path"]));
+        if row["kind"] == "folder" && path.is_dir() {
+            continue;
+        }
         let info = checkout_identity::at(path, 0);
         let root = info.as_ref().map(|checkout| checkout.root.clone());
         let canonical = path.canonicalize().ok();

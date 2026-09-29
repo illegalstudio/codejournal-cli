@@ -4,16 +4,10 @@ use anyhow::{Context, Result, bail};
 pub fn slug(explicit: Option<&str>) -> Result<String> {
     let value = match explicit {
         Some(value) => value.to_owned(),
-        None => checkout_identity::current()
-            .map(|checkout| slug_for(&checkout))
-            .unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap_or_default()
-                    .file_name()
-                    .and_then(|part| part.to_str())
-                    .map(slug_from_identity)
-                    .unwrap_or_else(|| "project".to_owned())
-            }),
+        None => match checkout_identity::current() {
+            Some(checkout) => slug_for(&checkout),
+            None => bail!("{}", missing_here()),
+        },
     };
     if value.is_empty()
         || !value.bytes().all(|byte| {
@@ -23,6 +17,24 @@ pub fn slug(explicit: Option<&str>) -> Result<String> {
         bail!("invalid project slug: {value}");
     }
     Ok(value)
+}
+
+/// Explains why a directory outside Git and registered folders has no project.
+pub fn missing_here() -> String {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    format!(
+        "no Code Journal project here: {} is not inside a Git repository or a registered project \
+         folder. Run cj inside the project's repository or folder, or pass --project SLUG. \
+         Register a plain folder with `cj project init` only when the user asks.",
+        cwd.display()
+    )
+}
+
+pub fn folder_slug(path: &std::path::Path) -> String {
+    path.file_name()
+        .and_then(|part| part.to_str())
+        .map(slug_from_identity)
+        .unwrap_or_else(|| "project".to_owned())
 }
 
 pub fn slug_for(checkout: &checkout_identity::Checkout) -> String {

@@ -1,7 +1,7 @@
 use crate::api::Api;
 use crate::feedback_args::{FeedbackAction, FeedbackAddArgs, FeedbackListArgs};
 use crate::{attribution, checkout_identity, input, output, project, project_bootstrap};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
 fn path(tenant: &str) -> String {
@@ -41,11 +41,11 @@ fn add(
 ) -> Result<()> {
     let body = input::body(args.body, args.body_file)?;
     let project = if explicit_project.is_some() {
-        Some(project::slug(explicit_project)?)
+        project::slug(explicit_project)?
     } else if checkout_identity::current().is_some() {
-        Some(project_bootstrap::ensure(api, tenant, false)?)
+        project_bootstrap::ensure(api, tenant, false)?
     } else {
-        None
+        bail!("{}", project::missing_here());
     };
     let response = api.post(
         &path(tenant),

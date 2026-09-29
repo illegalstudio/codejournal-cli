@@ -1,6 +1,7 @@
+use crate::project_folder::{self, Scope};
 use crate::{
-    api::Api, brief_focus, brief_format, checkout_identity, config::Config, outbox, project,
-    project_bootstrap, session_git, session_state,
+    api::Api, brief_focus, brief_format, config::Config, outbox, project, project_bootstrap,
+    session_git, session_state,
 };
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -38,8 +39,13 @@ fn online_brief(source: &str, agent: &str, session: &str) -> Option<String> {
     let config = Config::load().ok()?;
     let token = config.token().ok()?;
     let mut api = Api::with_timeout(&config.server, &token, Duration::from_secs(3)).ok()?;
-    let preferred = std::env::var("CJ_PROJECT").ok();
-    api.set_auto_project(preferred.is_none() && checkout_identity::current().is_some());
+    let preferred = match project_folder::scope(&api, &config.tenant) {
+        Scope::Named(slug) => Some(slug),
+        Scope::Checkout => None,
+        Scope::Outside => return Some(project_folder::notice()),
+        Scope::Unknown => return None,
+    };
+    api.set_auto_project(preferred.is_none());
     let slug = project::slug(preferred.as_deref()).ok()?;
     let query = reqwest::Url::parse_with_params(
         "http://local/",

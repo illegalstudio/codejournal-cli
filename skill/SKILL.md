@@ -7,6 +7,10 @@ description: Shared project memory and work tracking through the cj command. Rea
 
 Code Journal is shared across agents working on the same Git repository. The `cj` executable connects to the user's hosted journal. It detects the project from the Git remote and can queue writes while offline. Never include secrets or private source content in journal entries.
 
+## Where it applies
+
+Code Journal records belong to physical projects: a Git repository, or a plain folder the user registered with `cj project init`, including its subfolders. Anywhere else, such as a browser chat workspace, a temporary directory, or the home directory, there is no journal: the session hook says so, and `cj` refuses project commands. Do not use Code Journal in that session. Run `cj project init` in a plain folder only when the user asks to register it, and never for temporary or scratch directories; you may ask the user when the folder is clearly a real project.
+
 ## Start
 
 Run `cj brief` before exploring a repository unless the session hook already injected the brief. Follow its project rules, active plans, and open tasks for the whole session. If the rules are empty, summarize the repository's instruction files with `cj rules set` and tell the user.
