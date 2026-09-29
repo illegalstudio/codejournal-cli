@@ -66,11 +66,18 @@ pub fn move_to(
     )
 }
 
-pub fn schedule(api: &Api, tenant: &str, id: &str, date: &str, json_mode: bool) -> Result<()> {
-    let result = api.patch(&path(tenant, "plans", id), &json!({"not_before": date}))?;
+pub fn schedule(
+    api: &Api,
+    tenant: &str,
+    kind: &str,
+    id: &str,
+    date: &str,
+    json_mode: bool,
+) -> Result<()> {
+    let result = api.patch(&path(tenant, kind, id), &json!({"not_before": date}))?;
     output::emit(
         &result,
-        &format!("Scheduled plan {} for {}.", short(id), date),
+        &format!("Scheduled {} {} for {}.", noun(kind), short(id), date),
         json_mode,
     )
 }

@@ -71,7 +71,7 @@ pub fn run(
             agent,
         } => plan_changes::move_to(api, tenant, kind, &id, &target, note, agent, json_mode),
         PlanAction::Schedule { id, date } => {
-            plan_changes::schedule(api, tenant, &id, &date, json_mode)
+            plan_changes::schedule(api, tenant, kind, &id, &date, json_mode)
         }
     }
 }
