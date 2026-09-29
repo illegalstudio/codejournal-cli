@@ -1,6 +1,6 @@
 use crate::{
     api::Api,
-    output, project_bootstrap,
+    api_version, output, project_bootstrap,
     request_outbox::{self, PendingRequest, QueuedWrite},
     secret_redaction,
 };
@@ -41,6 +41,11 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
         Err(_error) if can_queue && status.is_success() => return queued(&request),
         Err(error) => return Err(error.into()),
     };
+    // An outdated release keeps the write for replay after the upgrade.
+    if api_version::upgrade_required(status) && can_queue {
+        api_version::warn(&value);
+        return queued(&request);
+    }
     if status == reqwest::StatusCode::NOT_FOUND
         && value["message"] == "Project not found"
         && let Some(tenant) = project_bootstrap::tenant_for_path(api, path)
@@ -52,7 +57,7 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
         value = crate::api::sanitized(retry.json()?);
     }
     if !status.is_success() {
-        bail!("API returned {status}: {value}");
+        return Err(api_version::error(status, &value));
     }
     Ok(value)
 }
@@ -65,7 +70,7 @@ pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
     let status = response.status();
     let value: Value = crate::api::sanitized(response.json()?);
     if !status.is_success() {
-        bail!("API returned {status}: {value}");
+        return Err(api_version::error(status, &value));
     }
     Ok(value)
 }

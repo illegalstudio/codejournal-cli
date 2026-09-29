@@ -1,5 +1,5 @@
 use crate::{
-    api_cache, api_write, output, project_bootstrap, request_outbox::PendingRequest,
+    api_cache, api_version, api_write, output, project_bootstrap, request_outbox::PendingRequest,
     secret_redaction,
 };
 use anyhow::{Context, Result, bail};
@@ -35,7 +35,7 @@ impl Api {
             bail!("server URL must contain only a scheme, host, and optional port");
         }
         Ok(Self {
-            client: Client::builder().timeout(timeout).build()?,
+            client: api_version::client(timeout)?,
             server,
             token: token.to_owned(),
             offline: false,
@@ -86,8 +86,14 @@ impl Api {
                 .with_context(|| format!("API returned {status} and no cached response exists"));
         }
         let value: Value = sanitized(response.json().context("API returned invalid JSON")?);
+        if api_version::upgrade_required(status) {
+            api_version::warn(&value);
+            return api_cache::read(&self.server, &self.token, &path)
+                .map(sanitized)
+                .with_context(|| api_version::message(&value));
+        }
         if !status.is_success() {
-            bail!("API returned {status}: {value}");
+            return Err(api_version::error(status, &value));
         }
         let _ = api_cache::write(&self.server, &self.token, &path, &value);
         Ok(value)
@@ -143,7 +149,7 @@ impl Api {
         let status = response.status();
         let value: Value = sanitized(response.json().context("API returned invalid JSON")?);
         if !status.is_success() {
-            bail!("API returned {status}: {value}");
+            return Err(api_version::error(status, &value));
         }
         Ok(value)
     }
@@ -156,7 +162,7 @@ pub(crate) fn sanitized(mut value: Value) -> Value {
 
 pub fn public_client(server: &str) -> Result<Client> {
     Api::new(server, "")?;
-    Ok(Client::builder().timeout(Duration::from_secs(20)).build()?)
+    Ok(api_version::client(Duration::from_secs(20))?)
 }
 
 fn is_local_http(url: &reqwest::Url) -> bool {
