@@ -15,6 +15,7 @@ mod browse_list;
 mod browse_picker;
 mod checkout_identity;
 mod cli;
+mod codex_rules;
 mod commands;
 mod config;
 mod desktop_delivery;

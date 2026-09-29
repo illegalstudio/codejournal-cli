@@ -1,4 +1,4 @@
-use crate::{hook_settings, hook_setup, output};
+use crate::{codex_rules, hook_settings, hook_setup, output};
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 use directories::BaseDirs;
@@ -85,8 +85,20 @@ pub fn run(action: &SetupAction) -> Result<()> {
                 write_skill(&path, before.is_some())?;
             }
         }
-        results.push(json!({"agent": name, "skill": path, "skill_installed": if *status { before.as_deref() == Some(SKILL) } else { !uninstall },
-            "hooks_installed": hooks_installed, "changed": changed, "dry_run": dry_run}));
+        let mut result = json!({"agent": name, "skill": path, "skill_installed": if *status { before.as_deref() == Some(SKILL) } else { !uninstall },
+            "hooks_installed": hooks_installed, "changed": changed, "dry_run": dry_run});
+        if name == "codex" {
+            let rules = codex_rules::path(root);
+            result["rules_changed"] =
+                json!(!status && codex_rules::apply(&rules, !uninstall, *dry_run)?);
+            result["rules_installed"] = json!(if *status {
+                codex_rules::installed(&rules)
+            } else {
+                !uninstall
+            });
+            result["rules"] = json!(rules);
+        }
+        results.push(result);
     }
     if results.is_empty() {
         bail!("no supported agent directory found");

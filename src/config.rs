@@ -55,14 +55,31 @@ impl Config {
         if let Ok(token) = std::env::var("CJ_TOKEN") {
             return Ok(token);
         }
-        if let Ok(token) =
-            keyring::Entry::new("codejournal", &self.key()).and_then(|entry| entry.get_password())
-        {
-            return Ok(token);
+        let stored =
+            keyring::Entry::new("codejournal", &self.key()).and_then(|entry| entry.get_password());
+        match (stored, &self.fallback_token) {
+            (Ok(token), _) => Ok(token),
+            (Err(_), Some(token)) => Ok(token.clone()),
+            (Err(keyring::Error::NoEntry), None) => bail!("token missing; run cj login"),
+            (Err(error), None) => bail!(
+                "cannot read the Code Journal token from the system keyring ({error}); \
+                 if this runs inside an agent sandbox, run cj outside it \
+                 (the user can allow that for Codex with `cj setup agents`)"
+            ),
         }
-        self.fallback_token
-            .clone()
-            .context("token missing; run cj login")
+    }
+
+    /// Returns the stored token only for the server that issued it.
+    pub fn token_for(&self, server: &str) -> Result<String> {
+        if server.trim_end_matches('/') != self.server.trim_end_matches('/')
+            && std::env::var_os("CJ_TOKEN").is_none()
+        {
+            bail!(
+                "the stored token belongs to {}; set CJ_TOKEN to use {server}",
+                self.server
+            );
+        }
+        self.token()
     }
 
     pub fn logout(&mut self) -> Result<()> {
