@@ -14,7 +14,7 @@ pub struct TaskAddArgs {
     pub plan: Option<String>,
     #[arg(long)]
     pub not_before: Option<String>,
-    #[arg(long = "ref")]
+    #[arg(long = "ref", help = crate::refs::HELP)]
     pub refs: Vec<String>,
     #[arg(long)]
     pub agent: Option<String>,

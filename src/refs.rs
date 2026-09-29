@@ -2,6 +2,9 @@ use crate::{path_ref, shorthand};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
+/// Help text shared by every `--ref` flag.
+pub const HELP: &str = "Reference, repeatable: path:FILE, commit:SHA, branch:NAME, issue:#N, a URL, or GitHub shorthand such as owner/repo#12";
+
 pub fn parse_all(values: &[String]) -> Result<Vec<Value>> {
     let mut parsed = Vec::new();
     for value in values {

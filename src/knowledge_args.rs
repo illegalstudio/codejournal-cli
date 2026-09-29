@@ -11,7 +11,7 @@ pub struct AnswerArgs {
     pub body: Option<String>,
     #[arg(long)]
     pub body_file: Option<String>,
-    #[arg(long = "ref")]
+    #[arg(long = "ref", help = crate::refs::HELP)]
     pub refs: Vec<String>,
     #[arg(long)]
     pub agent: Option<String>,

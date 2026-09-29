@@ -23,7 +23,7 @@ pub enum PlanAction {
         status: Option<String>,
         #[arg(long)]
         not_before: Option<String>,
-        #[arg(long = "ref")]
+        #[arg(long = "ref", help = crate::refs::HELP)]
         refs: Vec<String>,
         #[arg(long)]
         agent: Option<String>,
@@ -45,7 +45,7 @@ pub enum PlanAction {
         body: Option<String>,
         #[arg(long)]
         body_file: Option<String>,
-        #[arg(long = "ref")]
+        #[arg(long = "ref", help = crate::refs::HELP)]
         refs: Vec<String>,
         #[arg(long)]
         note: Option<String>,
