@@ -9,7 +9,18 @@ fn root(tenant: &str) -> String {
 
 pub fn show(api: &Api, tenant: &str, id: &str, no_track: bool, json_mode: bool) -> Result<()> {
     let query = if no_track { "?track=0" } else { "" };
-    let response = api.get(&format!("{}/{}{}", root(tenant), id, query))?;
+    let response = api
+        .get(&format!("{}/{}{}", root(tenant), id, query))
+        .map_err(|error| {
+            if error
+                .to_string()
+                .contains("Entry ID is missing or ambiguous")
+            {
+                error.context("cj show reads knowledge entries; use cj log show ID for a work log")
+            } else {
+                error
+            }
+        })?;
     let entry = &response["entry"];
     let topics = array_text(&entry["topics"]);
     let refs = entry["refs"]

@@ -1,8 +1,18 @@
 use clap::{Args, Subcommand};
 
+const CATEGORIES: [&str; 7] = [
+    "retrieval",
+    "search",
+    "filtering",
+    "workflow",
+    "output",
+    "bug",
+    "idea",
+];
+
 #[derive(Args)]
 pub struct FeedbackAddArgs {
-    #[arg(long)]
+    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(CATEGORIES))]
     pub category: String,
     #[arg(long)]
     pub title: String,
@@ -18,9 +28,9 @@ pub struct FeedbackAddArgs {
 
 #[derive(Args)]
 pub struct FeedbackListArgs {
-    #[arg(long, default_value = "open")]
+    #[arg(long, default_value = "open", value_parser = ["open", "done", "dismissed", "all"])]
     pub status: String,
-    #[arg(long)]
+    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(CATEGORIES))]
     pub category: Option<String>,
     #[arg(short, long)]
     pub verbose: bool,

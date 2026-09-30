@@ -1,6 +1,6 @@
 use crate::api::Api;
 use crate::log_args::{LogAction, LogAddArgs};
-use crate::{attribution, commands, input, log_list, output, refs, session_git, session_state};
+use crate::{attribution, commands, input, log_commits, log_list, log_show, output, refs};
 use anyhow::Result;
 use serde_json::json;
 
@@ -14,6 +14,7 @@ pub fn run(
     match action {
         LogAction::Add(args) => add(api, tenant, project, args, json_mode),
         LogAction::List(args) => log_list::run(api, tenant, project, args, json_mode),
+        LogAction::Show { id, body } => log_show::run(api, tenant, &id, body, json_mode),
     }
 }
 
@@ -25,25 +26,7 @@ fn add(
     json_mode: bool,
 ) -> Result<()> {
     let body = input::body(args.body, args.body_file)?;
-    let session = session_state::current_id();
-    let mut linked = Vec::new();
-    if !args.no_auto_commits && !args.refs.iter().any(|item| item.starts_with("commit:")) {
-        if let (Some(id), Some(common), Ok(cwd)) = (
-            session.as_deref(),
-            session_git::current_common_dir(),
-            std::env::current_dir(),
-        ) {
-            let state = session_state::load(id)?;
-            if state.repo_common.as_deref() == Some(common.as_str()) {
-                linked = state
-                    .commits
-                    .iter()
-                    .filter(|sha| !state.logged.contains(*sha) && session_git::reachable(&cwd, sha))
-                    .cloned()
-                    .collect();
-            }
-        }
-    }
+    let linked = log_commits::pending(&args.refs, args.no_auto_commits)?;
     let mut all_refs = args.refs;
     all_refs.extend(linked.iter().map(|sha| format!("commit:{sha}")));
     let result = api.post(
@@ -54,16 +37,7 @@ fn add(
             "refs": refs::parse_all(&all_refs)?,
         }),
     )?;
-    if let Some(id) = session.filter(|_| !linked.is_empty()) {
-        let mut state = session_state::load(&id)?;
-        state.logged.extend(linked.clone());
-        session_state::save(&id, &state)?;
-    }
-    if let Some(id) = session_state::current_id() {
-        let mut state = session_state::load(&id)?;
-        state.last_log_at = Some(session_state::now());
-        session_state::save(&id, &state)?;
-    }
+    log_commits::record(&all_refs)?;
     let log = &result["log"];
     let id = log["id"].as_str().unwrap_or("").replace('-', "");
     let mut text = format!(

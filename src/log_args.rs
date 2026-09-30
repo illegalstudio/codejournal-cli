@@ -4,7 +4,7 @@ use clap::{Args, Subcommand};
 pub struct LogAddArgs {
     #[arg(long)]
     pub title: String,
-    #[arg(long, default_value = "done")]
+    #[arg(long, default_value = "done", value_parser = ["done", "in_progress", "blocked"])]
     pub status: String,
     #[arg(long)]
     pub plan: Option<String>,
@@ -22,11 +22,11 @@ pub struct LogAddArgs {
 
 #[derive(Args)]
 pub struct LogListArgs {
-    #[arg(long)]
+    #[arg(long, value_parser = crate::since_arg::parse, help = crate::since_arg::HELP)]
     pub since: Option<String>,
     #[arg(long)]
     pub agent: Option<String>,
-    #[arg(long)]
+    #[arg(long, value_parser = ["done", "in_progress", "blocked"])]
     pub status: Option<String>,
     #[arg(long)]
     pub plan: Option<String>,
@@ -44,4 +44,10 @@ pub struct LogListArgs {
 pub enum LogAction {
     Add(LogAddArgs),
     List(LogListArgs),
+    /// Read one work log by its full ID or unique prefix.
+    Show {
+        id: String,
+        #[arg(long, help = "Print only the log body")]
+        body: bool,
+    },
 }

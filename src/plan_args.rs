@@ -48,6 +48,8 @@ pub enum PlanAction {
         revision: Option<u32>,
         #[arg(long)]
         history: bool,
+        #[arg(long, conflicts_with_all = ["history", "revision"], help = "Fetch only the current version, without revision history (also applies to JSON)")]
+        current_only: bool,
         #[arg(long)]
         body: bool,
     },
@@ -59,7 +61,7 @@ pub enum PlanAction {
         body: Option<String>,
         #[arg(long)]
         body_file: Option<String>,
-        #[arg(long = "ref", help = crate::refs::HELP)]
+        #[arg(long = "ref", help = crate::refs::UPDATE_HELP)]
         refs: Vec<String>,
         #[arg(long)]
         note: Option<String>,
@@ -78,7 +80,10 @@ pub enum PlanAction {
     },
     Move {
         id: String,
-        #[arg(long = "to")]
+        #[arg(
+            long = "to",
+            help = "Destination project slug; use @global to make a doc tenant-global"
+        )]
         target: String,
         #[arg(long)]
         note: Option<String>,

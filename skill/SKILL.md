@@ -49,6 +49,8 @@ cj log add --title "Implemented the device flow" --status done \
 
 The client links session commits where possible. Use `--no-auto-commits` when the log must not cite them.
 
+Read a previous work log with `cj log show LOG_ID`, or add `--body` for its body alone. `cj show` reads knowledge entries. For automatic commit linking, run the commit and the log in separate tool calls so the post-tool hook can record the commit first. In one shell invocation, supply `--ref commit:SHA`; explicit commits are then excluded from subsequent automatic links.
+
 ## Track tasks and plans
 
 Start a matching open task before doing it, then close it with a useful note:
@@ -58,10 +60,13 @@ cj task start ID
 cj task done ID --note "What changed"
 cj task add --title "Follow-up" --body "Why it matters"
 cj plan show ID
+cj plan show ID --json --current-only
 cj plan update ID --body-file PLAN.md
 ```
 
 Use `cj task add --to PROJECT` to forward work to another project. Keep longer plans and subsystem documentation in Code Journal and in repository files when the repository requires them.
+
+Plan statuses are `draft`, `active`, `done`, and `abandoned`; doc statuses are `draft`, `current`, and `outdated`. Help lists accepted statuses and feedback categories, and invalid values fail before an API request. `cj doc show ID --json --current-only` returns the current body, refs, and revision without downloading historical bodies. Updating a plan or doc with `--ref` replaces its entire ref list; omit the flag to retain existing refs.
 
 ## Notifications and offline work
 

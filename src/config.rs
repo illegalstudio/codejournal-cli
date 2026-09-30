@@ -41,10 +41,7 @@ impl Config {
             notifications,
             fallback_token: None,
         };
-        if keyring::Entry::new("codejournal", &config.key())
-            .and_then(|entry| entry.set_password(&token))
-            .is_err()
-        {
+        if crate::keyring_store::write(&config.key(), &token).is_err() {
             config.fallback_token = Some(token);
             eprintln!("System keyring unavailable. Token stored in a private config file.");
         }
@@ -55,8 +52,7 @@ impl Config {
         if let Ok(token) = std::env::var("CJ_TOKEN") {
             return Ok(token);
         }
-        let stored =
-            keyring::Entry::new("codejournal", &self.key()).and_then(|entry| entry.get_password());
+        let stored = crate::keyring_store::read(&self.key());
         match (stored, &self.fallback_token) {
             (Ok(token), _) => Ok(token),
             (Err(_), Some(token)) => Ok(token.clone()),
@@ -83,9 +79,7 @@ impl Config {
     }
 
     pub fn logout(&mut self) -> Result<()> {
-        if let Ok(entry) = keyring::Entry::new("codejournal", &self.key()) {
-            let _ = entry.delete_credential();
-        }
+        let _ = crate::keyring_store::delete(&self.key());
         self.fallback_token = None;
         let path = path()?;
         if path.exists() {

@@ -44,6 +44,7 @@ pub enum Command {
         #[arg(long)]
         kind: Option<String>,
     },
+    /// Read a knowledge entry. For work logs, use cj log show ID.
     Show {
         id: String,
         #[arg(long)]

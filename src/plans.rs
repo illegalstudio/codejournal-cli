@@ -1,6 +1,6 @@
 use crate::api::Api;
 use crate::plan_args::PlanAction;
-use crate::{plan_changes, plan_read, plan_write};
+use crate::{plan_changes, plan_read, plan_show, plan_write};
 use anyhow::{Result, bail};
 
 pub fn run(
@@ -48,7 +48,18 @@ pub fn run(
             revision,
             history,
             body,
-        } => plan_read::show(api, tenant, kind, &id, revision, history, body, json_mode),
+            current_only,
+        } => plan_show::show(
+            api,
+            tenant,
+            kind,
+            &id,
+            revision,
+            history,
+            body,
+            current_only,
+            json_mode,
+        ),
         PlanAction::Create {
             global,
             title,

@@ -57,11 +57,22 @@ pub fn move_to(
     if target == "@global" && kind != "docs" {
         bail!("plans cannot be moved to global scope");
     }
-    let result = api.patch(
-        &path(tenant, kind, id),
-        &json!({"action": "move", "to": target,
+    let result = api
+        .patch(
+            &path(tenant, kind, id),
+            &json!({"action": "move", "to": target,
         "note": note, "agent": attribution::agent(agent.as_deref()), "host": attribution::host()}),
-    )?;
+        )
+        .map_err(|error| {
+            if kind == "docs"
+                && target == "global"
+                && error.to_string().contains("Project not found")
+            {
+                error.context("use --to @global for a tenant-global doc; global is a project slug")
+            } else {
+                error
+            }
+        })?;
     output::emit(
         &result,
         &format!("Moved {} {} to {target}.", noun(kind), short(id)),

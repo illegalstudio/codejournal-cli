@@ -5,6 +5,8 @@ use serde_json::{Value, json};
 /// Help text shared by every `--ref` flag.
 pub const HELP: &str = "Reference, repeatable: path:FILE, commit:SHA, branch:NAME, issue:#N, a URL, or GitHub shorthand such as owner/repo#12";
 
+pub const UPDATE_HELP: &str = "Replace the entire ref list with these repeatable references; omit --ref to keep existing refs. Use path:FILE, commit:SHA, branch:NAME, issue:#N, URLs, or GitHub shorthand.";
+
 pub fn parse_all(values: &[String]) -> Result<Vec<Value>> {
     let mut parsed = Vec::new();
     for value in values {
@@ -25,9 +27,9 @@ fn parse(raw: &str) -> Result<Value> {
     } else {
         raw.to_owned()
     };
-    let (kind, value) = expanded
-        .split_once(':')
-        .context("ref must be KIND:VALUE, a URL, or GitHub shorthand")?;
+    let (kind, value) = expanded.split_once(':').context(
+        "ref must be KIND:VALUE, a URL, or GitHub shorthand; for a file use --ref path:FILE",
+    )?;
     let kind = kind.trim().to_ascii_lowercase();
     let value = value.trim();
     if !["path", "commit", "branch", "url", "issue"].contains(&kind.as_str()) || value.is_empty() {

@@ -60,6 +60,16 @@ pub fn head(cwd: &Path) -> Option<String> {
     command(cwd, &["rev-parse", "HEAD"])
 }
 
+pub fn resolve_commit(cwd: &Path, sha: &str) -> Option<String> {
+    if !(7..=40).contains(&sha.len()) || !sha.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    command(
+        cwd,
+        &["rev-parse", "--verify", &format!("{sha}^{{commit}}")],
+    )
+}
+
 fn command(cwd: &Path, args: &[&str]) -> Option<String> {
     let result = Command::new("git")
         .arg("-C")

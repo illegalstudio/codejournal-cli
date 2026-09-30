@@ -1,10 +1,9 @@
-use crate::cli::{Cli, Command};
+use crate::cli::Command;
 use crate::*;
 use anyhow::Result;
-use clap::Parser;
 
 pub fn run() -> Result<()> {
-    let mut cli = Cli::parse();
+    let mut cli = cli_parse::parse();
     if cli.project.is_some()
         && matches!(
             &cli.command,

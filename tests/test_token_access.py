@@ -38,6 +38,8 @@ class TokenAccessTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("system keyring", result.stderr)
         self.assertNotIn("run cj login", result.stderr)
+        self.assertNotIn("NoDefaultStore", result.stderr)
+        self.assertNotIn("No default credential store", result.stderr)
 
     def test_stored_token_is_not_sent_to_another_server(self):
         result = self.cli("search", "x", "--server", "https://example.test")
