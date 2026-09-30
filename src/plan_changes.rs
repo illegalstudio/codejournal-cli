@@ -1,6 +1,6 @@
 use crate::api::Api;
 use crate::{attribution, output};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use serde_json::json;
 
 fn noun(kind: &str) -> &str {
@@ -54,6 +54,9 @@ pub fn move_to(
     agent: Option<String>,
     json_mode: bool,
 ) -> Result<()> {
+    if target == "@global" && kind != "docs" {
+        bail!("plans cannot be moved to global scope");
+    }
     let result = api.patch(
         &path(tenant, kind, id),
         &json!({"action": "move", "to": target,

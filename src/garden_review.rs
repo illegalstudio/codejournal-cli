@@ -70,6 +70,7 @@ pub fn collect(records: &[Value], _entries: &[Value]) -> Review {
                 record["type"] == "plan"
                     && record["kind"] == "doc"
                     && (record["status"] == "draft" || record["status"] == "current")
+                    && crate::garden_doc_scope::covers(record, &active)
                     && ["title", "body"].iter().any(|field| {
                         record[*field].as_str().is_some_and(|text| {
                             text.to_lowercase().contains(&name.to_lowercase())

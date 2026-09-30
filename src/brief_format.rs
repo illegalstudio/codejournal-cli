@@ -74,6 +74,12 @@ pub fn render(
         );
         section(
             &mut lines,
+            "Global docs (shared within this tenant; open when relevant):",
+            &data["global_docs"],
+            20,
+        );
+        section(
+            &mut lines,
             &format!("Recent work (last {log_limit} logs):"),
             &data["logs"],
             log_limit as usize,

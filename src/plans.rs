@@ -1,7 +1,7 @@
 use crate::api::Api;
 use crate::plan_args::PlanAction;
 use crate::{plan_changes, plan_read, plan_write};
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 pub fn run(
     api: &Api,
@@ -11,12 +11,21 @@ pub fn run(
     action: PlanAction,
     json_mode: bool,
 ) -> Result<()> {
+    if kind != "docs"
+        && matches!(
+            &action,
+            PlanAction::Create { global: true, .. } | PlanAction::List { global: true, .. }
+        )
+    {
+        bail!("--global is only supported for docs");
+    }
     match action {
         PlanAction::List {
             status,
             grep,
             path,
             all_projects,
+            global,
         } => plan_read::list(
             api,
             tenant,
@@ -26,6 +35,7 @@ pub fn run(
             grep,
             path,
             all_projects,
+            global,
             json_mode,
         ),
         PlanAction::Show {
@@ -35,6 +45,7 @@ pub fn run(
             body,
         } => plan_read::show(api, tenant, kind, &id, revision, history, body, json_mode),
         PlanAction::Create {
+            global,
             title,
             body,
             body_file,
@@ -43,8 +54,8 @@ pub fn run(
             refs,
             agent,
         } => plan_write::create(
-            api, tenant, project, kind, title, body, body_file, status, not_before, refs, agent,
-            json_mode,
+            api, tenant, project, kind, global, title, body, body_file, status, not_before, refs,
+            agent, json_mode,
         ),
         PlanAction::Update {
             id,

@@ -19,6 +19,7 @@ pub fn create(
     tenant: &str,
     project: Option<&str>,
     kind: &str,
+    global: bool,
     title: String,
     body: Option<String>,
     body_file: Option<String>,
@@ -31,8 +32,13 @@ pub fn create(
     let body = input::body(body, body_file)?;
     let status =
         status.unwrap_or_else(|| if kind == "docs" { "current" } else { "active" }.to_owned());
+    let base = if global {
+        format!("/api/v1/tenants/{tenant}")
+    } else {
+        commands::path(tenant, project)?
+    };
     let result = api.post(
-        &format!("{}/{kind}", commands::path(tenant, project)?),
+        &format!("{base}/{kind}"),
         &json!({
             "title": title, "body": body, "status": status, "not_before": not_before,
             "refs": refs::parse_all(&raw_refs)?, "agent": attribution::agent(agent.as_deref()),

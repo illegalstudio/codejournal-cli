@@ -22,9 +22,10 @@ pub fn list(
     grep: Option<String>,
     path: Option<String>,
     all_projects: bool,
+    global: bool,
     json_mode: bool,
 ) -> Result<()> {
-    let base = if all_projects {
+    let base = if all_projects || global {
         format!("/api/v1/tenants/{tenant}/{kind}")
     } else {
         format!(
@@ -33,6 +34,9 @@ pub fn list(
         )
     };
     let mut params = vec![("status", status)];
+    if global {
+        params.push(("scope", "global".to_owned()));
+    }
     if let Some(grep) = grep {
         params.push(("grep", grep));
     }
@@ -43,8 +47,15 @@ pub fn list(
     let result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
     let mut lines = Vec::new();
     for item in result[kind].as_array().into_iter().flatten() {
-        let where_text = if all_projects {
-            format!("{:<24} ", text(&item["project_slug"]))
+        let where_text = if all_projects || global {
+            format!(
+                "{:<24} ",
+                if item["scope"] == "global" {
+                    "GLOBAL"
+                } else {
+                    text(&item["project_slug"])
+                }
+            )
         } else {
             String::new()
         };
@@ -90,7 +101,14 @@ pub fn show(
     }
     let mut lines = vec![
         format!("id:        {}", text(&item["id"]).replace('-', "")),
-        format!("project:   {}", text(&item["project_slug"])),
+        format!(
+            "project:   {}",
+            if item["scope"] == "global" {
+                "GLOBAL"
+            } else {
+                text(&item["project_slug"])
+            }
+        ),
         format!("status:    {}", text(&item["status"])),
         format!("revision:  {}", item["revision"]),
         format!("updated:   {}", text(&item["updated_at"])),

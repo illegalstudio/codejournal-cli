@@ -68,3 +68,17 @@ Use `cj task add --to PROJECT` to forward work to another project. Keep longer p
 Use `cj notify --kind needs_input --title "..."` when the user may not be watching and their input is required. Use `cj watch start --title "..." -- COMMAND` when asked to report when a long command ends. `cj status` shows queued writes; `cj sync` replays them. The session hook records activity and notifications without prompt text or file contents.
 
 The repository's `AGENTS.md` and the user's instructions take precedence over this skill.
+
+## Shared documentation
+
+Global docs belong to the current tenant and are available from every project with cross-project access. They are agent-facing documentation, not project rules. The full brief lists current and draft global docs separately; compact briefs include only docs with refs matching current Git changes. Open relevant docs with `cj doc show ID`.
+
+```sh
+cj doc create --global --title "Shared runbook" --body-file RUNBOOK.md --ref path:src
+cj doc list --global
+cj doc list --all-projects --grep "runbook"
+cj doc move ID --to @global
+cj doc move ID --to PROJECT_SLUG
+```
+
+`--global` creation conflicts with explicit `--project`. Default doc creation and listing stay local to the project. Tenant-wide lists label shared docs `GLOBAL`. Moves retain the ID and history; plans cannot move to global scope. Offline writes and cached reads follow the normal journal queue behavior.

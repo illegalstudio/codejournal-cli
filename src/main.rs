@@ -29,6 +29,7 @@ mod export;
 mod feedback;
 mod feedback_args;
 mod garden;
+mod garden_doc_scope;
 mod garden_format;
 mod garden_review;
 mod garden_review_format;

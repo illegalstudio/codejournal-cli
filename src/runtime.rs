@@ -5,6 +5,16 @@ use clap::Parser;
 
 pub fn run() -> Result<()> {
     let mut cli = Cli::parse();
+    if cli.project.is_some()
+        && matches!(
+            &cli.command,
+            Command::Doc {
+                action: plan_args::PlanAction::Create { global: true, .. }
+            }
+        )
+    {
+        anyhow::bail!("--global conflicts with --project when creating a doc");
+    }
     if let Some(cwd) = &cli.cwd {
         std::env::set_current_dir(cwd)?;
     }

@@ -11,8 +11,16 @@ pub enum PlanAction {
         path: Option<String>,
         #[arg(long)]
         all_projects: bool,
+        #[arg(
+            long,
+            conflicts_with = "all_projects",
+            help = "List tenant-global docs"
+        )]
+        global: bool,
     },
     Create {
+        #[arg(long, conflicts_with = "project", help = "Create a tenant-global doc")]
+        global: bool,
         #[arg(long)]
         title: String,
         #[arg(long, conflicts_with = "body_file")]

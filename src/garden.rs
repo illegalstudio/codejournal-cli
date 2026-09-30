@@ -44,10 +44,22 @@ pub fn run(
         .cloned()
         .collect();
     let export = api.get(&format!("/api/v1/tenants/{tenant}/export?project={slug}"))?;
-    let records = export["records"]
+    let mut records = export["records"]
         .as_array()
-        .context("invalid garden export")?;
-    let review = garden_review::collect(records, &entries);
+        .context("invalid garden export")?
+        .clone();
+    let docs = api.get(&format!("/api/v1/tenants/{tenant}/docs?scope=global"))?;
+    for doc in docs["docs"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|doc| doc["scope"] == "global")
+    {
+        let mut record = doc.clone();
+        record["type"] = json!("plan");
+        records.push(record);
+    }
+    let review = garden_review::collect(&records, &entries);
     let applied = if dry_run {
         Vec::new()
     } else {
