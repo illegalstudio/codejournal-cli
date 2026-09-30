@@ -23,6 +23,7 @@ pub fn list(
     path: Option<String>,
     all_projects: bool,
     global: bool,
+    local: bool,
     json_mode: bool,
 ) -> Result<()> {
     let base = if all_projects || global {
@@ -36,6 +37,8 @@ pub fn list(
     let mut params = vec![("status", status)];
     if global {
         params.push(("scope", "global".to_owned()));
+    } else if kind == "docs" && !all_projects && !local {
+        params.push(("include_global", "1".to_owned()));
     }
     if let Some(grep) = grep {
         params.push(("grep", grep));
@@ -47,7 +50,7 @@ pub fn list(
     let result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
     let mut lines = Vec::new();
     for item in result[kind].as_array().into_iter().flatten() {
-        let where_text = if all_projects || global {
+        let where_text = if all_projects || global || item["scope"] == "global" {
             format!(
                 "{:<24} ",
                 if item["scope"] == "global" {

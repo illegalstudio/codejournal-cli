@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import threading
 import unittest
+from urllib.parse import parse_qs, urlsplit
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -28,11 +29,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        self.requests.append(("GET", self.path, None, None))
         if "/docs/" in self.path:
             self.respond({"doc": DOC, "revisions": []})
         elif "/docs?" in self.path:
             local = "/projects/fixture/" in self.path
-            self.respond({"docs": [{**DOC, "scope": "project", "project_slug": "fixture"}] if local else [DOC]})
+            docs = [{**DOC, "scope": "project", "project_slug": "fixture", "title": "Project recovery"}] if local else [DOC]
+            if local and parse_qs(urlsplit(self.path).query).get("include_global") == ["1"]:
+                docs.append(DOC)
+            self.respond({"docs": docs})
         else:
             self.respond({})
 
@@ -99,10 +104,25 @@ class GlobalDocsTest(unittest.TestCase):
     def test_lists_and_detail_handle_global_scope_and_cached_null_project(self):
         self.assertIn("GLOBAL", self.cli("doc", "list", "--global").stdout)
         self.assertIn("GLOBAL", self.cli("doc", "list", "--all-projects").stdout)
-        self.assertNotIn("GLOBAL", self.cli("--project", "fixture", "doc", "list").stdout)
+        self.assertIn("GLOBAL", self.cli("--project", "fixture", "doc", "list").stdout)
+        self.assertNotIn("GLOBAL", self.cli("--project", "fixture", "doc", "list", "--local").stdout)
         online = self.cli("--json", "doc", "list", "--global").stdout
         self.assertEqual(online, self.cli("--json", "--offline", "doc", "list", "--global").stdout)
         self.assertIn("project:   GLOBAL", self.cli("doc", "show", "aaaaaaaa").stdout)
+
+    def test_default_search_includes_shared_docs_and_local_is_explicit(self):
+        result = self.cli("--project", "fixture", "doc", "list", "--grep", "recovery")
+        self.assertIn("Project recovery", result.stdout)
+        self.assertIn("GLOBAL", result.stdout)
+        query = parse_qs(urlsplit(Handler.requests[-1][1]).query)
+        self.assertEqual(query["include_global"], ["1"])
+        self.assertEqual(query["grep"], ["recovery"])
+        self.cli("--project", "fixture", "doc", "list", "--local", "--grep", "recovery")
+        self.assertNotIn("include_global", parse_qs(urlsplit(Handler.requests[-1][1]).query))
+        for flag in ["--global", "--all-projects"]:
+            self.assertNotEqual(self.cli("doc", "list", "--local", flag, check=False).returncode, 0)
+        self.cli("--project", "fixture", "plan", "list")
+        self.assertNotIn("include_global", parse_qs(urlsplit(Handler.requests[-1][1]).query))
 
     def test_offline_global_writes_keep_route_target_and_idempotency_key(self):
         queued = json.loads(self.cli("--json", "--offline", "doc", "create", "--global",

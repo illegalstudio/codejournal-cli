@@ -19,6 +19,9 @@ pub fn run(
     {
         bail!("--global is only supported for docs");
     }
+    if kind != "docs" && matches!(&action, PlanAction::List { local: true, .. }) {
+        bail!("--local is only supported for docs");
+    }
     match action {
         PlanAction::List {
             status,
@@ -26,6 +29,7 @@ pub fn run(
             path,
             all_projects,
             global,
+            local,
         } => plan_read::list(
             api,
             tenant,
@@ -36,6 +40,7 @@ pub fn run(
             path,
             all_projects,
             global,
+            local,
             json_mode,
         ),
         PlanAction::Show {

@@ -17,6 +17,12 @@ pub enum PlanAction {
             help = "List tenant-global docs"
         )]
         global: bool,
+        #[arg(
+            long,
+            conflicts_with_all = ["global", "all_projects"],
+            help = "List only this project's docs, excluding global docs"
+        )]
+        local: bool,
     },
     Create {
         #[arg(long, conflicts_with = "project", help = "Create a tenant-global doc")]

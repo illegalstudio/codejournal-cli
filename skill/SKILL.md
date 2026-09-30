@@ -76,9 +76,11 @@ Global docs belong to the current tenant and are available from every project wi
 ```sh
 cj doc create --global --title "Shared runbook" --body-file RUNBOOK.md --ref path:src
 cj doc list --global
+cj doc list --grep "runbook"
+cj doc list --local --grep "runbook"
 cj doc list --all-projects --grep "runbook"
 cj doc move ID --to @global
 cj doc move ID --to PROJECT_SLUG
 ```
 
-`--global` creation conflicts with explicit `--project`. Default doc creation and listing stay local to the project. Tenant-wide lists label shared docs `GLOBAL`. Moves retain the ID and history; plans cannot move to global scope. Offline writes and cached reads follow the normal journal queue behavior.
+`--global` creation conflicts with explicit `--project`. Default doc creation stays local to the project. Default doc listing and search include the current project's docs and the tenant's global docs. Use `--local` to exclude shared docs, `--global` for shared docs only, or `--all-projects` for every project plus global docs. Shared docs are labelled `GLOBAL`. Moves retain the ID and history; plans cannot move to global scope. Offline writes and cached reads follow the normal journal queue behavior.
