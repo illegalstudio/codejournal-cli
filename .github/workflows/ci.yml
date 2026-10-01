@@ -26,5 +26,5 @@ jobs:
           rustup update stable --no-self-update
           rustup default stable
           rustup component add rustfmt
-      - name: Test the standalone client
+      - name: Check formatting and test the standalone client
         run: bash scripts/test.sh
