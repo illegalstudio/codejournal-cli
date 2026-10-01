@@ -40,7 +40,7 @@ pub fn run(explicit_server: Option<&str>) -> Result<()> {
     }
     let request: DeviceRequest = response.json()?;
     let url = format!("{}?code={}", request.verification_uri, request.user_code);
-    println!("Open {url}\nConfirm code: {}", request.user_code);
+    crate::stdout::println!("Open {url}\nConfirm code: {}", request.user_code);
     let _ = webbrowser::open(&url);
     let deadline = Instant::now() + Duration::from_secs(request.expires_in);
     while Instant::now() < deadline {
@@ -70,7 +70,7 @@ pub fn run(explicit_server: Option<&str>) -> Result<()> {
             .as_str()
             .context("missing tenant")?;
         Config::store(server, tenant.to_owned(), token.to_owned())?;
-        println!("Logged in to workspace {tenant}.");
+        crate::stdout::println!("Logged in to workspace {tenant}.");
         return Ok(());
     }
     bail!("device code expired; run cj login again")

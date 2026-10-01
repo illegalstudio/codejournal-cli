@@ -98,9 +98,9 @@ pub fn run(
                 };
                 let (safe_title, _) = crate::secret_redaction::text(&title);
                 if let Some(notice) = output::masking_notice() {
-                    println!("{notice}");
+                    crate::stdout::println!("{notice}");
                 }
-                println!("Watching {} (pid {}): {safe_title}", &id[..8], child.id());
+                crate::stdout::println!("Watching {} (pid {}): {safe_title}", &id[..8], child.id());
                 let channels = delivery["channels"]
                     .as_array()
                     .into_iter()
@@ -108,9 +108,9 @@ pub fn run(
                     .filter_map(Value::as_str)
                     .collect::<Vec<_>>()
                     .join(", ");
-                println!("When it {when}, a notification goes to: {channels}.");
+                crate::stdout::println!("When it {when}, a notification goes to: {channels}.");
                 if let Some(note) = delivery["note"].as_str() {
-                    println!("note: {note}.");
+                    crate::stdout::println!("note: {note}.");
                 }
                 Ok(())
             }

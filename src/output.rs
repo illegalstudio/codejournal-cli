@@ -35,7 +35,7 @@ pub fn masking_notice() -> Option<String> {
 pub fn json(value: &Value) -> Result<()> {
     let mut value = value.clone();
     secret_redaction::value(&mut value);
-    println!("{}", serde_json::to_string_pretty(&value)?);
+    crate::stdout::println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
 }
 
@@ -45,9 +45,9 @@ pub fn emit(value: &Value, human: &str, json_mode: bool) -> Result<()> {
     } else {
         let (clean, _) = secret_redaction::text(human);
         if let Some(notice) = masking_notice() {
-            println!("{notice}");
+            crate::stdout::println!("{notice}");
         }
-        println!("{clean}");
+        crate::stdout::println!("{clean}");
         Ok(())
     }
 }

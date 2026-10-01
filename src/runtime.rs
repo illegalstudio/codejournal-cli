@@ -76,12 +76,12 @@ pub fn run() -> Result<()> {
         {
             let queued = error.downcast_ref::<request_outbox::QueuedWrite>().unwrap();
             if json_mode {
-                println!("{}", serde_json::json!({"queued": true, "id": queued.0}));
+                crate::stdout::println!("{}", serde_json::json!({"queued": true, "id": queued.0}));
             } else {
                 if let Some(notice) = output::masking_notice() {
-                    println!("{notice}");
+                    crate::stdout::println!("{notice}");
                 }
-                println!("Queued for synchronization: {}", queued.0);
+                crate::stdout::println!("Queued for synchronization: {}", queued.0);
             }
             Ok(())
         }

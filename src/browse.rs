@@ -42,7 +42,7 @@ pub fn run(api: &Api, tenant: &str, current: Option<&str>, args: BrowseArgs) -> 
     let mut lines = crate::browse_list::entries(api, tenant, scope.as_deref(), args.all_statuses)?;
     if args.list {
         for line in lines {
-            println!("{line}");
+            crate::stdout::println!("{line}");
         }
         return Ok(());
     }
@@ -51,7 +51,7 @@ pub fn run(api: &Api, tenant: &str, current: Option<&str>, args: BrowseArgs) -> 
         lines = crate::browse_list::entries(api, tenant, None, args.all_statuses)?;
     }
     if lines.is_empty() {
-        println!("The journal is empty.");
+        crate::stdout::println!("The journal is empty.");
         return Ok(());
     }
     let executable = std::env::current_exe()?;

@@ -32,9 +32,9 @@ pub fn run(api: &Api, tenant: &str, current: Option<&str>, args: ExportArgs) -> 
     }
     if let Some(path) = args.output {
         fs::write(&path, body)?;
-        println!("Exported {} record(s) to {}", records.len(), path.display());
+        crate::stdout::println!("Exported {} record(s) to {}", records.len(), path.display());
     } else {
-        print!("{body}");
+        crate::stdout::print!("{body}");
     }
     Ok(())
 }

@@ -21,14 +21,14 @@ pub fn configure(desktop: Option<String>, ntfy: Option<String>, json_mode: bool)
     }
     config.save()?;
     if json_mode {
-        println!(
+        crate::stdout::println!(
             "{}",
             json!({"notifications": {
                 "desktop": config.notifications.desktop, "ntfy_url": config.notifications.ntfy_url
             }})
         );
     } else {
-        println!(
+        crate::stdout::println!(
             "desktop: {}\nntfy:    {}",
             if config.notifications.desktop {
                 "on"

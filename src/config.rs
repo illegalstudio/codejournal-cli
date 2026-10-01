@@ -85,7 +85,7 @@ impl Config {
         if path.exists() {
             fs::remove_file(path)?;
         }
-        println!("Logged out of Code Journal.");
+        crate::stdout::println!("Logged out of Code Journal.");
         Ok(())
     }
 

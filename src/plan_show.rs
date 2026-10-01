@@ -35,7 +35,7 @@ pub fn show(
     let result = api.get(&format!("/api/v1/tenants/{tenant}/{kind}/{id}{query}"))?;
     let item = &result[noun(kind)];
     if body_only && !json_mode {
-        println!("{}", item["body"].as_str().context("missing body")?);
+        crate::stdout::println!("{}", item["body"].as_str().context("missing body")?);
         return Ok(());
     }
     let mut lines = vec![

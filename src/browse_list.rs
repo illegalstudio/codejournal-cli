@@ -41,7 +41,7 @@ pub fn entries(
 pub fn projects(api: &Api, tenant: &str) -> Result<()> {
     let result = api.get(&format!("/api/v1/tenants/{tenant}/projects"))?;
     for row in result["projects"].as_array().into_iter().flatten() {
-        println!(
+        crate::stdout::println!(
             "{}\t{}\t{} active",
             value(&row["slug"]),
             value(&row["name"]),

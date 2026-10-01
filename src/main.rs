@@ -112,6 +112,7 @@ mod setup_agents;
 mod shorthand;
 mod since_arg;
 mod staleness;
+mod stdout;
 mod storage_status;
 mod task_add;
 mod task_args;

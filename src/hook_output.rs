@@ -86,14 +86,14 @@ pub fn stop(payload: &Value, cwd: &Path, state: &mut session_state::SessionState
     } else {
         format!("changed {} file(s)", state.turn_files.len())
     };
-    println!(
+    crate::stdout::println!(
         "{}",
         json!({"decision": "block", "reason": format!("Code Journal: this turn {what} but no `cj log add` was recorded. Log it once now with `cj log add --title \"...\" --agent {}` and record any non-obvious fact with `cj add`. This reminder appears once per turn.", state.agent)})
     );
 }
 
 fn context(event: &str, text: &str) {
-    println!(
+    crate::stdout::println!(
         "{}",
         json!({"hookSpecificOutput": {"hookEventName": event, "additionalContext": text}})
     );

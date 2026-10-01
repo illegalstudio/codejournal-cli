@@ -6,7 +6,7 @@ pub fn run(api: &Api, tenant: &str, id: &str, body_only: bool, json_mode: bool) 
     let result = api.get(&format!("/api/v1/tenants/{tenant}/logs/{id}"))?;
     let log = &result["log"];
     if body_only && !json_mode {
-        println!("{}", text(&log["body"]));
+        crate::stdout::println!("{}", text(&log["body"]));
         return Ok(());
     }
     let mut lines = vec![
