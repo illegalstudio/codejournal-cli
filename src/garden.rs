@@ -1,7 +1,5 @@
-use crate::{
-    api::Api, garden_format, garden_review, output, project_bootstrap, staleness, topic_similarity,
-};
-use anyhow::{Context, Result, bail};
+use crate::{api::Api, garden_docs, garden_format, output, project_bootstrap, staleness};
+use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
 pub fn run(
@@ -16,14 +14,14 @@ pub fn run(
     }
     let slug = project_bootstrap::resolved_slug(api, tenant, project)?;
     let path = format!("/api/v1/tenants/{tenant}/projects/{slug}");
-    let topics = api.get(&format!("/api/v1/tenants/{tenant}/topics"))?;
-    let (certain, possible) = topic_similarity::groups(&topics["topics"]);
-    let maintenance = api.get(&format!("{path}/garden/maintenance"))?;
+    let mut payload = api.get(&format!("{path}/garden/report"))?;
+    let mut stale_docs = Vec::new();
     let mut entries = Vec::new();
     let mut page = 1_u64;
     loop {
         let mut result = api.get(&format!("{path}/garden?page={page}"))?;
         staleness::enrich(api, &path, &mut result)?;
+        stale_docs.extend(garden_docs::check(api, &path, &result["docs"])?);
         entries.extend(result["entries"].as_array().cloned().unwrap_or_default());
         let Some(next) = result["next_page"].as_u64() else {
             break;
@@ -43,38 +41,18 @@ pub fn run(
         .filter(|entry| entry["staleness"]["stale"] != true && has_refs(entry, "elsewhere"))
         .cloned()
         .collect();
-    let export = api.get(&format!("/api/v1/tenants/{tenant}/export?project={slug}"))?;
-    let mut records = export["records"]
-        .as_array()
-        .context("invalid garden export")?
-        .clone();
-    let docs = api.get(&format!("/api/v1/tenants/{tenant}/docs?scope=global"))?;
-    for doc in docs["docs"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|doc| doc["scope"] == "global")
-    {
-        let mut record = doc.clone();
-        record["type"] = json!("plan");
-        records.push(record);
-    }
-    let review = garden_review::collect(&records, &entries);
     let applied = if dry_run {
         Vec::new()
     } else {
-        let result = api.post(
-            &format!("{path}/garden/maintenance"),
-            &json!({"topic_groups": certain}),
-        )?;
+        let result = api.post(&format!("{path}/garden/maintenance"), &json!({}))?;
         result["applied"].as_array().cloned().unwrap_or_default()
     };
-    let payload = json!({"project": slug, "dry_run": dry_run, "applied": applied,
-        "secrets": maintenance["secrets"], "topic_groups": certain,
-        "possible_topics": possible, "topic_counts": topics["topics"], "duplicates": review.duplicates,
-        "stale_entries": stale, "other_branch_entries": elsewhere,
-        "stale_docs": review.stale_docs, "idle_plans": review.idle_plans,
-        "reported_wrong": maintenance["reported_wrong"], "doc_candidates": review.doc_candidates});
+    payload["project"] = json!(slug);
+    payload["dry_run"] = json!(dry_run);
+    payload["applied"] = json!(applied);
+    payload["stale_entries"] = json!(stale);
+    payload["other_branch_entries"] = json!(elsewhere);
+    payload["stale_docs"] = json!(stale_docs);
     output::emit(&payload, &garden_format::render(&payload), json_mode)
 }
 

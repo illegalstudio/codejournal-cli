@@ -1,7 +1,5 @@
 use crate::api::Api;
 use crate::knowledge_args::TopicsAction;
-use crate::topic_similarity;
-use crate::topic_stem;
 use crate::{output, project};
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -40,12 +38,12 @@ pub fn run(
             )
         }
         Some(TopicsAction::Merge { sources, into }) => {
-            let target = topic_stem::normalize(&into);
+            let target = into.trim();
             let sources: Vec<_> = sources
                 .iter()
                 .flat_map(|value| value.split(','))
-                .map(topic_stem::normalize)
-                .filter(|name| !name.is_empty() && name != &target)
+                .map(str::trim)
+                .filter(|name| !name.is_empty() && *name != target)
                 .collect();
             if target.is_empty() || sources.is_empty() {
                 anyhow::bail!("pass the topics to fold and --into TARGET");
@@ -54,20 +52,24 @@ pub fn run(
                 &format!("/api/v1/tenants/{tenant}/topics/merge"),
                 &json!({"sources": sources, "target": target}),
             )?;
-            let joined = sources
-                .iter()
+            let joined = result["sources"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
                 .map(|name| format!("#{name}"))
                 .collect::<Vec<_>>()
                 .join(", ");
             output::emit(
                 &result,
-                &format!("Merged {joined} into #{target}."),
+                &format!("Merged {joined} into #{}.", string(&result["target"])),
                 json_mode,
             )
         }
         Some(TopicsAction::Similar) => {
-            let result = api.get(&format!("/api/v1/tenants/{tenant}/topics"))?;
-            let (certain, possible) = topic_similarity::groups(&result["topics"]);
+            let result = api.get(&format!("/api/v1/tenants/{tenant}/topics/similar"))?;
+            let certain: Vec<Vec<String>> = serde_json::from_value(result["certain"].clone())?;
+            let possible: Vec<Vec<String>> = serde_json::from_value(result["possible"].clone())?;
             let mut lines = vec![
                 "Same topic, different spelling (safe to merge, `cj garden` merges them):"
                     .to_owned(),
@@ -75,7 +77,7 @@ pub fn run(
             if certain.is_empty() {
                 lines.push("  (none)".to_owned());
             }
-            for group in &certain {
+            for group in certain.iter().filter(|group| group.len() >= 2) {
                 lines.push(format!(
                     "  cj topics merge {} --into {}",
                     group[1..].join(" "),
@@ -87,7 +89,7 @@ pub fn run(
             if possible.is_empty() {
                 lines.push("  (none)".to_owned());
             }
-            for pair in &possible {
+            for pair in possible.iter().filter(|pair| pair.len() >= 2) {
                 lines.push(format!("  {} ~ {}", pair[0], pair[1]));
             }
             output::emit(

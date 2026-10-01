@@ -67,11 +67,9 @@ pub fn deliver(item: &Value, where_text: &str) -> Result<(Value, Vec<String>)> {
     let agent = item["agent"].as_str().unwrap_or("agent");
     if config.notifications.desktop {
         channels.push("desktop");
-        let urgency = if ["needs_input", "error"].contains(&kind) {
-            "critical"
-        } else {
-            "normal"
-        };
+        let urgency = item["delivery_policy"]["desktop"]
+            .as_str()
+            .unwrap_or("normal");
         let message = format!("{agent} in {where_text}\n{body}");
         if let Err(error) = crate::desktop_delivery::send(
             &format!("cj: {title}"),
@@ -83,13 +81,9 @@ pub fn deliver(item: &Value, where_text: &str) -> Result<(Value, Vec<String>)> {
     }
     if let Some(url) = &config.notifications.ntfy_url {
         channels.push("ntfy");
-        let priority = if ["needs_input", "error"].contains(&kind) {
-            "high"
-        } else if kind == "info" {
-            "low"
-        } else {
-            "default"
-        };
+        let priority = item["delivery_policy"]["ntfy"]
+            .as_str()
+            .unwrap_or("default");
         let text = if body.is_empty() {
             format!("{title} ({agent}, {where_text})")
         } else {

@@ -20,6 +20,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     observations = []
     maintenance = []
     briefs = []
+    changes = []
+    paths = []
+    stale_override = None
+    docs = []
+    doc_observations = []
 
     def log_message(self, *_args):
         pass
@@ -32,15 +37,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        self.paths.append(self.path)
         if "/projects/resolve?" in self.path:
             self.respond({"project": {"slug": "repo"}})
         elif "/garden?page=1" in self.path:
-            self.respond({"entries": [ENTRY], "next_page": 2})
+            self.respond({"entries": [ENTRY], "docs": self.docs[:1], "next_page": 2})
         elif "/garden?page=2" in self.path:
             self.respond({"entries": [{"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-                                       "title": "No paths", "refs": []}], "next_page": None})
+                                       "title": "No paths", "refs": []}], "docs": self.docs[1:], "next_page": None})
         elif "/entries?" in self.path:
             self.respond({"entries": [ENTRY]})
+        elif self.path.endswith("/topics/similar"):
+            self.respond({"certain": [["remote", "remote-alias"]], "possible": []})
+        elif self.path.endswith("/garden/report"):
+            self.respond({"secrets": [], "reported_wrong": [], "topic_groups": [],
+                          "possible_topics": [], "topic_counts": [], "duplicates": [],
+                          "idle_plans": [], "doc_candidates": [{"topic": "from-server", "entries": 42}]})
         elif self.path.endswith("/topics"):
             self.respond({"topics": []})
         elif self.path.endswith("/garden/maintenance"):
@@ -74,6 +86,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.maintenance.append(body)
             self.respond({"applied": []})
             return
+        if self.path.endswith("/garden/doc-checks"):
+            self.doc_observations.extend(body["observations"])
+            self.respond({"stale_docs": [{"id": row["id"], "title": "Server classified document",
+                                         "code_changes": row["changes"]} for row in body["observations"]]})
+            return
+        self.changes.extend(body.get("changes", []))
         self.observations.append(body["observations"][0])
         observation = body["observations"][0]
         elsewhere = [{"path": "src/helper.rs", "where": "branch feat/helper"}]
@@ -83,6 +101,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             check = {"missing": [], "elsewhere": elsewhere}
         else:
             check = {"missing": [observation["path"]], "elsewhere": []}
+        changes = next((row["changes"] for row in body.get("changes", []) if row["id"] == ENTRY_ID), 0)
+        check.update({"changes": changes, "gone": check["missing"],
+                      "stale": bool(check["missing"]) or changes >= 5
+                      if self.stale_override is None else self.stale_override})
         self.respond({"checks": {ENTRY_ID: check}})
 
 
@@ -105,6 +127,11 @@ class BranchFeedbackTest(unittest.TestCase):
         Handler.observations.clear()
         Handler.maintenance.clear()
         Handler.briefs.clear()
+        Handler.changes.clear()
+        Handler.paths.clear()
+        Handler.stale_override = None
+        Handler.docs.clear()
+        Handler.doc_observations.clear()
         self.temp = tempfile.TemporaryDirectory(prefix="cj-branch-")
         self.addCleanup(self.temp.cleanup)
         base = pathlib.Path(self.temp.name)
@@ -156,7 +183,7 @@ class BranchFeedbackTest(unittest.TestCase):
     def test_garden_applies_safe_fixes_through_api(self):
         report = self.cli("garden")
         self.assertFalse(report["dry_run"])
-        self.assertEqual(Handler.maintenance, [{"topic_groups": []}])
+        self.assertEqual(Handler.maintenance, [{}])
 
     def test_five_commits_to_a_present_path_make_entry_stale(self):
         prior = ENTRY["refs"]
@@ -172,6 +199,31 @@ class BranchFeedbackTest(unittest.TestCase):
         finally:
             ENTRY["refs"] = prior
             ENTRY.pop("created_at", None)
+
+    def test_garden_and_topics_use_server_recommendations_without_export(self):
+        report = self.cli("garden", "--dry-run")
+        self.assertEqual(report["doc_candidates"], [{"topic": "from-server", "entries": 42}])
+        self.assertFalse(any("/export" in path or "/docs?" in path for path in Handler.paths))
+        self.assertEqual(self.cli("topics", "similar")["certain"], [["remote", "remote-alias"]])
+
+    def test_client_does_not_override_server_staleness(self):
+        Handler.stale_override = True
+        report = self.cli("garden", "--dry-run")
+        self.assertEqual(report["stale_entries"][0]["id"], ENTRY_ID)
+        Handler.stale_override = False
+        self.git("branch", "-D", "feat/helper")
+        report = self.cli("garden", "--dry-run")
+        self.assertEqual(report["stale_entries"], [])
+
+    def test_document_git_observations_are_sent_for_every_page(self):
+        Handler.docs.extend([{"id": id, "refs": [{"kind": "path", "value": "README.md"}],
+                              "updated_at": "2020-01-01 00:00:00+00"}
+                             for id in [ENTRY_ID, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]])
+        report = self.cli("garden", "--dry-run")
+        self.assertEqual(len(report["stale_docs"]), 2)
+        self.assertEqual(report["stale_docs"][0]["title"], "Server classified document")
+        self.assertEqual(len(Handler.doc_observations), 2)
+        self.assertGreaterEqual(Handler.doc_observations[0]["changes"], 1)
 
 
 if __name__ == "__main__":
