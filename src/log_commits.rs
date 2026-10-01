@@ -1,5 +1,5 @@
 use crate::{session_git, session_state};
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 pub fn pending(explicit_refs: &[String], no_auto: bool) -> Result<Vec<String>> {
     if no_auto || explicit_refs.iter().any(|item| item.starts_with("commit:")) {
@@ -15,6 +15,21 @@ pub fn pending(explicit_refs: &[String], no_auto: bool) -> Result<Vec<String>> {
     let state = session_state::load(&id)?;
     if state.repo_common.as_deref() != Some(common.as_str()) {
         return Ok(Vec::new());
+    }
+    if let Some(head) = session_git::head(&cwd)
+        && state
+            .turn_head
+            .as_ref()
+            .is_some_and(|previous| previous != &head)
+        && !state.commits.contains(&head)
+        && !state.logged.contains(&head)
+        && !session_state::others()?
+            .iter()
+            .any(|other| other.repo_common == state.repo_common && other.commits.contains(&head))
+    {
+        bail!(
+            "HEAD changed before the commit hook recorded it; run commit and log in separate tool calls, or pass --ref commit:HEAD (or --no-auto-commits). No log was saved."
+        );
     }
     Ok(state
         .commits

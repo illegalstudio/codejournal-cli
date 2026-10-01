@@ -29,6 +29,10 @@ pub enum Command {
     Whoami,
     Status,
     Sync,
+    Outbox {
+        #[command(subcommand)]
+        action: crate::outbox_commands::OutboxAction,
+    },
     Brief(crate::brief::BriefArgs),
     Browse(crate::browse::BrowseArgs),
     Export(crate::export::ExportArgs),

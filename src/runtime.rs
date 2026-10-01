@@ -44,6 +44,9 @@ pub fn run() -> Result<()> {
     if matches!(cli.command, Command::Status) {
         return storage_status::status(cli.json);
     }
+    if let Command::Outbox { action } = cli.command {
+        return outbox_commands::run(action, cli.json);
+    }
     let mut config = config::Config::load()?;
     if matches!(cli.command, Command::Logout) {
         let api = api::Api::new(&config.server, &config.token()?)?;

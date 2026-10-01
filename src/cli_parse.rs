@@ -75,4 +75,21 @@ mod tests {
                 .is_err()
         );
     }
+    #[test]
+    fn checklist_step_requires_an_explicit_state_and_positive_number() {
+        for flag in ["--done", "--undone"] {
+            assert!(
+                command()
+                    .try_get_matches_from(["cj", "plan", "step", "12345678", "1", flag])
+                    .is_ok()
+            );
+        }
+        for args in [
+            vec!["cj", "plan", "step", "12345678", "0", "--done"],
+            vec!["cj", "plan", "step", "12345678", "1"],
+            vec!["cj", "plan", "step", "12345678", "1", "--done", "--undone"],
+        ] {
+            assert!(command().try_get_matches_from(args).is_err());
+        }
+    }
 }

@@ -97,6 +97,13 @@ pub fn run(
             note,
             agent,
         } => plan_changes::move_to(api, tenant, kind, &id, &target, note, agent, json_mode),
+        PlanAction::Step {
+            id,
+            number,
+            done,
+            undone: _,
+            note,
+        } => crate::plan_step::run(api, tenant, kind, &id, number, done, note, json_mode),
         PlanAction::Schedule { id, date } => {
             plan_changes::schedule(api, tenant, kind, &id, &date, json_mode)
         }

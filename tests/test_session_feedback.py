@@ -72,6 +72,7 @@ class SessionFeedbackTest(unittest.TestCase):
         self.git("init", "-b", "main")
         self.git("config", "user.email", "test@example.test")
         self.git("config", "user.name", "Test")
+        self.git("config", "commit.gpgsign", "false")
         (self.repo / "README.md").write_text("initial\n")
         self.git("add", "README.md")
         self.git("commit", "-m", "initial")
@@ -81,7 +82,8 @@ class SessionFeedbackTest(unittest.TestCase):
             "server": f"http://127.0.0.1:{self.server.server_port}", "tenant": "demo"
         }))
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(self.base / "config"),
-                        XDG_STATE_HOME=str(self.base / "state"), CJ_TOKEN="test-token",
+                        XDG_STATE_HOME=str(self.base / "state"), XDG_CACHE_HOME=str(self.base / "cache"),
+                        CJ_TOKEN="test-token", CODE_JOURNAL_HOOK_SYNC="1",
                         CJ_PROJECT="p", CLAUDE_CODE_SESSION_ID="session-one")
 
     def git(self, *args, cwd=None):
@@ -125,6 +127,7 @@ class SessionFeedbackTest(unittest.TestCase):
         self.assertEqual(logs[-1]["refs"], [])
 
     def test_hook_publishes_checkout_activity_without_waiting_for_network(self):
+        self.env.pop("CODE_JOURNAL_HOOK_SYNC")
         self.hook("SessionStart", "session-one")
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
@@ -178,8 +181,9 @@ class SessionFeedbackTest(unittest.TestCase):
         (outbox / "0001.json").write_text(json.dumps(event))
         self.cli("sync")
         project = next(body for path, body in Handler.calls if path.endswith("/projects"))
-        delivered = next(body["events"][0] for path, body in Handler.calls
-                         if path.endswith("/client-events"))
+        delivered = next(item for path, body in Handler.calls
+                         if path.endswith("/client-events") for item in body["events"]
+                         if item["id"] == event["id"])
         self.assertEqual((project["path"], project["kind"]), (str(self.repo), "main"))
         self.assertEqual(delivered["project"], "repo-2")
 

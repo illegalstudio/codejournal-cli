@@ -90,6 +90,18 @@ pub enum PlanAction {
         #[arg(long)]
         agent: Option<String>,
     },
+    /// Set one numbered Markdown checklist item, preserving other content.
+    Step {
+        id: String,
+        #[arg(value_parser = clap::value_parser!(u32).range(1..))]
+        number: u32,
+        #[arg(long, required_unless_present = "undone", conflicts_with = "undone")]
+        done: bool,
+        #[arg(long)]
+        undone: bool,
+        #[arg(long)]
+        note: Option<String>,
+    },
     Schedule {
         id: String,
         date: String,

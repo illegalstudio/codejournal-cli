@@ -119,6 +119,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
         Command::Login
         | Command::Setup(..)
         | Command::Logout
+        | Command::Outbox { .. }
         | Command::Status
         | Command::Hook { .. }
         | Command::SessionRecord { .. }

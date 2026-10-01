@@ -1,5 +1,5 @@
 use crate::{api::Api, outbox, project_bootstrap};
-use anyhow::{Result, bail};
+use anyhow::Result;
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -48,7 +48,7 @@ pub fn enqueue(request: &PendingRequest) -> Result<()> {
     Ok(())
 }
 
-fn entries() -> Result<Vec<(PathBuf, PendingRequest)>> {
+pub(crate) fn entries() -> Result<Vec<(PathBuf, PendingRequest)>> {
     let mut paths = fs::read_dir(directory()?)?
         .filter_map(|entry| entry.ok().map(|item| item.path()))
         .filter(|path| {
@@ -100,15 +100,14 @@ pub fn flush(api: &Api) -> Result<usize> {
                 break;
             }
         }
-        let response = api.replay(&replay)?;
+        let response = api.replay(&replay).map_err(|error| {
+            error.context(format!("queued request {} remains pending", request.id))
+        })?;
         if let Some((old, new)) = project_bootstrap::cache_created(api, &request, &response)? {
             aliases.insert(old, new);
         }
         fs::remove_file(path)?;
         count += 1;
-    }
-    if count == 0 && pending()? > 0 {
-        bail!("queued writes belong to another server");
     }
     Ok(count)
 }

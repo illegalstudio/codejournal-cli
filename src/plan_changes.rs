@@ -54,6 +54,26 @@ pub fn move_to(
     agent: Option<String>,
     json_mode: bool,
 ) -> Result<()> {
+    let compact = id.replace('-', "");
+    if !(8..=32).contains(&compact.len()) || !compact.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        bail!("invalid plan or doc ID");
+    }
+    if target != "@global"
+        && (target.is_empty()
+            || !target
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'))
+    {
+        bail!("invalid target project slug; use @global for tenant-global docs");
+    }
+    if api.offline() {
+        api.get(&format!("{}?history=0", path(tenant, kind, id)))
+            .map_err(|error| error.context("offline moves require a cached, verified source ID; run show --current-only online first"))?;
+        if target != "@global" {
+            api.get(&format!("/api/v1/tenants/{tenant}/projects/{target}"))
+                .map_err(|error| error.context("offline moves require a cached destination project; use @global for tenant-global docs"))?;
+        }
+    }
     if target == "@global" && kind != "docs" {
         bail!("plans cannot be moved to global scope");
     }
@@ -66,7 +86,9 @@ pub fn move_to(
         .map_err(|error| {
             if kind == "docs"
                 && target == "global"
-                && error.to_string().contains("Project not found")
+                && error
+                    .chain()
+                    .any(|cause| cause.to_string().contains("Project not found"))
             {
                 error.context("use --to @global for a tenant-global doc; global is a project slug")
             } else {

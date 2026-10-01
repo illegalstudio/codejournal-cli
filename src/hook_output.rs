@@ -1,103 +1,45 @@
-use crate::project_folder::{self, Scope};
-use crate::{
-    api::Api, brief_focus, brief_format, config::Config, outbox, project, project_bootstrap,
-    session_git, session_state,
-};
+use crate::{session_git, session_state};
 use anyhow::Result;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::path::Path;
 
 pub fn brief(cwd: &Path, source: &str, agent: &str, session: &str) -> Result<()> {
-    let Some(cache) = cache_path(cwd) else {
+    let notice = crate::hook_auth::notice();
+    let Some(cache) = crate::hook_brief::cache_path(cwd) else {
+        if let Some(notice) = notice {
+            context("SessionStart", &notice);
+        }
         return Ok(());
     };
-    let text = online_brief(source, agent, session).or_else(|| fs::read_to_string(&cache).ok());
+    let text = notice
+        .is_none()
+        .then(|| crate::hook_brief::online(source, agent, session))
+        .flatten()
+        .or_else(|| fs::read_to_string(&cache).ok());
     if let Some(text) = text {
+        let message = notice
+            .as_ref()
+            .map_or_else(|| text.clone(), |notice| format!("{notice}\n\n{text}"));
         if source == "compact" {
             context(
                 "SessionStart",
                 &format!(
                     "The conversation was just compacted: before continuing, record with `cj add` any non-obvious fact you learned that the summary may have lost.\n\n{}",
-                    text
+                    message
                 ),
             );
         } else {
-            context("SessionStart", &text);
+            context("SessionStart", &message);
         }
         if let Some(parent) = cache.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::write(cache, text)?;
+    } else if let Some(notice) = notice {
+        context("SessionStart", &notice);
     }
     Ok(())
-}
-
-fn online_brief(source: &str, agent: &str, session: &str) -> Option<String> {
-    let config = Config::load().ok()?;
-    let token = config.token().ok()?;
-    let mut api = Api::with_timeout(&config.server, &token, Duration::from_secs(3)).ok()?;
-    let preferred = match project_folder::scope(&api, &config.tenant) {
-        Scope::Named(slug) => Some(slug),
-        Scope::Checkout => None,
-        Scope::Outside => return Some(project_folder::notice()),
-        Scope::Unknown => return None,
-    };
-    api.set_auto_project(preferred.is_none());
-    let slug = project::slug(preferred.as_deref()).ok()?;
-    let query = reqwest::Url::parse_with_params(
-        "http://local/",
-        [
-            ("limit", "10"),
-            ("pinned_limit", "15"),
-            ("log_limit", "5"),
-            ("agent", agent),
-            ("session", session),
-        ],
-    )
-    .ok()?;
-    let path = format!(
-        "/api/v1/tenants/{}/projects/{slug}/brief?{}",
-        config.tenant,
-        query.query()?
-    );
-    let base = format!("/api/v1/tenants/{}/projects/{slug}", config.tenant);
-    let result = brief_focus::load(
-        &api,
-        &base,
-        &path,
-        json!({
-            "limit": 10, "pinned_limit": 15, "log_limit": 5, "agent": agent, "session": session,
-        }),
-    )
-    .or_else(|error| {
-        if preferred.is_some() || !error.to_string().contains("404") {
-            return Err(error);
-        }
-        project_bootstrap::ensure(&api, &config.tenant, false)?;
-        brief_focus::load(
-            &api,
-            &base,
-            &path,
-            json!({
-                "limit": 10, "pinned_limit": 15, "log_limit": 5,
-                "agent": agent, "session": session,
-            }),
-        )
-    })
-    .ok()?;
-    let body = brief_format::render(&result, source == "compact", 10, 15, 5);
-    Some(format!(
-        "Code Journal brief for this repository (injected by the cj session hook; you do not need to run `cj brief` again unless it says so):\n\n{body}"
-    ))
-}
-
-fn cache_path(cwd: &Path) -> Option<PathBuf> {
-    let parent = outbox::directory().ok()?.parent()?.to_path_buf();
-    let digest = Sha256::digest(cwd.to_string_lossy().as_bytes());
-    Some(parent.join("briefs").join(format!("{digest:x}.txt")))
 }
 
 pub fn conflicts(warnings: &[String]) {

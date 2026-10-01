@@ -42,3 +42,20 @@ class LogCommitsTest(unittest.TestCase):
         case.cli("log", "add", "--title", "Follow-up", "--body", "Follow-up")
         logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
         self.assertEqual(logs[-1]["refs"], [])
+
+    def test_same_shell_requires_explicit_head_before_hook(self):
+        import subprocess
+        case = self.fixture
+        sha, output = self.commit()
+        failed = subprocess.run([case.binary, "log", "add", "--title", "Done", "--body", "Done"],
+            cwd=case.repo, env=case.env, capture_output=True, text=True)
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("--ref commit:HEAD", failed.stderr)
+        self.assertFalse(any(path.endswith("/logs") for path, _ in sessions.Handler.calls))
+        case.cli("log", "add", "--title", "Done", "--body", "Done", "--ref", "commit:HEAD")
+        logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
+        self.assertEqual(logs[-1]["refs"], [{"kind": "commit", "value": sha}])
+        case.hook("PostToolUse", "session-one", "git commit -m 'My change'; cj log add", output)
+        case.cli("log", "add", "--title", "Next", "--body", "Next")
+        logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
+        self.assertEqual(logs[-1]["refs"], [])

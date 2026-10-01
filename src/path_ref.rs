@@ -30,10 +30,12 @@ fn normalize_with_root(raw: &str, root: Option<&Path>) -> Result<String> {
     if physical {
         let root = root.context("path ref is not tied to a repository checkout")?;
         let relative = expanded.strip_prefix(root).map_err(|_| {
-            anyhow::anyhow!("path ref is outside this repository; use url: for another repository")
+            anyhow::anyhow!("path ref is outside this repository; use file:/absolute/path for this host, host:HOST:/path for a remote host, or url: for another repository")
         })?;
         if expanded.exists() && !expanded.canonicalize()?.starts_with(root.canonicalize()?) {
-            bail!("path ref is outside this repository; use url: for another repository");
+            bail!(
+                "path ref is outside this repository; use file:/absolute/path for this host, host:HOST:/path for a remote host, or url: for another repository"
+            );
         }
         return Ok(relative.to_string_lossy().to_string());
     }

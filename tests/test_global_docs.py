@@ -131,6 +131,7 @@ class GlobalDocsTest(unittest.TestCase):
         self.cli("sync")
         self.assertEqual(Handler.requests[-1][1], "/api/v1/tenants/demo/docs")
         self.assertEqual(Handler.requests[-1][3], queued["id"])
+        self.cli("doc", "show", "aaaaaaaa", "--current-only")
         self.cli("--offline", "doc", "move", "aaaaaaaa", "--to", "@global")
         self.cli("sync")
         self.assertEqual(Handler.requests[-1][2]["to"], "@global")

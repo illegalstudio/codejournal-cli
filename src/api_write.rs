@@ -16,10 +16,20 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
     let mut request = request_outbox::new(&api.server, method, path, body);
     let can_queue = path.starts_with("/api/v1/tenants/");
     if let Some(tenant) = project_bootstrap::tenant_for_path(api, path) {
-        let slug = project_bootstrap::ensure(api, &tenant, false)?;
+        let slug = project_bootstrap::ensure(api, &tenant, false).map_err(|error| {
+            error.context(format!(
+                "write not queued (request {}): project preparation failed",
+                request.id
+            ))
+        })?;
         request.path = project_bootstrap::replace_slug(path, &slug);
     } else if method == "PATCH" || path.contains("/paths") {
-        request.path = project_bootstrap::read_path(api, path)?;
+        request.path = project_bootstrap::read_path(api, path).map_err(|error| {
+            error.context(format!(
+                "write not queued (request {}): project resolution failed",
+                request.id
+            ))
+        })?;
     }
     if api.offline {
         if !can_queue {
@@ -27,39 +37,58 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
         }
         return queued(&request);
     }
-    let response = match builder(api, &request)?.send() {
-        Ok(response) => response,
-        Err(_error) if can_queue => return queued(&request),
-        Err(error) => return Err(error.into()),
-    };
-    let mut status = response.status();
-    if status.is_server_error() && can_queue {
-        return queued(&request);
-    }
-    let mut value: Value = match response.json() {
-        Ok(value) => crate::api::sanitized(value),
-        Err(_error) if can_queue && status.is_success() => return queued(&request),
-        Err(error) => return Err(error.into()),
-    };
-    // An outdated release or the rate limit keeps the write for replay by `cj sync`.
-    if api_status::deferred(status) && can_queue {
-        api_status::warn(status, &value);
-        return queued(&request);
-    }
+    let (mut status, mut value) = attempt(api, &request, can_queue)?;
     if status == reqwest::StatusCode::NOT_FOUND
         && value["message"] == "Project not found"
         && let Some(tenant) = project_bootstrap::tenant_for_path(api, path)
     {
-        let slug = project_bootstrap::ensure(api, &tenant, true)?;
+        let slug = project_bootstrap::ensure(api, &tenant, true).map_err(|error| {
+            error.context(format!(
+                "write not queued (request {}): project preparation failed",
+                request.id
+            ))
+        })?;
         request.path = project_bootstrap::replace_slug(path, &slug);
-        let retry = builder(api, &request)?.send()?;
-        status = retry.status();
-        value = crate::api::sanitized(retry.json()?);
+        (status, value) = attempt(api, &request, can_queue)?;
     }
     if !status.is_success() {
-        return Err(api_status::error(status, &value));
+        return Err(api_status::error(status, &value)
+            .context(format!("write not queued (request {})", request.id)));
     }
     Ok(value)
+}
+
+fn attempt(
+    api: &Api,
+    request: &PendingRequest,
+    can_queue: bool,
+) -> Result<(reqwest::StatusCode, Value)> {
+    let response = match builder(api, request)?.send() {
+        Ok(response) => response,
+        Err(_) if can_queue => return queued(request),
+        Err(error) => return Err(error.into()),
+    };
+    let status = response.status();
+    if can_queue && status.is_server_error() {
+        return queued(request);
+    }
+    if can_queue && api_status::deferred(status) {
+        let value = response
+            .json::<Value>()
+            .map(crate::api::sanitized)
+            .unwrap_or_default();
+        api_status::warn(status, &value);
+        return queued(request);
+    }
+    let value = match response.json() {
+        Ok(value) => crate::api::sanitized(value),
+        Err(_) if can_queue && status.is_success() => return queued(request),
+        Err(_) => bail!(
+            "write not queued (request {}): API returned {status} with invalid JSON",
+            request.id
+        ),
+    };
+    Ok((status, value))
 }
 
 pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
@@ -89,7 +118,12 @@ fn builder(api: &Api, request: &PendingRequest) -> Result<reqwest::blocking::Req
     Ok(builder)
 }
 
-fn queued(request: &PendingRequest) -> Result<Value> {
-    request_outbox::enqueue(request)?;
+fn queued<T>(request: &PendingRequest) -> Result<T> {
+    request_outbox::enqueue(request).map_err(|error| {
+        error.context(format!(
+            "write could not be queued (request {})",
+            request.id
+        ))
+    })?;
     Err(QueuedWrite(request.id.clone()).into())
 }

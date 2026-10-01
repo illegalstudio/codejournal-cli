@@ -44,6 +44,14 @@ pub struct LogListArgs {
 pub enum LogAction {
     Add(LogAddArgs),
     List(LogListArgs),
+    /// Replace a work log's refs to correct commit attribution.
+    Update {
+        id: String,
+        #[arg(long = "ref", required_unless_present = "clear_refs", conflicts_with = "clear_refs", help = crate::refs::UPDATE_HELP)]
+        refs: Vec<String>,
+        #[arg(long)]
+        clear_refs: bool,
+    },
     /// Read one work log by its full ID or unique prefix.
     Show {
         id: String,

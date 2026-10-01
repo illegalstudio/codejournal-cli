@@ -3,9 +3,9 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
 /// Help text shared by every `--ref` flag.
-pub const HELP: &str = "Reference, repeatable: path:FILE, commit:SHA, branch:NAME, issue:#N, a URL, or GitHub shorthand such as owner/repo#12";
+pub const HELP: &str = "Reference, repeatable: path:FILE, file:/absolute/path (this host), host:HOST:/path, commit:SHA, branch:NAME, issue:#N, a URL, or GitHub shorthand such as owner/repo#12";
 
-pub const UPDATE_HELP: &str = "Replace the entire ref list with these repeatable references; omit --ref to keep existing refs. Use path:FILE, commit:SHA, branch:NAME, issue:#N, URLs, or GitHub shorthand.";
+pub const UPDATE_HELP: &str = "Replace the entire ref list with these repeatable references; omit --ref to keep existing refs. Use path:FILE, file:/absolute/path (this host), host:HOST:/path, commit:SHA, branch:NAME, issue:#N, URLs, or GitHub shorthand.";
 
 pub fn parse_all(values: &[String]) -> Result<Vec<Value>> {
     let mut parsed = Vec::new();
@@ -20,7 +20,11 @@ pub fn parse_all(values: &[String]) -> Result<Vec<Value>> {
 
 fn parse(raw: &str) -> Result<Value> {
     let raw = raw.trim();
-    let expanded = if raw.starts_with("https://") || raw.starts_with("http://") {
+    let expanded = if let Some(url) = crate::host_ref::parse(raw)? {
+        format!("url:{url}")
+    } else if raw.starts_with("file://") {
+        format!("url:{raw}")
+    } else if raw.starts_with("https://") || raw.starts_with("http://") {
         format!("url:{raw}")
     } else if let Some(value) = shorthand::expand(raw) {
         value?
@@ -37,6 +41,9 @@ fn parse(raw: &str) -> Result<Value> {
     }
     let value = if kind == "path" {
         path_ref::normalize(value)?
+    } else if kind == "commit" && value == "HEAD" {
+        crate::session_git::head(&std::env::current_dir()?)
+            .context("cannot resolve commit:HEAD outside a Git checkout")?
     } else {
         value.to_owned()
     };

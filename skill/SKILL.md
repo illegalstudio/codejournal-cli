@@ -36,6 +36,8 @@ cj add --kind gotcha --title "The migration needs a special role" \
   --body "What failed, why, and how to run it correctly."
 ```
 
+Repository refs use `path:relative/file`. For files outside the checkout use `file:/absolute/path` or `file:~/path` for this machine, and `host:HOST:/absolute/path` for a remote machine. These become `url:file://HOST/path` refs, retaining the host and encoded path without triggering repository staleness checks or reading remote files. Verify them manually on the named host. Do not cite credentials or personal files.
+
 Use `--global` only for facts that apply beyond this repository. Correct stale knowledge with `cj supersede OLD --by NEW`, `cj obsolete ID`, or `cj entry flag ID --wrong --note "..."`. Answer open questions with `cj answer ID`.
 
 ## Log work
@@ -49,7 +51,7 @@ cj log add --title "Implemented the device flow" --status done \
 
 The client links session commits where possible. Use `--no-auto-commits` when the log must not cite them.
 
-Read a previous work log with `cj log show LOG_ID`, or add `--body` for its body alone. `cj show` reads knowledge entries. For automatic commit linking, run the commit and the log in separate tool calls so the post-tool hook can record the commit first. In one shell invocation, supply `--ref commit:SHA`; explicit commits are then excluded from subsequent automatic links.
+Read a previous work log with `cj log show LOG_ID`, or add `--body` for its body alone. `cj show` reads knowledge entries. For automatic commit linking, run the commit and the log in separate tool calls so the post-tool hook can record the commit first. In one shell invocation, supply `--ref commit:HEAD` (resolved immediately to a full SHA) or an explicit SHA. If HEAD changed before the post-tool hook captured it, the client refuses ambiguous automatic attribution and tells you how to retry. A queued log reserves its commit refs too, avoiding duplicate automatic links. Correct an existing log with `cj log update LOG_ID --ref commit:SHA`; this replaces all refs, so include paths or URLs you want to retain. `--clear-refs` removes them. Archived logs are read-only.
 
 ## Track tasks and plans
 
@@ -62,15 +64,19 @@ cj task add --title "Follow-up" --body "Why it matters"
 cj plan show ID
 cj plan show ID --json --current-only
 cj plan update ID --body-file PLAN.md
+cj plan step ID 2 --done --note "Validated"
+cj plan step ID 2 --undone
 ```
 
 Use `cj task add --to PROJECT` to forward work to another project. Keep longer plans and subsystem documentation in Code Journal and in repository files when the repository requires them.
+
+Checklist items are numbered from one in Markdown order, excluding fenced examples. Step updates send an atomic change with the current base revision; a concurrent edit returns a conflict instead of replacing the body. Read the plan again and retry after reviewing it.
 
 Plan statuses are `draft`, `active`, `done`, and `abandoned`; doc statuses are `draft`, `current`, and `outdated`. Help lists accepted statuses and feedback categories, and invalid values fail before an API request. `cj doc show ID --json --current-only` returns the current body, refs, and revision without downloading historical bodies. Updating a plan or doc with `--ref` replaces its entire ref list; omit the flag to retain existing refs.
 
 ## Notifications and offline work
 
-Use `cj notify --kind needs_input --title "..."` when the user may not be watching and their input is required. Use `cj watch start --title "..." -- COMMAND` when asked to report when a long command ends. `cj status` shows queued writes; `cj sync` replays them. The session hook records activity and notifications without prompt text or file contents.
+Use `cj notify --kind needs_input --title "..."` when the user may not be watching and their input is required. Use `cj watch start --title "..." -- COMMAND` when asked to report when a long command ends. `cj status` shows pending writes by server; `cj sync` replays only the configured server's writes. Other servers' queues remain intact. Use `cj outbox list` without authentication to inspect request IDs, servers, methods and paths; `--body` includes redacted bodies and `--server URL` filters them. `cj outbox drop REQUEST_ID` permanently discards one pending write. It never removes hook events. Transport errors, 5xx responses, deferred writes and invalid JSON success responses keep the same durable ID for replay, including project-bootstrap retries. Rejected writes explicitly say they were not queued. Offline doc moves require cached source details and destination project details; fetch them online first. Use `--to @global`, not `global`, for tenant-global docs. The session-start hook surfaces unavailable authentication before the first write. The session hook records activity and notifications without prompt text or file contents.
 
 The repository's `AGENTS.md` and the user's instructions take precedence over this skill.
 
