@@ -6,56 +6,10 @@ import subprocess
 import tempfile
 import threading
 import unittest
+from feedback_api_server import Handler
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-REPO = ROOT.parents[1]
-PLAN_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-
-
-class Handler(http.server.BaseHTTPRequestHandler):
-    calls = []
-    entry_response = None
-
-    def log_message(self, *_args):
-        pass
-
-    def respond(self, status, payload):
-        content = json.dumps(payload).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(content)))
-        self.end_headers()
-        self.wfile.write(content)
-
-    def do_GET(self):
-        if self.path.endswith("/plans"):
-            self.respond(200, {"plans": [{"id": PLAN_ID}]})
-        elif self.path.endswith("/docs"):
-            self.respond(200, {"docs": [{"id": PLAN_ID}]})
-        elif self.path.endswith(f"/plans/{PLAN_ID}") or self.path.endswith("/plans/aaaaaaaa"):
-            self.respond(200, {"plan": {"id": PLAN_ID, "body": "## Steps\n- [ ] ship"}, "revisions": []})
-        elif self.path.endswith(f"/docs/{PLAN_ID}") or self.path.endswith("/docs/aaaaaaaa"):
-            self.respond(200, {"doc": {"id": PLAN_ID, "body": "Documentation body"}, "revisions": []})
-        elif self.path.endswith("/tasks?all=1"):
-            self.respond(200, {"tasks": [{"id": PLAN_ID}]})
-        elif self.path.endswith("/rules"):
-            self.respond(200, {"rules": "- Run focused tests."})
-        else:
-            self.respond(404, {"error": "unknown route"})
-
-    def record(self):
-        size = int(self.headers.get("Content-Length", "0"))
-        body = json.loads(self.rfile.read(size))
-        self.calls.append((self.command, self.path, body))
-        response = {"rules": body["rules"]} if self.path.endswith("/rules") else {"ok": True}
-        if self.path.endswith("/entries") and self.entry_response is not None:
-            response = self.entry_response
-        self.respond(200, response)
-
-    do_PATCH = record
-    do_POST = record
-    do_PUT = record
 
 
 class FeedbackCliTest(unittest.TestCase):
@@ -79,6 +33,11 @@ class FeedbackCliTest(unittest.TestCase):
         Handler.entry_response = None
         self.temp = tempfile.TemporaryDirectory(prefix="cj-feedback-")
         self.addCleanup(self.temp.cleanup)
+        self.repo = pathlib.Path(self.temp.name) / "repo"
+        self.repo.mkdir()
+        subprocess.run(["git", "init", "-b", "main", str(self.repo)], check=True, capture_output=True)
+        subprocess.run(["git", "remote", "add", "origin", "https://github.com/example/fixture.git"],
+                       cwd=self.repo, check=True, capture_output=True)
         config = pathlib.Path(self.temp.name) / "codejournal"
         config.mkdir()
         (config / "config.json").write_text(json.dumps({
@@ -87,14 +46,14 @@ class FeedbackCliTest(unittest.TestCase):
         self.env = dict(os.environ, XDG_CONFIG_HOME=self.temp.name, CJ_TOKEN="test-token")
 
     def command(self, *args, stdin=None):
-        return subprocess.run([self.binary, "--project", "p", *args], cwd=REPO,
+        return subprocess.run([self.binary, "--project", "p", *args], cwd=self.repo,
                               env=self.env, input=stdin, text=True, capture_output=True,
                               timeout=3, check=True)
 
     def test_title_and_note_updates_do_not_read_idle_stdin(self):
         for args in [("plan", "update", "aaaaaaaa", "--title", "New title"),
                      ("plan", "update", "aaaaaaaa", "--note", "CI passed")]:
-            process = subprocess.Popen([self.binary, "--project", "p", *args], cwd=REPO,
+            process = subprocess.Popen([self.binary, "--project", "p", *args], cwd=self.repo,
                                        env=self.env, stdin=subprocess.PIPE,
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
@@ -110,17 +69,17 @@ class FeedbackCliTest(unittest.TestCase):
 
     def test_piped_body_and_positional_rules(self):
         shown = subprocess.Popen([self.binary, "--project", "p", "plan", "show", "aaaaaaaa", "--body"],
-                                 cwd=REPO, env=self.env, stdout=subprocess.PIPE)
+                                 cwd=self.repo, env=self.env, stdout=subprocess.PIPE)
         updated = subprocess.run([self.binary, "--project", "p", "plan", "update", "aaaaaaaa",
-                                  "--body-file", "-"], cwd=REPO, env=self.env, stdin=shown.stdout,
+                                  "--body-file", "-"], cwd=self.repo, env=self.env, stdin=shown.stdout,
                                  capture_output=True, timeout=3, check=True)
         shown.stdout.close()
         self.assertEqual(shown.wait(timeout=2), 0)
         self.assertEqual(Handler.calls[-1][2]["body"], "## Steps\n- [ ] ship")
         shown_doc = subprocess.Popen([self.binary, "--project", "p", "doc", "show", "aaaaaaaa", "--body"],
-                                     cwd=REPO, env=self.env, stdout=subprocess.PIPE)
+                                     cwd=self.repo, env=self.env, stdout=subprocess.PIPE)
         subprocess.run([self.binary, "--project", "p", "doc", "update", "aaaaaaaa", "--body-file", "-"],
-                       cwd=REPO, env=self.env, stdin=shown_doc.stdout, capture_output=True,
+                       cwd=self.repo, env=self.env, stdin=shown_doc.stdout, capture_output=True,
                        timeout=3, check=True)
         shown_doc.stdout.close()
         self.assertEqual(shown_doc.wait(timeout=2), 0)
@@ -141,7 +100,7 @@ class FeedbackCliTest(unittest.TestCase):
         self.command("add", "--kind", "discovery", "--title", "A fact", "--body", "Body",
                      "--ref", "PR#42", "--ref", "issue#7", "--ref", "path:/docs/")
         self.assertEqual(Handler.calls[-1][2]["refs"], [
-            {"kind": "url", "value": "https://github.com/illegalstudio/codejournal/pull/42"},
+            {"kind": "url", "value": "https://github.com/example/fixture/pull/42"},
             {"kind": "issue", "value": "#7"}, {"kind": "path", "value": "docs"},
         ])
 

@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2024"
 description = "Code Journal device client"
 license = "MIT"
+readme = "README.md"
+homepage = "https://codejournal.online"
+repository = "https://github.com/illegalstudio/codejournal-cli"
+keywords = ["journal", "cli", "developer-tools", "agents"]
+categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
 name = "cj"
