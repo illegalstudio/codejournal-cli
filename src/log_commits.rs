@@ -28,7 +28,7 @@ pub fn pending(explicit_refs: &[String], no_auto: bool) -> Result<Vec<String>> {
             .any(|other| other.repo_common == state.repo_common && other.commits.contains(&head))
     {
         bail!(
-            "HEAD changed before the commit hook recorded it; run commit and log in separate tool calls, or pass --ref commit:HEAD (or --no-auto-commits). No log was saved."
+            "Commit tracking has not recorded the changed HEAD. Retry this log with --ref commit:HEAD (or an explicit SHA), or --no-auto-commits to omit commits. Repeating the command alone cannot recover missing hook data. No log was saved."
         );
     }
     Ok(state

@@ -47,10 +47,12 @@ class LogCommitsTest(unittest.TestCase):
         import subprocess
         case = self.fixture
         sha, output = self.commit()
-        failed = subprocess.run([case.binary, "log", "add", "--title", "Done", "--body", "Done"],
-            cwd=case.repo, env=case.env, capture_output=True, text=True)
-        self.assertNotEqual(failed.returncode, 0)
-        self.assertIn("--ref commit:HEAD", failed.stderr)
+        for _ in range(2):
+            failed = subprocess.run([case.binary, "log", "add", "--title", "Done", "--body", "Done"],
+                cwd=case.repo, env=case.env, capture_output=True, text=True)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("--ref commit:HEAD", failed.stderr)
+            self.assertIn("Repeating the command alone cannot recover missing hook data", failed.stderr)
         self.assertFalse(any(path.endswith("/logs") for path, _ in sessions.Handler.calls))
         case.cli("log", "add", "--title", "Done", "--body", "Done", "--ref", "commit:HEAD")
         logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
