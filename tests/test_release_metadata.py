@@ -2,6 +2,8 @@ import hashlib
 import importlib.util
 import json
 import pathlib
+import subprocess
+import tomllib
 import tempfile
 import unittest
 
@@ -12,6 +14,12 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ReleaseMetadataTests(unittest.TestCase):
+    def test_binary_version_matches_the_installer_contract(self):
+        subprocess.run(["cargo", "build", "--locked"], cwd=ROOT, check=True, capture_output=True)
+        version = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
+        output = subprocess.check_output([str(ROOT / "target/debug/cj"), "--version"], text=True)
+        self.assertEqual(output.strip(), f"cj {version}")
+
     def test_manifests_reference_exact_verified_archives(self):
         with tempfile.TemporaryDirectory(prefix="cj-metadata-") as temporary:
             directory = pathlib.Path(temporary)

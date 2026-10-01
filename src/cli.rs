@@ -5,7 +5,7 @@ use crate::task_args::TaskAction;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(version, about = "Code Journal device client")]
+#[command(name = "cj", version, about = "Code Journal device client")]
 pub struct Cli {
     #[arg(long, global = true)]
     pub cwd: Option<std::path::PathBuf>,
