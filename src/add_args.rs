@@ -6,7 +6,7 @@ pub struct AddArgs {
     pub kind: String,
     #[arg(long)]
     pub title: String,
-    #[arg(long, conflicts_with = "body_file")]
+    #[arg(long, conflicts_with = "body_file", allow_hyphen_values = true)]
     pub body: Option<String>,
     #[arg(long)]
     pub body_file: Option<String>,

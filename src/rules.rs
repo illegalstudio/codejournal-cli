@@ -22,7 +22,12 @@ pub enum RulesAction {
 pub struct RulesArgs {
     #[command(subcommand)]
     pub action: Option<RulesAction>,
-    #[arg(long, global = true, conflicts_with = "body_file")]
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "body_file",
+        allow_hyphen_values = true
+    )]
     pub body: Option<String>,
     #[arg(long, global = true)]
     pub body_file: Option<String>,

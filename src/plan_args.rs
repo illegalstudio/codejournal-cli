@@ -29,7 +29,7 @@ pub enum PlanAction {
         global: bool,
         #[arg(long)]
         title: String,
-        #[arg(long, conflicts_with = "body_file")]
+        #[arg(long, conflicts_with = "body_file", allow_hyphen_values = true)]
         body: Option<String>,
         #[arg(long)]
         body_file: Option<String>,
@@ -57,7 +57,7 @@ pub enum PlanAction {
         id: String,
         #[arg(long)]
         title: Option<String>,
-        #[arg(long, conflicts_with = "body_file")]
+        #[arg(long, conflicts_with = "body_file", allow_hyphen_values = true)]
         body: Option<String>,
         #[arg(long)]
         body_file: Option<String>,
