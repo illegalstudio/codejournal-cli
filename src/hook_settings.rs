@@ -6,7 +6,6 @@ use std::io::Write;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const MARKER: &str = "CJ_RUST_HOOK=1";
 pub fn read(path: &Path) -> Result<Value> {
     if !path.exists() {
         return Ok(json!({}));
@@ -84,10 +83,7 @@ pub fn update(settings: &mut Value, binary: &Path, agent: &str, install: bool) -
             kept.push(copy);
         }
         if install && let Some((matcher, timeout)) = hook_events::spec(agent, event) {
-            let command = format!(
-                "{MARKER} '{}' hook {event}",
-                binary.to_string_lossy().replace('\'', "'\\''")
-            );
+            let command = crate::hook_command::build(binary, event);
             let mut group = json!({"hooks": [{
                 "type": "command", "command": command, "timeout": timeout
             }]});
@@ -134,7 +130,7 @@ pub fn write(path: &Path, settings: &Value) -> Result<Option<String>> {
 
 fn is_ours(item: &Value) -> bool {
     item["command"].as_str().is_some_and(|command| {
-        command.contains(MARKER)
+        crate::hook_command::owned(command)
             || ["claude", "codex"].into_iter().any(|agent| {
                 hook_events::ALL
                     .into_iter()

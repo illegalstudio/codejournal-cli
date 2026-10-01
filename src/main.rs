@@ -43,6 +43,7 @@ mod hook;
 mod hook_args;
 mod hook_auth;
 mod hook_brief;
+mod hook_command;
 mod hook_commit;
 mod hook_events;
 mod hook_files;

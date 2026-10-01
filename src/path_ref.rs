@@ -21,12 +21,8 @@ fn normalize_with_root(raw: &str, root: Option<&Path>) -> Result<String> {
     {
         bail!("path ref cannot leave the repository: {raw}");
     }
-    let first_dir = expanded
-        .components()
-        .nth(1)
-        .map(|part| Path::new("/").join(part.as_os_str()));
-    let physical = expanded.is_absolute()
-        && (raw.starts_with('~') || first_dir.is_some_and(|part| part.exists()));
+    let first_dir: PathBuf = expanded.components().take(2).collect();
+    let physical = expanded.is_absolute() && (raw.starts_with('~') || first_dir.exists());
     if physical {
         let root = root.context("path ref is not tied to a repository checkout")?;
         let relative = expanded.strip_prefix(root).map_err(|_| {
@@ -49,7 +45,9 @@ mod tests {
     #[test]
     fn absolute_external_path_is_rejected() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        assert!(normalize_with_root("/tmp/other-project/file.rs", Some(root)).is_err());
+        let outside = tempfile::tempdir().unwrap();
+        let external = outside.path().join("other-project/file.rs");
+        assert!(normalize_with_root(external.to_str().unwrap(), Some(root)).is_err());
         assert_eq!(normalize_with_root("/docs/", Some(root)).unwrap(), "docs");
         let own = root.join("Cargo.toml");
         assert_eq!(

@@ -34,7 +34,7 @@ PY
   git -C "$work/tap" add Formula/codejournal-cli.rb README.md
   if git -C "$work/tap" diff --cached --quiet; then exit 0; fi
   git -C "$work/tap" -c user.name='illegal-studio[bot]' \
-    -c user.email='4908150+illegal-studio[bot]@users.noreply.github.com' \
+    -c user.email='327907755+illegal-studio[bot]@users.noreply.github.com' \
     commit -m "Update codejournal-cli to $version"
   if git -C "$work/tap" push origin HEAD:main; then exit 0; fi
 done
