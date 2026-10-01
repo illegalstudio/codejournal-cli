@@ -48,6 +48,7 @@ class CliUsabilityTest(unittest.TestCase):
     def test_invalid_values_fail_before_any_api_request(self):
         for args in [("plan", "status", "aaaaaaaa", "completed"),
                      ("doc", "status", "aaaaaaaa", "archived"),
+                     ("add", "--kind", "fact", "--title", "Test"),
                      ("feedback", "add", "--category", "ux", "--title", "Test")]:
             result = self.cli(*args)
             self.assertNotEqual(result.returncode, 0)
@@ -57,6 +58,9 @@ class CliUsabilityTest(unittest.TestCase):
         self.assertEqual(Handler.paths, [])
 
     def test_help_names_values_and_replacement_semantics(self):
+        add_help = self.cli("add", "--help").stdout
+        for kind in ["discovery", "architecture", "decision", "gotcha", "howto", "environment", "question"]:
+            self.assertIn(kind, add_help)
         self.assertIn("abandoned", self.cli("plan", "status", "--help").stdout)
         self.assertIn("outdated", self.cli("doc", "status", "--help").stdout)
         self.assertNotIn("abandoned", self.cli("doc", "status", "--help").stdout)

@@ -2,7 +2,7 @@ use clap::Args;
 
 #[derive(Args)]
 pub struct AddArgs {
-    #[arg(long)]
+    #[arg(long, value_parser = ["discovery", "architecture", "decision", "gotcha", "howto", "environment", "question"])]
     pub kind: String,
     #[arg(long)]
     pub title: String,
