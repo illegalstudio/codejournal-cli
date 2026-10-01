@@ -47,11 +47,11 @@ cj --version
 Install the published binary with mise:
 
 ```bash
-mise use -g github:illegalstudio/codejournal-cli@latest
+mise use -g github:illegalstudio/codejournal-cli@0.1.0
 cj --version
 ```
 
-To pin a version, replace `latest` with the release version, for example `0.1.0`.
+Use `@latest` to follow stable releases. mise waits 24 hours before selecting a newly published release with `latest`; an explicit version installs it immediately. See [mise release-age settings](https://mise.jdx.dev/configuration/settings.html#minimum_release_age).
 
 ### Direct download
 

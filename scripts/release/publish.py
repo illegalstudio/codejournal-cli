@@ -37,7 +37,7 @@ def publish(version, sha, directory):
         gh("release", "create", tag, "--repo", REPOSITORY, "--target", sha, "--draft",
            "--title", f"Code Journal CLI {version}", "--notes",
            "Install with `brew install illegalstudio/tap/codejournal-cli` or "
-           "`mise use -g github:illegalstudio/codejournal-cli@latest`. "
+           f"`mise use -g github:illegalstudio/codejournal-cli@{version}`. "
            "Archives include the cj binary and MIT license. Verify downloads with SHA256SUMS; "
            "GitHub artifact attestations record build provenance.")
     gh("release", "upload", tag, *map(str, sorted(directory.iterdir())), "--repo", REPOSITORY, "--clobber")
