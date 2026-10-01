@@ -6,6 +6,8 @@ Open issues and pull requests in [illegalstudio/codejournal-cli](https://github.
 
 The public repository is an automated split of `apps/cli` in the development monorepo. Work on a branch based on public `main` and submit a pull request here. Maintainers port accepted changes into `apps/cli`, validate them with the hosted product when appropriate, and let CI publish the resulting split. Public `main` is maintained by that split; maintainers do not merge changes directly into it.
 
+Updates to public `main` are published by Illegal Bot, the organization's GitHub App.
+
 Keep this folder self-contained: runtime code, the embedded agent skill, docs, assets, and standalone tests must work when it is the repository root. Backend and Python-reference parity tests belong in the monorepo's `tests/cli-parity` harness.
 
 ## Checks
