@@ -27,6 +27,7 @@ mod desktop_delivery;
 mod digest;
 mod digest_format;
 mod dispatch;
+mod distribution;
 mod entry_search;
 mod export;
 mod feedback;

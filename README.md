@@ -31,17 +31,45 @@
 
 ---
 
-## Install from source
+## Install
 
-Install a current stable Rust toolchain and Git, then run:
+### Homebrew
+
+On macOS or Linux:
 
 ```bash
-cargo install --git https://github.com/illegalstudio/codejournal-cli.git --locked
+brew install illegalstudio/tap/codejournal-cli
 cj --version
 ```
 
-Cargo installs `cj` into its binary directory, usually `~/.cargo/bin`. Ensure that directory is on your `PATH`.
-Binary releases, package-manager installers, and self-update are planned. Source installation is the supported method at this stage.
+### mise
+
+Install the published binary with mise:
+
+```bash
+mise use -g github:illegalstudio/codejournal-cli@latest
+cj --version
+```
+
+To pin a version, replace `latest` with the release version, for example `0.1.0`.
+
+### Direct download
+
+Download an archive for your operating system and processor from [Releases](https://github.com/illegalstudio/codejournal-cli/releases), verify it against the release's `SHA256SUMS`, and put `cj` on your `PATH`.
+
+For a user-local installation on macOS or Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/illegalstudio/codejournal-cli/main/install.sh | sh
+```
+
+The installer verifies the published checksum before installing into `~/.local/bin`. Add that directory to your `PATH`. Set `CJ_VERSION=0.1.0` to choose a release or `CJ_INSTALL_DIR` to choose the installation directory.
+
+On Windows, download the ZIP archive or use Scoop:
+
+```powershell
+scoop install https://github.com/illegalstudio/codejournal-cli/releases/latest/download/codejournal-cli.json
+```
 
 ## Connect your account
 
@@ -55,9 +83,29 @@ cj setup agents
 ```
 
 Login opens browser approval for the device and saves the selected service and workspace. Tokens use the system keyring where available, with a user-only file fallback. `cj logout` revokes the device token.
-The public service is being prepared; for local development, use `https://codejournal-saas.ddev.site` with the hosted product's DDEV environment.
+The public service is being prepared. If you use another Code Journal service, pass its URL explicitly to `cj login`.
 
-Agent setup currently supports Codex, Claude Code, and Cursor. It installs the embedded [Code Journal skill](skill/SKILL.md), preserves unrelated settings, and backs up settings it changes. Review and trust newly installed Codex hooks with `/hooks`.
+Agent setup supports Codex, Claude Code, Cursor, Grok, Kimi Code, and Pi. It installs the embedded [Code Journal skill](skill/SKILL.md), preserves unrelated settings, and backs up settings it changes. Review and trust newly installed Codex hooks with `/hooks`. Grok, Kimi Code, and Pi receive a managed instruction block that loads the skill; setup preserves the rest of your instructions.
+
+To select an agent or remove the managed integration:
+
+```bash
+cj setup agents --agent kimi
+cj setup agents --agent kimi --uninstall
+```
+
+## Update
+
+Use the same package manager that installed the CLI:
+
+```bash
+brew upgrade illegalstudio/tap/codejournal-cli
+# Or, for mise:
+mise upgrade github:illegalstudio/codejournal-cli
+cj setup agents --refresh
+```
+
+For a direct installation, `cj update` downloads the latest stable release, verifies its checksum, replaces the binary, and refreshes your installed agent skills. `cj update --check` checks for a release without changing anything. Package-managed binaries are protected from direct replacement.
 
 ## Start a project journal
 
@@ -85,22 +133,5 @@ cj sync
 ```
 
 Use `--offline` to request queued writes and cached reads explicitly. Avoid storing secrets in journal content.
-
-## Development
-
-Clone this repository and run:
-
-```bash
-cargo build --locked
-bash scripts/test.sh
-```
-
-The test script checks Rust formatting, runs Rust unit tests, and runs the Python black-box suite against local mock APIs and synthetic data. It requires Python 3 and Git; no running SaaS, personal journal, or credentials are needed. CI runs this suite on Linux. A Codex policy test runs only when the Codex CLI is installed.
-
-## Contributions and source ownership
-
-This public repository is generated from `apps/cli` in the Code Journal development monorepo. The monorepo remains the canonical source; its CI publishes a history-preserving subtree split to this repository's `main` branch.
-
-Issues and pull requests are welcome here. Maintainers integrate accepted changes into the monorepo, then let the split publish them here. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 
 Licensed under [MIT](LICENSE).

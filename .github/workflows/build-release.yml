@@ -1,0 +1,80 @@
+name: Build release binaries
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            platform: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            platform: linux-arm64
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            platform: macos-x64
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            platform: macos-arm64
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            platform: windows-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Prepare Rust
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add '${{ matrix.target }}'
+          rustup component add rustfmt
+      - name: Prepare static Linux toolchain
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          echo 'CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc' >> "$GITHUB_ENV"
+          echo 'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc' >> "$GITHUB_ENV"
+          echo 'CC_x86_64_unknown_linux_musl=musl-gcc' >> "$GITHUB_ENV"
+          echo 'CC_aarch64_unknown_linux_musl=musl-gcc' >> "$GITHUB_ENV"
+      - name: Test and build the native client
+        run: |
+          cargo fmt --check
+          cargo test --locked
+          cargo build --locked --release --target '${{ matrix.target }}'
+      - name: Sign macOS binary when credentials are configured
+        if: runner.os == 'macOS'
+        env:
+          CLI_MACOS_P12: ${{ secrets.CLI_MACOS_P12 }}
+          CLI_MACOS_P12_PASSWORD: ${{ secrets.CLI_MACOS_P12_PASSWORD }}
+          CLI_MACOS_SIGNING_IDENTITY: ${{ secrets.CLI_MACOS_SIGNING_IDENTITY }}
+        run: bash scripts/release/sign-macos.sh 'target/${{ matrix.target }}/release/cj'
+      - name: Verify the release binary
+        run: |
+          binary='target/${{ matrix.target }}/release/cj'
+          if [[ '${{ runner.os }}' == Windows ]]; then binary="$binary.exe"; fi
+          "$binary" --version
+          "$binary" --help
+          "$binary" setup agents --help
+      - name: Package the binary
+        run: python3 scripts/release/package.py '${{ matrix.target }}' '${{ matrix.platform }}'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: binary-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7

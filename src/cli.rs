@@ -24,6 +24,8 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Command {
     Login,
+    /// Update the installed binary and refresh configured agent skills.
+    Update(crate::distribution::UpdateArgs),
     Setup(crate::setup_agents::SetupArgs),
     Logout,
     Whoami,

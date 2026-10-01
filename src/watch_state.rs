@@ -9,7 +9,7 @@ pub fn directory() -> Result<PathBuf> {
         .context("cannot find state directory")?;
     let path = base
         .state_dir()
-        .context("cannot find state directory")?
+        .unwrap_or_else(|| base.data_local_dir())
         .join("watches");
     fs::create_dir_all(&path)?;
     #[cfg(unix)]

@@ -51,7 +51,7 @@ fn directory() -> Result<PathBuf> {
         .context("cannot find state directory")?;
     let directory = base
         .state_dir()
-        .context("cannot find state directory")?
+        .unwrap_or_else(|| base.data_local_dir())
         .join("sessions");
     fs::create_dir_all(&directory)?;
     #[cfg(unix)]

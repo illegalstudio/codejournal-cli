@@ -21,7 +21,7 @@ pub fn run(explicit_server: Option<&str>) -> Result<()> {
     let server = explicit_server
         .map(str::to_owned)
         .or_else(|| Config::load().ok().map(|config| config.server))
-        .unwrap_or_else(|| "https://codejournal-saas.ddev.site".to_owned());
+        .unwrap_or_else(|| "https://codejournal.online".to_owned());
     let server = server.trim_end_matches('/').to_owned();
     let client = public_client(&server)?;
     let response = client
