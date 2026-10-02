@@ -13,6 +13,14 @@ Code Journal records belong to physical projects: a Git repository, or a plain f
 
 ## Start
 
+The CLI repository and installation guide are at https://github.com/illegalstudio/codejournal-cli. Check the installed release with `cj --version`. Every API request identifies that release; the server can require a newer version.
+
+Install with `brew install illegalstudio/tap/codejournal-cli` or `mise use -g github:illegalstudio/codejournal-cli@latest`. Direct downloads and checksum instructions are at https://github.com/illegalstudio/codejournal-cli/releases.
+
+If a command or session hook reports `client_upgrade_required`, `client_version_required`, or an unsupported client, tell the user the installed and minimum versions and that an update is required. Do not hide the notice, repeatedly retry the rejected request, spoof the version header, or present cached data or queued writes as synchronized. Preserve the local outbox.
+
+Use the installation's own updater: Homebrew uses `brew update && brew upgrade illegalstudio/tap/codejournal-cli`; mise uses `mise use -g github:illegalstudio/codejournal-cli@VERSION` with the required release, or `@latest`; direct installations use `cj update`. An explicit mise version avoids its default release-age delay. After updating, run `cj --version`, `cj setup agents --refresh`, and `cj sync`. Follow the user's installation permissions; do not run an installer automatically merely because the server requested an upgrade.
+
 Run `cj brief` before exploring a repository unless the session hook already injected the brief. Follow its project rules, active plans, and open tasks for the whole session. If the rules are empty, summarize the repository's instruction files with `cj rules set` and tell the user.
 
 Search before rediscovering a behavior or debugging a known failure:

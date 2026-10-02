@@ -99,13 +99,19 @@ cj setup agents --agent kimi --uninstall
 Use the same package manager that installed the CLI:
 
 ```bash
-brew upgrade illegalstudio/tap/codejournal-cli
+brew update && brew upgrade illegalstudio/tap/codejournal-cli
 # Or, for mise:
 mise upgrade github:illegalstudio/codejournal-cli
 cj setup agents --refresh
+cj --version
+cj sync
 ```
 
 For a direct installation, `cj update` downloads the latest stable release, verifies its checksum, replaces the binary, and refreshes your installed agent skills. `cj update --check` checks for a release without changing anything. Package-managed binaries are protected from direct replacement.
+
+The server can require a minimum CLI version. If your version is no longer supported, `cj` shows the installed and required releases with update instructions. Agent session hooks pass that notice to your coding agent too. With mise, select the required release explicitly using `mise use -g github:illegalstudio/codejournal-cli@VERSION` if `latest` has not picked it up yet. After updating, verify `cj --version`, refresh agent instructions with `cj setup agents --refresh`, and run `cj sync`.
+
+While an update is required, cached reads are not fresh and queued writes have not reached the server. Keep the outbox so synchronization can retry safely after the upgrade. Every backend request identifies the installed release, and the service records it with the data written by the CLI.
 
 ## Start a project journal
 

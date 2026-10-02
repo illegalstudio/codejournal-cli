@@ -76,7 +76,12 @@ pub fn run() -> Result<()> {
         {
             let queued = error.downcast_ref::<request_outbox::QueuedWrite>().unwrap();
             if json_mode {
-                crate::stdout::println!("{}", serde_json::json!({"queued": true, "id": queued.0}));
+                let mut receipt = serde_json::json!({"queued": true, "id": queued.0});
+                if let Some(upgrade) = api_upgrade::details() {
+                    receipt["upgrade_required"] = serde_json::Value::Bool(true);
+                    receipt["compatibility"] = upgrade;
+                }
+                output::json(&receipt)?;
             } else {
                 if let Some(notice) = output::masking_notice() {
                     crate::stdout::println!("{notice}");

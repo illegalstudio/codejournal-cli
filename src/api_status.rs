@@ -15,6 +15,9 @@ pub fn deferred(status: StatusCode) -> bool {
 
 /// The server's explanation, or a generic one when the response has none.
 pub fn message(status: StatusCode, value: &Value) -> String {
+    if let Some(message) = crate::api_upgrade::message(status, value) {
+        return message;
+    }
     if let Some(message) = value["message"]
         .as_str()
         .or_else(|| value["error"].as_str())
@@ -70,8 +73,9 @@ pub fn error(status: StatusCode, value: &Value) -> Error {
 
 /// Warns once per process when a read falls back to the cache or a write stays queued.
 pub fn warn(status: StatusCode, value: &Value) {
+    let explanation = message(status, value);
     if !WARNED.swap(true, Ordering::Relaxed) {
-        eprintln!("warning: {}", message(status, value));
+        eprintln!("warning: {explanation}");
     }
 }
 
@@ -84,7 +88,7 @@ mod tests {
     fn deferred_errors_show_only_the_server_message() {
         let body = json!({"message": "cj 0.1.0 is no longer supported by this server."});
         let upgrade = error(StatusCode::UPGRADE_REQUIRED, &body).to_string();
-        assert_eq!(upgrade, "cj 0.1.0 is no longer supported by this server.");
+        assert!(upgrade.starts_with("cj 0.1.0 is no longer supported by this server."));
         assert!(message(StatusCode::UPGRADE_REQUIRED, &json!({})).contains(VERSION));
         assert!(message(StatusCode::TOO_MANY_REQUESTS, &json!({})).contains("rate limit"));
         let forbidden = error(StatusCode::FORBIDDEN, &json!({"message": "Forbidden"})).to_string();

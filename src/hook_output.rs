@@ -17,6 +17,7 @@ pub fn brief(cwd: &Path, source: &str, agent: &str, session: &str) -> Result<()>
         .then(|| crate::hook_brief::online(source, agent, session))
         .flatten()
         .or_else(|| fs::read_to_string(&cache).ok());
+    let notice = notice.or_else(crate::api_upgrade::notice);
     if let Some(text) = text {
         let message = notice
             .as_ref()

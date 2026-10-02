@@ -17,7 +17,7 @@ pub fn apply(path: &Path, skill: &Path, uninstall: bool, dry_run: bool) -> Resul
         Err(error) => return Err(error.into()),
     };
     let block = format!(
-        "{START}\n## Code Journal\n\nRead `{}` before using Code Journal. Run `cj brief` at the start of each repository session and follow its project rules. Search with `cj search` before repeating an investigation. Record durable discoveries with `cj add` and completed work with `cj log add`. Never save credentials or personal data in the journal.\n{END}",
+        "{START}\n## Code Journal\n\nRead `{}` before using Code Journal. Run `cj brief` at the start of each repository session and follow its project rules. Search with `cj search` before repeating an investigation. Record durable discoveries with `cj add` and completed work with `cj log add`. Never save credentials or personal data in the journal.\n\nCLI: https://github.com/illegalstudio/codejournal-cli. Install with `brew install illegalstudio/tap/codejournal-cli` or `mise use -g github:illegalstudio/codejournal-cli@latest`. Check `cj --version`. If the server requires an update, tell the user and follow the skill's update instructions: Homebrew uses `brew update && brew upgrade illegalstudio/tap/codejournal-cli`, mise selects the required version, and direct installations use `cj update`. Then run `cj setup agents --refresh` and `cj sync`. Cached reads and queued writes are not synchronized data.\n{END}",
         skill.display()
     );
     let after = replace(&before, if uninstall { None } else { Some(&block) })?;

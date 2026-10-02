@@ -4,6 +4,7 @@ mod agent_process;
 mod api;
 mod api_cache;
 mod api_status;
+mod api_upgrade;
 mod api_version;
 mod api_write;
 mod attribution;
