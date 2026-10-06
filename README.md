@@ -199,6 +199,8 @@ cj outbox receipt REQUEST_ID
 
 `cj sync` can recover older dependencies through stored request receipts. It keeps requests pending when recovery cannot be verified. `cj status` reports a changed HEAD that commit hooks have not captured; use explicit `--ref commit:SHA` references for recovery.
 
+`cj plan show ID` and `cj doc show ID` download only the current content unless history is requested. `--history` lists 20 revision metadata rows and prints a command with `--before-revision N` for the next page. Use `--revision N --body` to read one historical body; `--json` alone includes one bounded history page.
+
 Documents and plans accept bodies of up to 100,000 characters and 30 unique references. Split large documents or group references by subsystem. `cj rules show` prints only the rules on standard output, including an empty value when none are set; use `--json` for structured output. An unknown project remains an error.
 
 Licensed under [MIT](LICENSE).

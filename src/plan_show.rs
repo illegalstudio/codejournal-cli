@@ -17,21 +17,30 @@ pub fn show(
     id: &str,
     revision: Option<u32>,
     history: bool,
+    before_revision: Option<u32>,
     body_only: bool,
     current_only: bool,
     json_mode: bool,
 ) -> Result<()> {
-    let query = revision
-        .map(|number| format!("?revision={number}"))
-        .unwrap_or_default();
-    let query = if current_only {
-        format!(
-            "{query}{}history=0",
-            if query.is_empty() { "?" } else { "&" }
-        )
+    let mut params = Vec::new();
+    if let Some(number) = revision {
+        params.push(("revision", number.to_string()));
+    }
+    if current_only || body_only || (!history && !json_mode) {
+        params.push(("history", "0".to_owned()));
+    } else if history {
+        params.push(("history_content", "0".to_owned()));
     } else {
-        query
-    };
+        params.push(("history_content", "1".to_owned()));
+    }
+    if let Some(before) = before_revision {
+        params.push(("history_before", before.to_string()));
+    }
+    let url = reqwest::Url::parse_with_params("http://local/", &params)?;
+    let query = url
+        .query()
+        .map(|query| format!("?{query}"))
+        .unwrap_or_default();
     let result = api.get(&format!("/api/v1/tenants/{tenant}/{kind}/{id}{query}"))?;
     let item = &result[noun(kind)];
     if body_only && !json_mode {
@@ -65,6 +74,14 @@ pub fn show(
                 record["revision"],
                 text(&record["created_at"]),
                 text(&record["note"])
+            ));
+        }
+    }
+    if history {
+        if let Some(before) = result["revision_next"].as_u64() {
+            lines.push(format!(
+                "More revisions: cj {} show {id} --history --before-revision {before}",
+                noun(kind)
             ));
         }
     }

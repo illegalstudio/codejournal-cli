@@ -16,8 +16,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         item = {"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "title": "Current",
                 "body": "Current body", "status": "done", "project_slug": "p",
                 "revision": 2, "refs": [{"kind": "commit", "value": "abcdef123"}]}
-        if parsed.path.endswith("/docs/aaaaaaaa"):
-            payload = {"doc": item, "revisions": [] if query.get("history") == ["0"] else
+        if parsed.path.endswith(("/docs/aaaaaaaa", "/plans/aaaaaaaa")):
+            key = "doc" if "/docs/" in parsed.path else "plan"
+            payload = {key: item, "revision_next": None if query.get("history") == ["0"] else 1, "revisions": [] if query.get("history") == ["0"] else
                        [{"body": "Previous body" * 100, "revision": 1}]}
             status = 200
         elif parsed.path.endswith("/logs/aaaaaaaa"):

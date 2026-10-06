@@ -56,6 +56,8 @@ pub enum PlanAction {
         revision: Option<u32>,
         #[arg(long)]
         history: bool,
+        #[arg(long, requires = "history", conflicts_with = "current_only", value_parser = clap::value_parser!(u32).range(1..=2147483647))]
+        before_revision: Option<u32>,
         #[arg(long, conflicts_with_all = ["history", "revision"], help = "Fetch only the current version, without revision history (also applies to JSON)")]
         current_only: bool,
         #[arg(long)]

@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import threading
 import unittest
+import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -70,11 +71,36 @@ class CliUsabilityTest(unittest.TestCase):
     def test_current_only_does_not_download_revision_bodies(self):
         old = json.loads(self.cli("doc", "show", "aaaaaaaa", "--json").stdout)
         self.assertEqual(len(old["revisions"]), 1)
+        self.assertTrue(Handler.paths[-1].endswith("?history_content=1"))
         current = self.cli("doc", "show", "aaaaaaaa", "--json", "--current-only")
         self.assertEqual(current.returncode, 0, current.stderr)
         self.assertEqual(json.loads(current.stdout)["revisions"], [])
         self.assertTrue(Handler.paths[-1].endswith("?history=0"))
         self.assertIn("Current body", current.stdout)
+
+    def test_plan_and_doc_reads_skip_history_or_request_a_metadata_page(self):
+        for kind in ["plan", "doc"]:
+            for options in [[], ["--body"], ["--body", "--json"]]:
+                result = self.cli(kind, "show", "aaaaaaaa", *options)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                query = urllib.parse.parse_qs(urllib.parse.urlsplit(Handler.paths[-1]).query)
+                self.assertEqual(query, {"history": ["0"]})
+                self.assertIn("Current body", result.stdout)
+            result = self.cli(kind, "show", "aaaaaaaa", "--history")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("--before-revision 1", result.stdout)
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(Handler.paths[-1]).query)
+            self.assertEqual(query, {"history_content": ["0"]})
+            result = self.cli(kind, "show", "aaaaaaaa", "--history", "--before-revision", "20")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(Handler.paths[-1]).query)
+            self.assertEqual(query, {"history_content": ["0"], "history_before": ["20"]})
+            for options in [["--before-revision", "20"], ["--history", "--before-revision", "0"],
+                            ["--history", "--before-revision", "2147483648"]]:
+                paths = list(Handler.paths)
+                result = self.cli(kind, "show", "aaaaaaaa", *options)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(paths, Handler.paths)
 
     def test_log_show_prints_body_refs_and_structured_json(self):
         shown = self.cli("log", "show", "aaaaaaaa")

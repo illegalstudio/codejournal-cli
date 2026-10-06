@@ -47,6 +47,7 @@ pub fn run(
             id,
             revision,
             history,
+            before_revision,
             body,
             current_only,
         } => plan_show::show(
@@ -56,6 +57,7 @@ pub fn run(
             &id,
             revision,
             history,
+            before_revision,
             body,
             current_only,
             json_mode,

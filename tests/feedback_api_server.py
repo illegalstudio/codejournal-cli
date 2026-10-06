@@ -1,6 +1,7 @@
 """Synthetic API responses for CLI feedback regressions."""
 import http.server
 import json
+import urllib.parse
 
 PLAN_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
@@ -21,17 +22,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def do_GET(self):
-        if self.path.endswith("/plans"):
+        path = urllib.parse.urlsplit(self.path).path
+        if path.endswith("/plans"):
             self.respond(200, {"plans": [{"id": PLAN_ID}]})
-        elif self.path.endswith("/docs"):
+        elif path.endswith("/docs"):
             self.respond(200, {"docs": [{"id": PLAN_ID}]})
-        elif self.path.endswith(f"/plans/{PLAN_ID}") or self.path.endswith("/plans/aaaaaaaa"):
+        elif path.endswith(f"/plans/{PLAN_ID}") or path.endswith("/plans/aaaaaaaa"):
             self.respond(200, {"plan": {"id": PLAN_ID, "body": "## Steps\n- [ ] ship"}, "revisions": []})
-        elif self.path.endswith(f"/docs/{PLAN_ID}") or self.path.endswith("/docs/aaaaaaaa"):
+        elif path.endswith(f"/docs/{PLAN_ID}") or path.endswith("/docs/aaaaaaaa"):
             self.respond(200, {"doc": {"id": PLAN_ID, "body": "Documentation body"}, "revisions": []})
         elif self.path.endswith("/tasks?all=1"):
             self.respond(200, {"tasks": [{"id": PLAN_ID}]})
-        elif self.path.endswith("/rules"):
+        elif path.endswith("/rules"):
             self.respond(200, {"rules": "- Run focused tests."})
         else:
             self.respond(404, {"error": "unknown route"})
