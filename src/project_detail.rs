@@ -1,5 +1,4 @@
 use serde_json::Value;
-use std::path::Path;
 
 pub fn format(project: &Value) -> String {
     let provides = &project["provides"];
@@ -77,15 +76,8 @@ pub fn format(project: &Value) -> String {
             format!("{kind}:{}", optional(&path["branch"], "detached"))
         };
         let location = value(&path["path"]);
-        let missing = if value(&path["host"]) == crate::attribution::host()
-            && !Path::new(location).is_dir()
-        {
-            "  (missing)"
-        } else {
-            ""
-        };
         lines.push(format!(
-            "  {label:<24} {:<10} {location}{missing}",
+            "  {label:<24} {:<10} {location}",
             value(&path["host"])
         ));
     }
@@ -129,5 +121,18 @@ mod tests {
         assert!(text.contains("provides:        app, cli  (manual: app, cli)"));
         assert!(text.contains("entries:         2 active, 1 obsolete"));
         assert!(text.contains("worktree:feature/x"));
+    }
+    #[test]
+    fn server_checkout_paths_are_displayed_without_local_probes() {
+        for path in [
+            r"\\attacker.example\share",
+            r"\\?\UNC\attacker.example\share",
+            "/missing/local/path",
+        ] {
+            let project = json!({"paths": [{"host": crate::attribution::host(), "kind": "main", "path": path}]});
+            let text = format(&project);
+            assert!(text.contains(path));
+            assert!(!text.contains("(missing)"));
+        }
     }
 }
