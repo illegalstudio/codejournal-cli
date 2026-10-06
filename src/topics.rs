@@ -79,9 +79,13 @@ pub fn run(
             }
             for group in certain.iter().filter(|group| group.len() >= 2) {
                 lines.push(format!(
-                    "  cj topics merge {} --into {}",
-                    group[1..].join(" "),
-                    group[0]
+                    "  cj topics merge --into={} -- {}",
+                    shell_words::quote(&group[0]),
+                    group[1..]
+                        .iter()
+                        .map(|name| shell_words::quote(name))
+                        .collect::<Vec<_>>()
+                        .join(" ")
                 ));
             }
             lines.push("".to_owned());
