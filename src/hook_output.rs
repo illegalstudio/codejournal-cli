@@ -57,7 +57,7 @@ pub fn conflicts(warnings: &[String]) {
 }
 
 pub fn stop(payload: &Value, cwd: &Path, state: &mut session_state::SessionState) {
-    if payload["stop_hook_active"].as_bool() == Some(true) {
+    if state.journal_active != Some(true) || payload["stop_hook_active"].as_bool() == Some(true) {
         return;
     }
     let turn = if state.turn_started_at.is_empty() {
@@ -90,6 +90,15 @@ pub fn stop(payload: &Value, cwd: &Path, state: &mut session_state::SessionState
     crate::stdout::println!(
         "{}",
         json!({"decision": "block", "reason": format!("Code Journal: this turn {what} but no `cj log add` was recorded. Log it once now with `cj log add --title \"...\" --agent {}` and record any non-obvious fact with `cj add`. This reminder appears once per turn.", state.agent)})
+    );
+}
+
+pub fn no_project() {
+    crate::stdout::println!(
+        "{}",
+        json!({"journal_active": false, "hookSpecificOutput": {
+            "hookEventName": "SessionStart", "additionalContext": crate::project_folder::notice()
+        }})
     );
 }
 

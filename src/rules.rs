@@ -48,23 +48,14 @@ pub fn run(
     );
     match action {
         None | Some(RulesAction::Show) => {
-            let result = match api.get(&endpoint) {
-                Ok(value) => value,
-                Err(error) if error.to_string().contains("404") => {
-                    json!({"project": null, "rules": null})
-                }
-                Err(error) => return Err(error),
-            };
+            let result = api.get(&endpoint)?;
             let rules = result["rules"].as_str().unwrap_or("");
-            output::emit(
-                &result,
-                if rules.is_empty() {
-                    "No project rules set. Write them from the repository docs and observed conventions with `cj rules set`."
-                } else {
-                    rules
-                },
-                json_mode,
-            )
+            if rules.is_empty() && !json_mode {
+                eprintln!(
+                    "No project rules set. Use cj rules set to add them; --json preserves the empty value for scripts."
+                );
+            }
+            output::emit(&result, rules, json_mode)
         }
         Some(RulesAction::Clear) => {
             api.put(&endpoint, &json!({"rules": ""}))?;

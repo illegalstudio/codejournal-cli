@@ -1,6 +1,7 @@
 mod files;
 mod install;
 mod instructions;
+pub(crate) mod opencode;
 mod paths;
 
 use crate::output;
@@ -25,7 +26,7 @@ pub struct SetupArgs {
 #[derive(Subcommand)]
 pub enum SetupAction {
     Agents {
-        #[arg(long, default_value = "all", value_parser = ["all", "codex", "claude", "cursor", "grok", "kimi", "pi"])]
+        #[arg(long, default_value = "all", value_parser = ["all", "codex", "claude", "cursor", "grok", "kimi", "pi", "opencode"])]
         agent: String,
         #[arg(long)]
         dry_run: bool,

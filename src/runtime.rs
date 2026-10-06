@@ -47,9 +47,13 @@ pub fn run() -> Result<()> {
     if matches!(cli.command, Command::Status) {
         return storage_status::status(cli.json);
     }
-    if let Command::Outbox { action } = cli.command {
+    if matches!(&cli.command, Command::Outbox { action } if !matches!(action, outbox_commands::OutboxAction::Receipt { .. }))
+        && let Command::Outbox { action } = cli.command
+    {
         return outbox_commands::run(action, cli.json);
     }
+    plan_validation::preflight(&mut cli.command)?;
+    watch_validation::preflight(&cli.command)?;
     let mut config = config::Config::load()?;
     if matches!(cli.command, Command::Logout) {
         let api = api::Api::new(&config.server, &config.token()?)?;
@@ -57,7 +61,20 @@ pub fn run() -> Result<()> {
         return config.logout();
     }
     let server = cli.server.as_deref().unwrap_or(&config.server).to_owned();
-    let mut api = api::Api::new(&server, &config.token_for(&server)?)?;
+    let token = match config.token_for(&server) {
+        Ok(token) => token,
+        Err(_)
+            if cli.offline
+                && server.trim_end_matches('/') == config.server.trim_end_matches('/') =>
+        {
+            eprintln!(
+                "Offline without keyring access: writes can queue; credential-scoped cached reads are unavailable."
+            );
+            String::new()
+        }
+        Err(error) => return Err(error),
+    };
+    let mut api = api::Api::new(&server, &token)?;
     api.set_offline(cli.offline);
     if cli.project.is_none()
         && checkout_identity::current().is_none()
@@ -76,7 +93,7 @@ pub fn run() -> Result<()> {
         {
             let queued = error.downcast_ref::<request_outbox::QueuedWrite>().unwrap();
             if json_mode {
-                let mut receipt = serde_json::json!({"queued": true, "id": queued.0});
+                let mut receipt = serde_json::json!({"queued": true, "id": queued.0, "request_id": queued.0, "resource_id": null, "next": "Run cj sync, then find the created resource with its list/search command. Do not use request_id as a resource ID."});
                 if let Some(upgrade) = api_upgrade::details() {
                     receipt["upgrade_required"] = serde_json::Value::Bool(true);
                     receipt["compatibility"] = upgrade;
@@ -86,7 +103,10 @@ pub fn run() -> Result<()> {
                 if let Some(notice) = output::masking_notice() {
                     crate::stdout::println!("{notice}");
                 }
-                crate::stdout::println!("Queued for synchronization: {}", queued.0);
+                crate::stdout::println!(
+                    "Queued request_id: {} (not a resource ID). Run cj sync, then find the created resource with its list/search command.",
+                    queued.0
+                );
             }
             Ok(())
         }

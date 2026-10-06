@@ -6,6 +6,9 @@ use std::fs;
 use std::path::Path;
 
 pub fn installed(name: &str) -> Result<bool> {
+    if name == "opencode" {
+        return super::opencode::installed();
+    }
     if paths::skill(name)?.exists() {
         return Ok(true);
     }
@@ -27,6 +30,9 @@ pub fn apply(
     dry_run: bool,
     status: bool,
 ) -> Result<Value> {
+    if name == "opencode" {
+        return super::opencode::apply(binary, uninstall, dry_run, status);
+    }
     let path = paths::skill(name)?;
     let before = match fs::read_to_string(&path) {
         Ok(body) => Some(body),

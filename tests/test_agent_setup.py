@@ -20,7 +20,8 @@ class AgentSetupTests(unittest.TestCase):
         self.home = pathlib.Path(self.temporary.name)
         self.env = dict(os.environ, HOME=str(self.home), CODEX_HOME=str(self.home / ".codex"),
                         CLAUDE_CONFIG_DIR=str(self.home / ".claude"), KIMI_CODE_HOME=str(self.home / ".kimi-code"),
-                        PI_CODING_AGENT_DIR=str(self.home / ".pi/agent"))
+                        PI_CODING_AGENT_DIR=str(self.home / ".pi/agent"), XDG_CONFIG_HOME=str(self.home / ".config"),
+                        OPENCODE_CONFIG_DIR=str(self.home / ".config/opencode"))
 
     def setup(self, *args, check=True):
         result = subprocess.run([self.binary, "setup", "agents", *args], env=self.env,

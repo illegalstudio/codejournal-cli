@@ -26,7 +26,9 @@ pub fn run(api: &Api, tenant: &str) -> Result<usize> {
         for (_, original) in &batch {
             let mut event = original.clone();
             if event["project_explicit"] != true
-                && let Some(path) = event["checkout_path"].as_str()
+                && let Some(path) = event["checkout_path"]
+                    .as_str()
+                    .or_else(|| event["cwd"].as_str())
             {
                 let slug = if let Some(cached) = identities.get(path) {
                     cached.clone()

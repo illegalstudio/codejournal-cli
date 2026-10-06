@@ -10,16 +10,20 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
     let canonical = project_bootstrap::read_path(api, base)?;
     let cache_path = cache_path.replacen(base, &canonical, 1);
     let base = canonical.as_str();
+    let audit = body["audit"] == true;
     let shared_cache = format!(
-        "{base}/brief-cache?limit={}&pinned_limit={}&log_limit={}",
-        body["limit"], body["pinned_limit"], body["log_limit"]
+        "{base}/brief-cache?limit={}&pinned_limit={}&log_limit={}{}",
+        body["limit"],
+        body["pinned_limit"],
+        body["log_limit"],
+        if audit { "&audit=1" } else { "" }
     );
     if api.offline() {
         return api_cache::read(api.server(), &api.token, &shared_cache)
             .or_else(|_| api.get(&cache_path))
             .map(|result| localize(result, "offline"));
     }
-    if let Some(changes) = changed_files() {
+    if !audit && let Some(changes) = changed_files() {
         if changes["files"]
             .as_array()
             .is_some_and(|items| !items.is_empty())
@@ -29,10 +33,10 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
             body["compared_to"] = changes["compared_to"].clone();
         }
     }
-    if let Some(manifests) = brief_manifests::fingerprints() {
+    if !audit && let Some(manifests) = brief_manifests::fingerprints() {
         body["manifest_names"] = manifests;
     }
-    if git::root().is_some() {
+    if !audit && git::root().is_some() {
         body["provides_auto"] = json!(project_provides::detect());
     }
     match api.post_noqueue(&format!("{base}/brief"), &body) {
@@ -41,6 +45,7 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
             let _ = api_cache::write(api.server(), &api.token, &shared_cache, &result);
             Ok(localize(result, "remote"))
         }
+        Err(error) if error.to_string().starts_with("API returned 4") => Err(error),
         Err(_) => api_cache::read(api.server(), &api.token, &shared_cache)
             .or_else(|_| api.get(&cache_path))
             .map(|result| localize(result, "offline")),

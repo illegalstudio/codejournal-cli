@@ -5,7 +5,13 @@ use std::path::Path;
 
 pub fn resolve(api: &Api, tenant: &str, path: &Path) -> Result<Option<String>> {
     let Some(checkout) = checkout_identity::at(path, 0) else {
-        return Ok(None);
+        return match crate::project_folder::registered_at(api, tenant, path) {
+            crate::project_folder::Scope::Named(slug) => Ok(Some(slug)),
+            crate::project_folder::Scope::Unknown => {
+                anyhow::bail!("could not resolve the hook's project folder; events remain queued")
+            }
+            _ => Ok(None),
+        };
     };
     let key = project_bootstrap::cache_key(
         tenant,
@@ -15,7 +21,7 @@ pub fn resolve(api: &Api, tenant: &str, path: &Path) -> Result<Option<String>> {
     if let Ok(value) = api_cache::read(api.server(), &api.token, &key)
         && let Some(slug) = value["slug"].as_str()
     {
-        return Ok(Some(slug.to_owned()));
+        return Ok(Some(crate::project_cache::canonical(api, tenant, slug)?));
     }
     let body = json!({
         "slug": project::slug_for(&checkout), "name": project::name_for(&checkout),

@@ -28,6 +28,10 @@ pub fn registered(api: &Api, tenant: &str) -> Scope {
     let Some(cwd) = current_dir() else {
         return Scope::Outside;
     };
+    registered_at(api, tenant, &cwd)
+}
+
+pub fn registered_at(api: &Api, tenant: &str, cwd: &std::path::Path) -> Scope {
     let path = cwd.to_string_lossy();
     let Ok(query) = reqwest::Url::parse_with_params(
         "http://local/",

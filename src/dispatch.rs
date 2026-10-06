@@ -6,6 +6,21 @@ use anyhow::Result;
 pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
     let project = cli.project.as_deref();
     match cli.command {
+        Command::Outbox {
+            action: outbox_commands::OutboxAction::Receipt { id },
+        } => {
+            let value = request_ids::receipt(api, tenant, &id)?;
+            output::emit(
+                &value,
+                &format!(
+                    "Request {} created {} {}",
+                    id,
+                    value["resource_type"].as_str().unwrap_or("resource"),
+                    value["resource_id"].as_str().unwrap_or("")
+                ),
+                cli.json,
+            )
+        }
         Command::Whoami => output::json(&api.get("/api/v1/me")?),
         Command::Sync => storage_status::sync(&api, cli.json),
         Command::HookFlush { after } => {

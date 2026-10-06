@@ -16,13 +16,22 @@ pub fn run(action: &HooksAction, json_mode: bool) -> Result<()> {
         HooksAction::Status { agent } => (agent.as_str(), false, true, true),
     };
     let agents = if agent == "all" {
-        vec!["codex", "claude"]
+        vec!["codex", "claude", "opencode"]
     } else {
         vec![agent]
     };
     let binary = std::env::current_exe()?.canonicalize()?;
     let mut results = Vec::new();
     for target_agent in agents {
+        if target_agent == "opencode" {
+            let root = crate::setup_agents::opencode::root()?;
+            if agent != "all" || root.exists() {
+                results.push(crate::setup_agents::opencode::plugin::apply(
+                    &binary, !install, dry_run, status,
+                )?);
+            }
+            continue;
+        }
         let path = target(target_agent)?;
         if agent == "all" && !path.parent().is_some_and(|parent| parent.exists()) {
             continue;

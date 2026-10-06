@@ -1,6 +1,6 @@
 use crate::{
-    api_cache, api_status, api_version, api_write, output, project_bootstrap,
-    request_outbox::PendingRequest, secret_redaction,
+    api_status, api_version, api_write, output, project_bootstrap, request_outbox::PendingRequest,
+    secret_redaction,
 };
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::Client;
@@ -60,43 +60,7 @@ impl Api {
     }
 
     pub fn get(&self, path: &str) -> Result<Value> {
-        let path = project_bootstrap::read_path(self, path)?;
-        if self.offline {
-            return api_cache::read(&self.server, &self.token, &path).map(sanitized);
-        }
-        let request = self
-            .client
-            .get(format!("{}{}", self.server, path))
-            .bearer_auth(&self.token)
-            .header("Accept", "application/json");
-        let response = match request.send() {
-            Ok(response) => response,
-            Err(error) => {
-                return api_cache::read(&self.server, &self.token, &path)
-                    .map(sanitized)
-                    .with_context(|| {
-                        format!("API request failed and no cached response exists: {error}")
-                    });
-            }
-        };
-        let status = response.status();
-        if status.is_server_error() {
-            return api_cache::read(&self.server, &self.token, &path)
-                .map(sanitized)
-                .with_context(|| format!("API returned {status} and no cached response exists"));
-        }
-        let value: Value = sanitized(response.json().context("API returned invalid JSON")?);
-        if api_status::deferred(status) {
-            api_status::warn(status, &value);
-            return api_cache::read(&self.server, &self.token, &path)
-                .map(sanitized)
-                .with_context(|| api_status::message(status, &value));
-        }
-        if !status.is_success() {
-            return Err(api_status::error(status, &value));
-        }
-        let _ = api_cache::write(&self.server, &self.token, &path, &value);
-        Ok(value)
+        crate::api_read::get(self, path)
     }
 
     pub fn post(&self, path: &str, body: &Value) -> Result<Value> {

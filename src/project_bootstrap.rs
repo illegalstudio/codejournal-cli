@@ -1,5 +1,5 @@
 use crate::api_cache;
-use crate::request_outbox::{self, PendingRequest, QueuedWrite};
+use crate::request_outbox::{self, QueuedWrite};
 use crate::{api::Api, attribution, checkout_identity, project, project_provides};
 use anyhow::{Result, bail};
 use serde_json::json;
@@ -38,7 +38,10 @@ pub fn read_path(api: &Api, path: &str) -> Result<String> {
     if let Ok(cached) = api_cache::read(api.server(), &api.token, &key)
         && let Some(slug) = cached["slug"].as_str()
     {
-        return Ok(replace_slug(path, slug));
+        return Ok(replace_slug(
+            path,
+            &crate::project_cache::canonical(api, tenant, slug)?,
+        ));
     }
     if api.offline() {
         bail!("no cached project identity for this checkout");
@@ -84,7 +87,7 @@ pub fn ensure(api: &Api, tenant: &str, force: bool) -> Result<String> {
         && let Ok(cached) = api_cache::read(api.server(), &api.token, key)
         && let Some(canonical) = cached["slug"].as_str()
     {
-        return Ok(canonical.to_owned());
+        return crate::project_cache::canonical(api, tenant, canonical);
     }
     if api.offline() && request_outbox::has_project_init(api.server(), &base, &slug)? {
         return Ok(slug);
@@ -111,38 +114,6 @@ pub fn ensure(api: &Api, tenant: &str, force: bool) -> Result<String> {
         api_cache::write(api.server(), &api.token, &key, &json!({"slug": created}))?;
     }
     Ok(created)
-}
-
-pub fn cache_created(
-    api: &Api,
-    request: &PendingRequest,
-    response: &serde_json::Value,
-) -> Result<Option<(String, String)>> {
-    let parts = request
-        .path
-        .split('/')
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>();
-    if parts.len() != 5 || parts[0..3] != ["api", "v1", "tenants"] || parts[4] != "projects" {
-        return Ok(None);
-    }
-    let Some(body) = request.body.as_ref() else {
-        return Ok(None);
-    };
-    let Some(old) = body["slug"].as_str() else {
-        return Ok(None);
-    };
-    let Some(new) = response["project"]["slug"].as_str() else {
-        return Ok(None);
-    };
-    if let Some(path) = body["path"].as_str() {
-        let key = cache_key(parts[3], path, body["remote_url"].as_str());
-        api_cache::write(api.server(), &api.token, &key, &json!({"slug": new}))?;
-    }
-    Ok(Some((
-        format!("{}/{}", request.path, old),
-        format!("{}/{}", request.path, new),
-    )))
 }
 
 pub(crate) fn cache_key(tenant: &str, path: &str, remote: Option<&str>) -> String {

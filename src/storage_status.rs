@@ -13,10 +13,13 @@ pub fn status(json_mode: bool) -> Result<()> {
     for (_, request) in requests {
         *by_server.entry(request.server).or_default() += 1;
     }
+    let notice = crate::log_commits::pending(&[], false)
+        .err()
+        .map(|error| error.to_string());
     let result = json!({
         "config_path": path, "database_path": null, "mode": if config.is_some() { "remote" } else { "unconfigured" },
         "remote_configured": config.is_some(), "server": server, "tenant": tenant,
-        "pending_outbox": outbox::pending()? + request_outbox::pending()?, "last_sync_at": null, "pending_writes_by_server": by_server, "notices": [],
+        "pending_outbox": outbox::pending()? + request_outbox::pending()?, "last_sync_at": null, "pending_writes_by_server": by_server, "notices": notice.iter().collect::<Vec<_>>(),
     });
     let text = format!(
         "config:      {}{}\nstorage:     {}\nremote:      {}\noutbox:      {} pending",
@@ -25,6 +28,10 @@ pub fn status(json_mode: bool) -> Result<()> {
         result["mode"].as_str().unwrap_or("unconfigured"),
         server.unwrap_or("not configured (run `cj login`)"),
         result["pending_outbox"]
+    );
+    let text = notice.map_or_else(
+        || text.clone(),
+        |notice| format!("{text}\nCommit tracking: {notice}"),
     );
     output::emit(&result, &text, json_mode)
 }

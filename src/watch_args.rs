@@ -7,10 +7,12 @@ pub enum WatchAction {
         title: String,
         #[arg(long, default_value = "end", value_parser = ["end", "failure"])]
         notify_on: String,
-        #[arg(long)]
+        /// Maximum runtime: seconds or a duration such as 30s, 10m, 3h or 1d (1-86400 seconds).
+        #[arg(long, value_parser = crate::watch_validation::timeout)]
         timeout: Option<u64>,
         #[arg(long)]
         agent: Option<String>,
+        /// Command and arguments: at most 100 items, each at most 2000 characters. Use a script file for longer code.
         #[arg(last = true, required = true)]
         command: Vec<String>,
     },

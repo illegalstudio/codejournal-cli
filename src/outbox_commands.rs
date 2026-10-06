@@ -7,6 +7,8 @@ use std::fs::{self, OpenOptions};
 
 #[derive(Subcommand)]
 pub enum OutboxAction {
+    /// Resolve a synchronized creation request to its entry, plan or document ID.
+    Receipt { id: String },
     /// Inspect pending writes without authenticating. Bodies may contain private journal data.
     List {
         #[arg(long)]
@@ -20,6 +22,7 @@ pub enum OutboxAction {
 
 pub fn run(action: OutboxAction, json_mode: bool) -> Result<()> {
     match action {
+        OutboxAction::Receipt { .. } => bail!("receipt lookup requires the authenticated API"),
         OutboxAction::List { server, body } => {
             let requests = request_outbox::entries()?.into_iter()
                 .filter(|(_, item)| server.as_ref().is_none_or(|server| item.server == server.trim_end_matches('/')))

@@ -5,13 +5,36 @@ pub fn render(results: &[Value], status: bool, install: bool, dry_run: bool) -> 
     for row in results {
         let agent = row["agent"].as_str().unwrap_or("");
         let path = row["settings"].as_str().unwrap_or("");
-        let label = if agent == "claude" {
-            "Claude Code (also run by Cursor)"
-        } else {
-            "Codex"
+        let label = match agent {
+            "claude" => "Claude Code (also run by Cursor)",
+            "opencode" => "OpenCode",
+            _ => "Codex",
         };
+        if let Some(modified) = row["modified"].as_array().filter(|files| !files.is_empty()) {
+            lines.push(format!(
+                "{label}: customized files preserved; review them manually: {}",
+                modified
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
         if status {
             lines.push(format!("{label}: {path}"));
+            if let Some(conflicts) = row["conflicts"]
+                .as_array()
+                .filter(|paths| !paths.is_empty())
+            {
+                lines.push(format!(
+                    "  duplicate plugin locations: {}",
+                    conflicts
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
             if let Some(error) = row["error"].as_str() {
                 lines.push(format!("  error: {error}"));
                 continue;

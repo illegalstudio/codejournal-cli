@@ -45,6 +45,9 @@ pub fn run(
         Vec::new()
     } else {
         let result = api.post(&format!("{path}/garden/maintenance"), &json!({}))?;
+        if result["topic_analysis"]["truncated"] == true {
+            payload["topic_analysis"] = result["topic_analysis"].clone();
+        }
         result["applied"].as_array().cloned().unwrap_or_default()
     };
     payload["project"] = json!(slug);

@@ -2,9 +2,14 @@ use anyhow::{Context, Result, bail};
 use directories::BaseDirs;
 use std::path::PathBuf;
 
-pub const NAMES: [&str; 6] = ["codex", "claude", "cursor", "grok", "kimi", "pi"];
+pub const NAMES: [&str; 7] = [
+    "codex", "claude", "cursor", "grok", "kimi", "pi", "opencode",
+];
 
 pub fn root(agent: &str) -> Result<PathBuf> {
+    if agent == "opencode" {
+        return super::opencode::root();
+    }
     let home = BaseDirs::new()
         .context("home directory unavailable")?
         .home_dir()

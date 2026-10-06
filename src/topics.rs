@@ -1,6 +1,6 @@
 use crate::api::Api;
 use crate::knowledge_args::TopicsAction;
-use crate::{output, project};
+use crate::{output, project, topic_analysis};
 use anyhow::Result;
 use serde_json::{Value, json};
 
@@ -92,11 +92,11 @@ pub fn run(
             for pair in possible.iter().filter(|pair| pair.len() >= 2) {
                 lines.push(format!("  {} ~ {}", pair[0], pair[1]));
             }
-            output::emit(
-                &json!({"certain": certain, "possible": possible}),
-                &lines.join("\n"),
-                json_mode,
-            )
+            if let Some(notice) = topic_analysis::notice(&result) {
+                lines.push(String::new());
+                lines.push(notice.to_owned());
+            }
+            output::emit(&result, &lines.join("\n"), json_mode)
         }
     }
 }

@@ -34,6 +34,9 @@ pub fn render(
         data["mode"].as_str().unwrap_or("remote"),
         data["pending_outbox"].as_u64().unwrap_or(0),
     ));
+    if data["mode"] == "offline" {
+        lines.push("Cached brief: metadata may be outdated, and listed documents may not have cached bodies. Do not replace missing cached rules with new rules during an outage.".into());
+    }
     for notice in data["notices"].as_array().into_iter().flatten() {
         lines.push(format!("Plan: {}", value(notice)));
     }
@@ -116,6 +119,9 @@ pub fn render(
 }
 
 fn section(lines: &mut Vec<String>, title: &str, items: &Value, limit: usize) {
+    if limit == 0 {
+        return;
+    }
     lines.push(String::new());
     lines.push(title.to_owned());
     let Some(items) = items.as_array() else {

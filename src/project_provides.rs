@@ -19,10 +19,13 @@ pub fn detect() -> Vec<String> {
         }
     }
     if let Some(cargo) = toml(&root.join("Cargo.toml")) {
-        add_item(&mut names, &cargo["package"]["name"]);
-        if let Some(bins) = cargo["bin"].as_array_of_tables() {
+        add_item(&mut names, item(&cargo, &["package", "name"]));
+        if let Some(bins) = cargo
+            .get("bin")
+            .and_then(toml_edit::Item::as_array_of_tables)
+        {
             for bin in bins.iter() {
-                add_item(&mut names, &bin["name"]);
+                add_item(&mut names, bin.get("name"));
             }
         }
     }
@@ -39,13 +42,13 @@ pub fn detect() -> Vec<String> {
         }
     }
     if let Some(pyproject) = toml(&root.join("pyproject.toml")) {
-        add_item(&mut names, &pyproject["project"]["name"]);
-        add_item(&mut names, &pyproject["tool"]["poetry"]["name"]);
+        add_item(&mut names, item(&pyproject, &["project", "name"]));
+        add_item(&mut names, item(&pyproject, &["tool", "poetry", "name"]));
         for path in [
-            &pyproject["project"]["scripts"],
-            &pyproject["tool"]["poetry"]["scripts"],
+            item(&pyproject, &["project", "scripts"]),
+            item(&pyproject, &["tool", "poetry", "scripts"]),
         ] {
-            if let Some(table) = path.as_table() {
+            if let Some(table) = path.and_then(toml_edit::Item::as_table) {
                 for (name, _) in table.iter() {
                     add(&mut names, name);
                 }
@@ -70,10 +73,16 @@ fn add(names: &mut BTreeSet<String>, name: &str) {
     }
 }
 
-fn add_item(names: &mut BTreeSet<String>, item: &toml_edit::Item) {
-    if let Some(value) = item.as_str() {
+fn add_item(names: &mut BTreeSet<String>, item: Option<&toml_edit::Item>) {
+    if let Some(value) = item.and_then(toml_edit::Item::as_str) {
         add(names, value);
     }
+}
+
+fn item<'a>(document: &'a DocumentMut, keys: &[&str]) -> Option<&'a toml_edit::Item> {
+    keys[1..]
+        .iter()
+        .try_fold(document.get(keys[0])?, |item, key| item.get(key))
 }
 
 fn version(segment: &str) -> bool {

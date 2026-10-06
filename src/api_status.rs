@@ -58,7 +58,7 @@ pub fn error(status: StatusCode, value: &Value) -> Error {
         let mut explanation = message(status, value);
         if status == StatusCode::NOT_FOUND && explanation == "Project not found" {
             explanation
-                .push_str("; check --project or register this checkout with cj project init");
+                .push_str("; this checkout is not registered, or --project is incorrect. Use cj projects to find an existing project, cj search --all-projects to search available knowledge, or cj project init to register this checkout. No project was created by this read");
         }
         if details.is_empty() {
             anyhow!("API returned {status}: {explanation}")

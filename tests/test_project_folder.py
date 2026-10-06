@@ -98,6 +98,23 @@ class ProjectFolderTest(unittest.TestCase):
             self.assertIn("no Code Journal project here", result.stderr)
         self.assertEqual(self.created_projects(), [])
 
+    def test_unregistered_sessions_never_request_a_work_log(self):
+        payload = {"session_id": "session-one", "cwd": str(self.plain)}
+        self.cli("hook", "SessionStart", payload=payload)
+        self.cli("hook", "PostToolUse", payload={**payload, "tool_name": "Write", "tool_input": {"file_path": "draft.txt"}})
+        self.assertEqual(self.cli("hook", "Stop", payload=payload).stdout, "")
+        queued = self.base / "state/codejournal/outbox"
+        self.assertEqual(list(queued.glob("*.json")), [])
+
+    def test_registered_folder_hook_events_keep_the_project(self):
+        Handler.registered = str(self.plain)
+        payload = {"session_id": "session-one", "cwd": str(self.plain)}
+        self.cli("hook", "SessionStart", payload=payload)
+        self.cli("hook", "PostToolUse", payload={**payload, "tool_name": "Write", "tool_input": {"file_path": "draft.txt"}})
+        state = json.loads(next((self.base / "state/codejournal/sessions").glob("*.json")).read_text())
+        self.assertEqual(state["project"], "notes")
+        self.assertIn("cj log add", self.cli("hook", "Stop", payload=payload).stdout)
+
     def test_session_hook_in_plain_directory_injects_a_notice(self):
         payload = {"session_id": "session-one", "cwd": str(self.plain)}
         result = self.cli("hook", "SessionStart", payload=payload)

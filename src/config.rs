@@ -59,8 +59,7 @@ impl Config {
             (Err(keyring::Error::NoEntry), None) => bail!("token missing; run cj login"),
             (Err(error), None) => bail!(
                 "cannot read the Code Journal token from the system keyring ({error}); \
-                 if this runs inside an agent sandbox, run cj outside it \
-                 (the user can allow that for Codex with `cj setup agents`)"
+                 platform failures were retried twice. This does not mean the token is missing. Sandbox access can differ between invocations; retry once with the same permitted execution context. If access remains denied, --offline supports queued writes; the user manages setup and permissions"
             ),
         }
     }

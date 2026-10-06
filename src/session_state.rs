@@ -10,6 +10,8 @@ use std::path::PathBuf;
 #[derive(Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SessionState {
+    pub journal_active: Option<bool>,
+    pub project: Option<String>,
     pub repo_common: Option<String>,
     pub commits: Vec<String>,
     pub logged: Vec<String>,

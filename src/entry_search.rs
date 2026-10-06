@@ -84,7 +84,7 @@ fn fetch(
         .map(|entry| entry_line(entry, all_projects))
         .collect();
     let payload = json!({
-        "project": response["project"], "entries": entries, "notices": [],
+        "project": response["project"], "entries": entries, "cached": response["cached"] == true, "notices": [],
     });
     output::emit(
         &payload,

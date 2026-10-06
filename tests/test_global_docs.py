@@ -106,8 +106,10 @@ class GlobalDocsTest(unittest.TestCase):
         self.assertIn("GLOBAL", self.cli("doc", "list", "--all-projects").stdout)
         self.assertIn("GLOBAL", self.cli("--project", "fixture", "doc", "list").stdout)
         self.assertNotIn("GLOBAL", self.cli("--project", "fixture", "doc", "list", "--local").stdout)
-        online = self.cli("--json", "doc", "list", "--global").stdout
-        self.assertEqual(online, self.cli("--json", "--offline", "doc", "list", "--global").stdout)
+        online = json.loads(self.cli("--json", "doc", "list", "--global").stdout)
+        offline = json.loads(self.cli("--json", "--offline", "doc", "list", "--global").stdout)
+        self.assertTrue(offline.pop("cached"))
+        self.assertEqual(online, offline)
         self.assertIn("project:   GLOBAL", self.cli("doc", "show", "aaaaaaaa").stdout)
 
     def test_default_search_includes_shared_docs_and_local_is_explicit(self):

@@ -3,9 +3,9 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
 /// Help text shared by every `--ref` flag.
-pub const HELP: &str = "Reference, repeatable: path:FILE, file:/absolute/path (this host), host:HOST:/path, commit:SHA, branch:NAME, issue:#N, a URL, or GitHub shorthand such as owner/repo#12";
+pub const HELP: &str = "Reference, repeatable (maximum 30 unique references): path:FILE, file:/absolute/path (this host), host:HOST:/path, commit:SHA, branch:NAME, issue:#N, a URL, or GitHub shorthand such as owner/repo#12";
 
-pub const UPDATE_HELP: &str = "Replace the entire ref list with these repeatable references; omit --ref to keep existing refs. Use path:FILE, file:/absolute/path (this host), host:HOST:/path, commit:SHA, branch:NAME, issue:#N, URLs, or GitHub shorthand.";
+pub const UPDATE_HELP: &str = "Replace the entire ref list (maximum 30 unique references); omit --ref to keep existing refs. Use path:FILE, file:/absolute/path (this host), host:HOST:/path, commit:SHA, branch:NAME, issue:#N, URLs, or GitHub shorthand.";
 
 pub fn parse_all(values: &[String]) -> Result<Vec<Value>> {
     let mut parsed = Vec::new();
@@ -14,6 +14,11 @@ pub fn parse_all(values: &[String]) -> Result<Vec<Value>> {
         if !parsed.contains(&item) {
             parsed.push(item);
         }
+    }
+    if parsed.len() > 30 {
+        bail!(
+            "at most 30 references are allowed; group related paths under a subsystem or split the document, without dropping sources silently"
+        );
     }
     Ok(parsed)
 }

@@ -30,6 +30,7 @@ pub fn create(
     json_mode: bool,
 ) -> Result<()> {
     let body = input::body(body, body_file)?;
+    crate::plan_validation::body(&body)?;
     let status =
         status.unwrap_or_else(|| if kind == "docs" { "current" } else { "active" }.to_owned());
     let base = if global {
@@ -75,6 +76,7 @@ pub fn update(
     json_mode: bool,
 ) -> Result<()> {
     let markdown = input::optional_body(body, body_file)?;
+    crate::plan_validation::body(&markdown)?;
     if title.is_none()
         && markdown.is_empty()
         && raw_refs.is_empty()

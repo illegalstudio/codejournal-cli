@@ -1,4 +1,4 @@
-use crate::{api::Api, outbox, project_bootstrap};
+use crate::{api::Api, outbox};
 use anyhow::Result;
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
@@ -100,10 +100,11 @@ pub fn flush(api: &Api) -> Result<usize> {
                 break;
             }
         }
+        crate::request_ids::resolve(api, &mut replay)?;
         let response = api.replay(&replay).map_err(|error| {
             error.context(format!("queued request {} remains pending", request.id))
         })?;
-        if let Some((old, new)) = project_bootstrap::cache_created(api, &request, &response)? {
+        if let Some((old, new)) = crate::project_cache::cache_created(api, &request, &response)? {
             aliases.insert(old, new);
         }
         fs::remove_file(path)?;

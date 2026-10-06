@@ -1,4 +1,4 @@
-use crate::{garden_review_format, git};
+use crate::{garden_review_format, git, topic_analysis};
 use serde_json::Value;
 
 pub fn render(data: &Value) -> String {
@@ -77,6 +77,10 @@ pub fn render(data: &Value) -> String {
     garden_review_format::sections(data, &mut lines);
     if lines.len() == before {
         lines.push("  (nothing)".into());
+    }
+    if let Some(notice) = topic_analysis::notice(data) {
+        lines.push(String::new());
+        lines.push(notice.to_owned());
     }
     lines.join("\n")
 }

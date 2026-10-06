@@ -9,6 +9,7 @@ use reqwest::Method;
 use serde_json::Value;
 
 pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Result<Value> {
+    crate::request_ids::reject_pending(api, path, body.as_ref())?;
     let mut body = body;
     if let Some(value) = &mut body {
         output::record_masking(secret_redaction::value(value));
@@ -55,6 +56,7 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
         return Err(api_status::error(status, &value)
             .context(format!("write not queued (request {})", request.id)));
     }
+    crate::project_cache::updated(api, &request, &value)?;
     Ok(value)
 }
 
@@ -101,6 +103,7 @@ pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
     if !status.is_success() {
         return Err(api_status::error(status, &value));
     }
+    crate::project_cache::updated(api, request, &value)?;
     Ok(value)
 }
 

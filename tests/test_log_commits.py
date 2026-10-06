@@ -44,9 +44,13 @@ class LogCommitsTest(unittest.TestCase):
         self.assertEqual(logs[-1]["refs"], [])
 
     def test_same_shell_requires_explicit_head_before_hook(self):
+        import json
         import subprocess
         case = self.fixture
         sha, output = self.commit()
+        status = subprocess.run([case.binary, "--json", "status"], cwd=case.repo,
+            env=case.env, capture_output=True, text=True, check=True)
+        self.assertIn("changed HEAD", json.loads(status.stdout)["notices"][0])
         for _ in range(2):
             failed = subprocess.run([case.binary, "log", "add", "--title", "Done", "--body", "Done"],
                 cwd=case.repo, env=case.env, capture_output=True, text=True)
