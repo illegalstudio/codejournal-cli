@@ -77,6 +77,21 @@ class AgentSetupTests(unittest.TestCase):
         self.assertEqual(instructions.read_text(), original)
         self.assertFalse((directory / "skills/code-journal/SKILL.md").exists())
 
+    @unittest.skipUnless(os.name == "posix", "Unix permission regression")
+    def test_private_instructions_and_backups_remain_private(self):
+        directory = self.home / ".kimi-code"
+        directory.mkdir()
+        instructions = directory / "AGENTS.md"
+        original = "Private user instructions.\n"
+        instructions.write_text(original)
+        instructions.chmod(0o600)
+        for args in [("--agent", "kimi"), ("--refresh",), ("--agent", "kimi", "--uninstall")]:
+            self.setup(*args)
+            self.assertEqual(instructions.stat().st_mode & 0o777, 0o600)
+            for backup in directory.glob("*.cj-backup-*.md"):
+                self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(instructions.read_text(), original)
+
 
 if __name__ == "__main__":
     unittest.main()
