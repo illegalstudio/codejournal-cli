@@ -105,3 +105,22 @@ class TransferTest(unittest.TestCase):
         self.assertEqual(batch[1]["id"], "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
         self.assertEqual(batch[3]["plan_id"], "cccccccc-cccc-cccc-cccc-cccccccccccc")
         self.assertEqual(batch[1]["project_slug"], "fixture")
+
+    def test_large_unicode_records_split_into_bounded_chunks(self):
+        source = self.base / "bounded.jsonl"
+        records = [dict(RECORDS[0]), *[dict(RECORDS[1], body="😀" * 80_000) for _ in range(3)]]
+        source.write_text("\n".join(json.dumps(record) for record in records))
+        self.cli("import", str(source))
+        self.assertEqual(len(Handler.batches), 3)
+        self.assertEqual(Handler.finalizations[0][1], {"chunks": 3})
+        for _, chunk in Handler.batches:
+            self.assertLessEqual(len(json.dumps(chunk, ensure_ascii=False).encode()), 524_288)
+        Handler.batches.clear()
+        Handler.finalizations.clear()
+        source.write_text(json.dumps(dict(RECORDS[0], rules="x" * 524_288)))
+        result = subprocess.run([self.binary, "import", str(source)], env=self.env, cwd=self.base,
+                                capture_output=True, text=True, timeout=10)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("chunk budget", result.stderr)
+        self.assertFalse(Handler.batches)
+        self.assertFalse(Handler.finalizations)

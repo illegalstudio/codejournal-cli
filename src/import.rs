@@ -1,3 +1,5 @@
+mod chunks;
+
 use crate::{api::Api, output};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
@@ -40,22 +42,24 @@ pub fn run(api: &Api, tenant: &str, file: PathBuf, json_mode: bool) -> Result<()
     );
     let empty = json!({"projects": 0, "entries": 0, "logs": 0, "plans": 0,
         "notifications": 0, "tasks": 0, "feedback": 0, "skipped": 0});
-    for (sequence, chunk) in records.chunks(100).enumerate() {
-        let batch = chunk
-            .iter()
-            .map(|row| annotate(row, &ids))
-            .collect::<Result<Vec<_>>>()?;
+    let chunks = chunks::build(
+        records
+            .into_iter()
+            .map(|row| annotate(&row, &ids))
+            .collect::<Result<Vec<_>>>()?,
+    )?;
+    for (sequence, chunk) in chunks.iter().enumerate() {
         api.put_noqueue(
             &format!("{path}/chunks/{sequence}"),
-            &json!({"records": batch}),
+            &json!({"records": chunk}),
         )?;
     }
-    let counts = if records.is_empty() {
+    let counts = if chunks.is_empty() {
         empty
     } else {
         api.post_noqueue(
             &format!("{path}/finalize"),
-            &json!({"chunks": records.len().div_ceil(100)}),
+            &json!({"chunks": chunks.len()}),
         )?["counts"]
             .clone()
     };
@@ -86,7 +90,10 @@ fn annotate(row: &Value, ids: &HashMap<String, String>) -> Result<Value> {
 }
 
 fn batch_id(text: &str) -> uuid::Uuid {
-    let hash = Sha256::digest(text.as_bytes());
+    let mut digest = Sha256::new();
+    digest.update(b"cj-import-byte-chunks-v1\0");
+    digest.update(text.as_bytes());
+    let hash = digest.finalize();
     let mut bytes = [0_u8; 16];
     bytes.copy_from_slice(&hash[..16]);
     bytes[6] = (bytes[6] & 0x0f) | 0x50;

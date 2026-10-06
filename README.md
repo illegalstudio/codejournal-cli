@@ -202,3 +202,5 @@ cj outbox receipt REQUEST_ID
 Documents and plans accept bodies of up to 100,000 characters and 30 unique references. Split large documents or group references by subsystem. `cj rules show` prints only the rules on standard output, including an empty value when none are set; use `--json` for structured output. An unknown project remains an error.
 
 Licensed under [MIT](LICENSE).
+
+Imports pack at most 100 records and 512 KiB per client chunk. The service accepts up to 64 MiB, 50,000 records and 1,000 project records per staged batch, with bodies limited to 100,000 characters. A single record must fit a chunk; oversized records fail before upload.
