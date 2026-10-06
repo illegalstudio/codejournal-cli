@@ -47,7 +47,30 @@ pub fn emit(value: &Value, human: &str, json_mode: bool) -> Result<()> {
         if let Some(notice) = masking_notice() {
             crate::stdout::println!("{notice}");
         }
-        crate::stdout::println!("{clean}");
+        crate::stdout::println!("{}", terminal(&clean));
         Ok(())
+    }
+}
+
+fn terminal(text: &str) -> String {
+    text.chars()
+        .map(|character| {
+            if character.is_control() && !matches!(character, '\n' | '\t') {
+                character.escape_default().to_string()
+            } else {
+                character.to_string()
+            }
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn terminal_controls_are_visible_without_changing_layout() {
+        let clean = super::terminal("title\u{1b}]52;c;payload\u{7}\u{9b}2J\r\n\tend");
+        assert!(!clean.contains(['\u{1b}', '\u{7}', '\u{9b}', '\r']));
+        assert!(clean.contains("payload"));
+        assert!(clean.contains("\n\tend"));
     }
 }

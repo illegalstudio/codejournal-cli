@@ -105,6 +105,20 @@ class WatchFeedbackTest(unittest.TestCase):
             time.sleep(0.05)
         self.fail(f"watch {ident} did not reach {status}")
 
+    def test_watch_listing_escapes_terminal_controls_and_keeps_json_data(self):
+        ident = str(uuid.uuid4())
+        title = "Title\x1b]52;c;attacker\x07"
+        command = "echo \x1b[2J\x9b31m"
+        Handler.watches[ident] = {"id": ident, "status": "running", "title": title,
+                                  "command": json.dumps([command])}
+        output = self.cli("watch", "list", "--all")
+        for character in ["\x1b", "\x07", "\x9b"]:
+            self.assertNotIn(character, output)
+        self.assertIn("attacker", output)
+        structured = json.loads(self.cli("--json", "watch", "list", "--all"))
+        self.assertEqual(structured["watches"][0]["title"], title)
+        self.assertEqual(json.loads(structured["watches"][0]["command"]), [command])
+
     def test_watch_failure_timeout_cancel_and_delivery_message(self):
         failed = json.loads(self.cli("--json", "watch", "start", "--title", "Fake CI", "--",
                                      "sh", "-c", "echo FAILED; exit 3"))["watch"]
