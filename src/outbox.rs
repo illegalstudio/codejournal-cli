@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
@@ -27,6 +28,7 @@ pub fn directory() -> Result<PathBuf> {
 pub fn enqueue(mut event: Value) -> Result<String> {
     let id = Uuid::new_v4().to_string();
     event["id"] = Value::String(id.clone());
+    event["origin"] = serde_json::json!(current_origin());
     let epoch = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     let target = directory()?.join(format!("{epoch:020}-{id}.json"));
     let temp = target.with_extension("tmp");
@@ -42,6 +44,18 @@ pub fn enqueue(mut event: Value) -> Result<String> {
     file.sync_all()?;
     fs::rename(temp, target)?;
     Ok(id)
+}
+
+pub fn fingerprint(server: &str, tenant: &str, token: &str) -> String {
+    let context = serde_json::json!([server.trim_end_matches('/'), tenant, token]);
+    format!("{:x}", Sha256::digest(context.to_string().as_bytes()))
+}
+
+fn current_origin() -> Option<String> {
+    let config = crate::config::Config::load().ok()?;
+    let server = std::env::var("CJ_SERVER_URL").unwrap_or(config.server.clone());
+    let token = config.token_for(&server).ok()?;
+    Some(fingerprint(&server, &config.tenant, &token))
 }
 
 pub fn pending() -> Result<usize> {

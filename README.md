@@ -182,7 +182,7 @@ Timeouts accept integer seconds or the suffixes `s`, `m`, `h` and `d`, from one 
 
 ## Offline work and recovery
 
-Reads can use cached responses; writes and hook events queue locally when delivery is deferred. Use `--offline` to request queued writes and cached reads explicitly. Cached briefs retain their known rules, but listed document bodies may not have been downloaded. A server failure with no cached response is reported separately from an empty result. Avoid storing secrets in journal content.
+Reads can use cached responses; writes and hook events queue locally when delivery is deferred. Use `--offline` to request queued writes and cached reads explicitly. Cached briefs retain their known rules, but listed document bodies may not have been downloaded. A server failure with no cached response is reported separately from an empty result. Hook events retain their originating server, workspace and credential scope. Switching accounts or workspaces leaves those events queued for the original credentials; legacy events without that scope are retained without automatic delivery. Avoid storing secrets in journal content.
 
 Writes can queue offline even when the system keyring cannot be reached. Without access to the credential, credential-scoped cached reads are unavailable. Platform keyring failures are retried twice, after 100 ms and 250 ms; a missing credential is not retried. A keyring access error does not mean the saved token is missing. Sandbox access can differ between invocations, so retry once in the same permitted execution context. Persistent access denial needs a user-managed permission change; repeated retries cannot grant access. Use `--offline` for queued writes while access is unavailable.
 

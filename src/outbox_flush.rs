@@ -17,7 +17,12 @@ pub fn run(api: &Api, tenant: &str) -> Result<usize> {
     }
     let mut sent = 0;
     loop {
-        let batch = outbox::entries()?.into_iter().take(100).collect::<Vec<_>>();
+        let origin = outbox::fingerprint(&api.server, tenant, &api.token);
+        let batch = outbox::entries()?
+            .into_iter()
+            .filter(|(_, event)| event["origin"].as_str() == Some(origin.as_str()))
+            .take(100)
+            .collect::<Vec<_>>();
         if batch.is_empty() {
             break;
         }
@@ -25,6 +30,9 @@ pub fn run(api: &Api, tenant: &str) -> Result<usize> {
         let mut events = Vec::new();
         for (_, original) in &batch {
             let mut event = original.clone();
+            if let Some(fields) = event.as_object_mut() {
+                fields.remove("origin");
+            }
             if event["project_explicit"] != true
                 && let Some(path) = event["checkout_path"]
                     .as_str()

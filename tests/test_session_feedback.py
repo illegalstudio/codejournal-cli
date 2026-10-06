@@ -1,3 +1,4 @@
+import hashlib
 import http.server
 import json
 import os
@@ -178,6 +179,8 @@ class SessionFeedbackTest(unittest.TestCase):
                  "session": "collision", "agent": "codex", "project": "repo",
                  "project_explicit": False, "host": socket.gethostname(), "cwd": str(self.repo),
                  "checkout_path": str(self.repo), "ts": "2026-09-28T12:00:00Z"}
+        server = f"http://127.0.0.1:{self.server.server_port}"
+        event["origin"] = hashlib.sha256(json.dumps([server, "demo", "test-token"], separators=(",", ":")).encode()).hexdigest()
         (outbox / "0001.json").write_text(json.dumps(event))
         self.cli("sync")
         project = next(body for path, body in Handler.calls if path.endswith("/projects"))
@@ -186,6 +189,36 @@ class SessionFeedbackTest(unittest.TestCase):
                          if item["id"] == event["id"])
         self.assertEqual((project["path"], project["kind"]), (str(self.repo), "main"))
         self.assertEqual(delivered["project"], "repo-2")
+
+    def test_hook_outbox_is_bound_to_its_original_credentials_and_workspace(self):
+        self.env["CODE_JOURNAL_HOOK_FLUSH"] = "off"
+        self.hook("SessionStart", "origin-session")
+        folder = self.base / "state" / "codejournal" / "outbox"
+        queued = list(folder.glob("*.json"))
+        original = json.loads(queued[0].read_text())
+        self.assertIsInstance(original["origin"], str)
+        config = self.base / "config" / "codejournal" / "config.json"
+        base = json.loads(config.read_text())
+        for changed in [dict(base, tenant="other"), dict(base, server="http://127.0.0.1:1")]:
+            config.write_text(json.dumps(changed))
+            Handler.calls.clear()
+            self.cli("hook-flush")
+            self.assertFalse(any(path.endswith("/client-events") for path, _ in Handler.calls))
+            self.assertTrue(queued[0].exists())
+        config.write_text(json.dumps(base))
+        self.env["CJ_TOKEN"] = "different-account-token"
+        Handler.calls.clear()
+        self.cli("hook-flush")
+        self.assertFalse(any(path.endswith("/client-events") for path, _ in Handler.calls))
+        self.env["CJ_TOKEN"] = "test-token"
+        legacy = folder / "0000-legacy.json"
+        legacy.write_text(json.dumps(dict(original, id="legacy", origin=None)))
+        self.cli("hook-flush")
+        delivered = [event for path, body in Handler.calls if path.endswith("/client-events") for event in body["events"]]
+        self.assertEqual(delivered[0]["id"], original["id"])
+        self.assertNotIn("origin", delivered[0])
+        self.assertTrue(legacy.exists())
+        self.assertFalse(queued[0].exists())
 
     def test_hook_warns_about_edit_collision_and_reminds_once(self):
         self.env["CODE_JOURNAL_HOOK_FLUSH"] = "off"
