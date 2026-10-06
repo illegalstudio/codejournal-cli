@@ -4,18 +4,29 @@ use std::path::{Path, PathBuf};
 
 const MARKER: &str = "# Managed by cj setup agents";
 
-// Codex runs rule-allowed commands outside its sandbox, where cj can reach the
-// keyring and the API. Commands with local side effects stay sandboxed.
+// Keep automatic approval limited to reads and explicit inline bodies.
+// Local configuration and arbitrary file uploads require ordinary command review.
 const RULES: &str = r#"# Managed by cj setup agents; local changes are overwritten.
 prefix_rule(
-    pattern = ["cj", ["brief", "search", "recent", "show", "topics", "add", "supersede",
-                      "obsolete", "answer", "entry", "log", "task", "plan", "doc", "rules",
-                      "feedback", "notify", "garden", "digest", "status", "whoami", "sync",
-                      "project", "projects", "checkouts", "refs", "activity", "notifications"]],
+    pattern = ["cj", ["brief", "search", "recent", "show", "topics", "digest", "status",
+                      "whoami", "projects", "checkouts", "activity"]],
     decision = "allow",
-    justification = "Code Journal reads its token from the system keyring and calls the hosted API",
-    match = ["cj brief", "cj add --kind gotcha --title x"],
-    not_match = ["cj watch start -- ls", "cj login"],
+    justification = "Read journal data using the configured service",
+    match = ["cj brief"],
+    not_match = ["cj notify --body-file private.txt", "cj notifications config --ntfy https://example.test"],
+)
+prefix_rule(
+    pattern = ["cj", ["log", "task", "plan", "doc", "feedback", "project", "refs", "notifications"], ["list", "show"]],
+    decision = "allow",
+    justification = "Read journal records without local configuration changes",
+)
+prefix_rule(pattern = ["cj", "rules", "show"], decision = "allow")
+prefix_rule(
+    pattern = ["cj", ["add", "notify"], "--body"],
+    decision = "allow",
+    justification = "Save an explicit inline body; the CLI rejects simultaneous body-file input",
+    match = ["cj add --body fact --kind gotcha --title x"],
+    not_match = ["cj add --body-file private.txt", "cj watch start -- ls", "cj login"],
 )
 "#;
 

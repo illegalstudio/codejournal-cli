@@ -89,6 +89,8 @@ Code Journal supports Codex, Claude Code, Cursor, Grok, Kimi Code, Pi, and [Open
 
 `cj setup agents` manages all seven agents. It installs the embedded [Code Journal skill](skill/SKILL.md), preserves unrelated settings, and backs up settings it changes. Review and trust newly installed Codex hooks with `/hooks`. Grok, Kimi Code, and Pi receive a managed instruction block that loads the skill; setup preserves the rest of your instructions. OpenCode receives a native plugin and reuses a discoverable skill when available.
 
+Codex rules automatically approve journal reads and `cj add --body ...` or `cj notify --body ...` with explicit inline content. Commands that read body files or change local notification delivery settings use ordinary Codex command review. Refresh the managed setup to replace an older broad rule.
+
 To select an agent or remove the managed integration:
 
 ```bash

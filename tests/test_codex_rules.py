@@ -58,7 +58,17 @@ class CodexRulesTest(unittest.TestCase):
                                      *command], capture_output=True, text=True, check=True)
             return json.loads(result.stdout).get("decision")
         self.assertEqual(decision("cj", "brief"), "allow")
-        self.assertEqual(decision("cj", "add", "--kind", "gotcha", "--title", "x"), "allow")
+        self.assertEqual(decision("cj", "add", "--body", "fact", "--kind", "gotcha", "--title", "x"), "allow")
+        for command in [("notifications", "config", "--ntfy", "https://example.test"),
+                        ("notify", "--body-file", "/private/file"),
+                        ("add", "--kind", "gotcha", "--body-file", "/private/file"),
+                        ("task", "note", "id", "--body-file", "/private/file"),
+                        ("rules", "set", "--body-file", "/private/file")]:
+            self.assertIsNone(decision("cj", *command))
+        conflict = subprocess.run([self.binary, "add", "--body", "fact", "--body-file", "/private/file",
+                                   "--kind", "gotcha", "--title", "x"], env=self.env, capture_output=True, text=True)
+        self.assertNotEqual(conflict.returncode, 0)
+        self.assertIn("cannot be used with", conflict.stderr)
         self.assertIsNone(decision("cj", "watch", "start", "--", "ls"))
         self.assertIsNone(decision("cj", "setup", "agents"))
         self.assertIsNone(decision("cj", "--server", "https://example.test", "add"))
