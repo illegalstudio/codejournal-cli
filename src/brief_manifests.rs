@@ -1,9 +1,8 @@
-use crate::git;
+use crate::{git, manifest_file};
 use regex::Regex;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
-use std::fs;
 
 const FILES: &[&str] = &[
     "go.mod",
@@ -32,13 +31,7 @@ pub fn fingerprints() -> Option<Value> {
     let mut quoted = BTreeSet::new();
     for name in FILES {
         let path = root.join(name);
-        let Ok(metadata) = fs::metadata(&path) else {
-            continue;
-        };
-        if !metadata.is_file() || metadata.len() > 262_144 {
-            continue;
-        }
-        let Ok(bytes) = fs::read(&path) else {
+        let Some(bytes) = manifest_file::read(&path) else {
             continue;
         };
         let text = String::from_utf8_lossy(&bytes);

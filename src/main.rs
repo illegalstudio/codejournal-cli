@@ -76,6 +76,7 @@ mod log_show;
 mod log_update;
 mod login;
 mod logs;
+mod manifest_file;
 mod normalize;
 mod normalize_plan;
 mod notification_delivery;

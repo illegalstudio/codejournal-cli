@@ -1,7 +1,6 @@
-use crate::git;
+use crate::{git, manifest_file};
 use serde_json::Value;
 use std::collections::BTreeSet;
-use std::fs;
 use std::path::Path;
 use toml_edit::DocumentMut;
 
@@ -10,7 +9,7 @@ pub fn detect() -> Vec<String> {
         return Vec::new();
     };
     let mut names = BTreeSet::new();
-    if let Ok(go) = fs::read_to_string(root.join("go.mod")) {
+    if let Some(go) = manifest_file::text(&root.join("go.mod")) {
         if let Some(module) = go.lines().find_map(|line| line.strip_prefix("module ")) {
             add(&mut names, module.trim());
             if let Some(last) = module.split('/').rev().find(|part| !version(part)) {
@@ -92,11 +91,11 @@ fn version(segment: &str) -> bool {
 }
 
 fn json(path: &Path) -> Option<Value> {
-    serde_json::from_slice(&fs::read(path).ok()?).ok()
+    serde_json::from_slice(&manifest_file::read(path)?).ok()
 }
 
 fn toml(path: &Path) -> Option<DocumentMut> {
-    fs::read_to_string(path).ok()?.parse().ok()
+    manifest_file::text(path)?.parse().ok()
 }
 
 #[cfg(test)]
