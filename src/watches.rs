@@ -1,12 +1,13 @@
 use crate::api::Api;
 use crate::watch_args::WatchAction;
-use crate::{
-    attribution, notification_delivery, output, project_bootstrap, watch_format, watch_runner,
-    watch_state,
-};
+use crate::{attribution, output, project_bootstrap, watch_format, watch_runner, watch_state};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
-use std::process::{Command, Stdio};
+#[cfg(windows)]
+use std::process::Command;
+
+pub(crate) mod authorization;
+mod start;
 
 pub fn endpoint(tenant: &str, project_name: &str) -> String {
     format!("/api/v1/tenants/{tenant}/projects/{project_name}")
@@ -42,79 +43,19 @@ pub fn run(
             timeout,
             agent,
             command,
-        } => {
-            let cwd = std::env::current_dir()?.canonicalize()?;
-            let host = attribution::host();
-            let created = api.post(
-                &path,
-                &json!({
-                    "title": title, "notify_on": if notify_on == "end" { "all" } else { "failure" }, "timeout": timeout,
-                    "command": command, "cwd": cwd, "host": host,
-                    "agent": attribution::agent(agent.as_deref()),
-                }),
-            )?;
-            let id = created["watch"]["id"]
-                .as_str()
-                .context("watch ID missing")?;
-            let executable = std::env::current_exe()?;
-            let mut worker = Command::new(executable);
-            worker
-                .args([
-                    "--server",
-                    server,
-                    "--project",
-                    project.as_deref().unwrap_or(""),
-                    "watch",
-                    "run",
-                    id,
-                ])
-                .current_dir(cwd)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null());
-            #[cfg(unix)]
-            {
-                use std::os::unix::process::CommandExt;
-                worker.process_group(0);
-            }
-            let spawned = worker.spawn();
-            let child = match spawned {
-                Ok(child) => child,
-                Err(error) => {
-                    api.patch(&format!("{path}/{id}"), &json!({"status": "cancelled"}))?;
-                    return Err(error.into());
-                }
-            };
-            watch_state::write_pid(id, child.id())?;
-            let delivery = notification_delivery::available()?;
-            if json_output {
-                output::json(&json!({"watch": created["watch"], "pid": child.id(),
-                    "delivery": delivery}))
-            } else {
-                let when = if notify_on == "failure" {
-                    "fails or times out"
-                } else {
-                    "ends"
-                };
-                let (safe_title, _) = crate::secret_redaction::text(&title);
-                if let Some(notice) = output::masking_notice() {
-                    crate::stdout::println!("{notice}");
-                }
-                crate::stdout::println!("Watching {} (pid {}): {safe_title}", &id[..8], child.id());
-                let channels = delivery["channels"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(Value::as_str)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                crate::stdout::println!("When it {when}, a notification goes to: {channels}.");
-                if let Some(note) = delivery["note"].as_str() {
-                    crate::stdout::println!("note: {note}.");
-                }
-                Ok(())
-            }
-        }
+        } => start::run(
+            api,
+            server,
+            tenant,
+            project.as_deref().unwrap_or(""),
+            &path,
+            title,
+            notify_on,
+            timeout,
+            agent,
+            command,
+            json_output,
+        ),
         WatchAction::List { all } => {
             let result = api.get(&local_list_path(&path, all)?)?;
             output::emit(&result, &watch_format::list(&result), json_output)
@@ -148,7 +89,7 @@ pub fn run(
                 json_output,
             )
         }
-        WatchAction::Run { id } => watch_runner::run(api, &path, &id),
+        WatchAction::Run { id } => watch_runner::run(api, tenant, &path, &id),
     }
 }
 

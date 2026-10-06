@@ -16,6 +16,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class Handler(http.server.BaseHTTPRequestHandler):
     watches = {}
     notifications = []
+    override = None
 
     def log_message(self, *_args):
         pass
@@ -43,7 +44,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path.endswith("/notifications"):
             self.respond({"notifications": self.notifications})
         elif "/watches/" in self.path:
-            self.respond({"watch": self.watches[self.path.rsplit("/", 1)[-1]]})
+            watch = dict(self.watches[self.path.rsplit("/", 1)[-1]])
+            if self.override:
+                watch.update(self.override)
+            self.respond({"watch": watch})
         else:
             all_watches = list(self.watches.values())
             if "all=1" not in self.path:
@@ -80,6 +84,7 @@ class WatchFeedbackTest(unittest.TestCase):
         cls.worker.join(timeout=2)
 
     def setUp(self):
+        Handler.override = None
         Handler.watches.clear()
         Handler.notifications.clear()
         self.temp = tempfile.TemporaryDirectory(prefix="cj-watch-")
@@ -118,6 +123,34 @@ class WatchFeedbackTest(unittest.TestCase):
         structured = json.loads(self.cli("--json", "watch", "list", "--all"))
         self.assertEqual(structured["watches"][0]["title"], title)
         self.assertEqual(json.loads(structured["watches"][0]["command"]), [command])
+
+    def test_worker_rejects_remote_commands_without_local_authorization(self):
+        ident = str(uuid.uuid4())
+        marker = pathlib.Path(self.temp.name) / "executed"
+        Handler.watches[ident] = {"id": ident, "status": "running", "cwd": str(ROOT),
+                                  "command": json.dumps(["touch", str(marker)]), "timeout": None}
+        result = subprocess.run([self.binary, "--project", "p", "watch", "run", ident],
+                                env=self.env, cwd=ROOT, capture_output=True, text=True, timeout=5)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("local execution authorization", result.stderr)
+        self.assertFalse(marker.exists())
+
+    def test_worker_rejects_a_mutated_remote_definition(self):
+        marker = pathlib.Path(self.temp.name) / "executed"
+        Handler.override = {"command": json.dumps(["touch", str(marker)])}
+        watch = json.loads(self.cli("--json", "watch", "start", "--title", "Approved", "--", "true"))["watch"]
+        state = pathlib.Path(self.temp.name) / "state" / "codejournal" / "watches"
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline and (list(state.glob("*.authorized.json")) or list(state.glob("*.pid"))):
+            time.sleep(0.05)
+        self.assertFalse(list(state.glob("*.authorized.json")))
+        self.assertFalse(list(state.glob("*.claimed-*")))
+        self.assertFalse(list(state.glob("*.pid")))
+        self.assertFalse(marker.exists())
+        result = subprocess.run([self.binary, "--project", "p", "watch", "run", watch["id"]],
+                                env=self.env, cwd=ROOT, capture_output=True, text=True, timeout=5)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(marker.exists())
 
     def test_watch_failure_timeout_cancel_and_delivery_message(self):
         failed = json.loads(self.cli("--json", "watch", "start", "--title", "Fake CI", "--",

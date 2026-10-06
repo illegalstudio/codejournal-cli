@@ -1,24 +1,15 @@
 use crate::api::Api;
-use crate::{notification_delivery, watch_state};
-use anyhow::{Context, Result};
+use crate::{notification_delivery, watch_state, watches::authorization};
+use anyhow::Result;
 use serde_json::json;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-pub fn run(api: &Api, path: &str, id: &str) -> Result<()> {
-    let watch = api.get(&format!("{path}/{id}"))?["watch"].clone();
-    if watch["status"] != "running" {
-        return Ok(());
-    }
-    let command: Vec<String> =
-        serde_json::from_str(watch["command"].as_str().context("watch command missing")?)?;
-    let cwd = watch["cwd"].as_str().context("watch cwd missing")?;
-    let output_path = watch_state::directory()?.join(format!("{id}.out"));
-    let outcome = execute(&command, cwd, watch["timeout"].as_u64(), &output_path);
-    let tail = tail(&output_path).unwrap_or_default();
-    let _ = fs::remove_file(output_path);
+pub fn run(api: &Api, tenant: &str, path: &str, id: &str) -> Result<()> {
+    let authorized = authorization::take(api, tenant, path, id)?;
+    let result = run_authorized(api, path, id, authorized);
     for _ in 0..20 {
         if watch_state::pid_path(id)?.exists() {
             break;
@@ -26,6 +17,29 @@ pub fn run(api: &Api, path: &str, id: &str) -> Result<()> {
         std::thread::sleep(Duration::from_millis(20));
     }
     watch_state::remove_pid(id);
+    result
+}
+
+fn run_authorized(
+    api: &Api,
+    path: &str,
+    id: &str,
+    authorized: authorization::Authorization,
+) -> Result<()> {
+    let watch = api.get(&format!("{path}/{id}"))?["watch"].clone();
+    if watch["status"] != "running" {
+        return Ok(());
+    }
+    authorization::verify(&authorized, &watch, id)?;
+    let output_path = watch_state::directory()?.join(format!("{id}.out"));
+    let outcome = execute(
+        &authorized.command,
+        &authorized.cwd,
+        authorized.timeout,
+        &output_path,
+    );
+    let tail = tail(&output_path).unwrap_or_default();
+    let _ = fs::remove_file(output_path);
     let (status, exit_code) = outcome?;
     let result = api.patch(
         &format!("{path}/{id}"),

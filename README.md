@@ -98,6 +98,8 @@ cj setup agents --agent kimi
 cj setup agents --agent kimi --uninstall
 ```
 
+Watch workers execute only a command authorized by a local `cj watch start`. The private authorization records the original command, directory, timeout and account scope, and can be consumed once. Changing the remote watch definition prevents execution.
+
 ### OpenCode
 
 Install the skill and native plugin, then restart OpenCode:
