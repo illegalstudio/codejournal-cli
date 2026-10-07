@@ -49,7 +49,8 @@ pub fn publish(api: &Api, tenant: &str, project_name: Option<&str>) -> Result<()
         "/api/v1/tenants/{tenant}/projects/{}/checkout-activity",
         project::slug(project_name)?
     );
-    output::json(&api.post(
+    output::json(&crate::activity_delivery::publish(
+        api,
         &endpoint,
         &json!({
             "host": host, "path": root.to_string_lossy(), "kind": kind,

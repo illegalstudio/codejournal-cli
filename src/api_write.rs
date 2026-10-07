@@ -105,6 +105,12 @@ pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
         return Err(api_status::error(status, &value));
     }
     crate::project_cache::updated(api, request, &value)?;
+    if request.path.ends_with("/checkout-activity")
+        && let Some(body) = &request.body
+    {
+        crate::activity_state::DeliveryState::lock(api.server(), &api.token, &request.path, body)?
+            .acknowledge()?;
+    }
     Ok(value)
 }
 

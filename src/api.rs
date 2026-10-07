@@ -7,6 +7,7 @@ use reqwest::blocking::Client;
 use serde_json::Value;
 use std::time::Duration;
 
+#[derive(Clone)]
 pub struct Api {
     pub(crate) client: Client,
     pub(crate) server: String,
