@@ -52,15 +52,20 @@ pub enum PlanAction {
     },
     Show {
         id: String,
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["history", "all_revisions"], value_parser = clap::value_parser!(u32).range(1..=2147483647), help = "Fetch only this numbered revision, without history")]
         revision: Option<u32>,
-        #[arg(long)]
+        #[arg(
+            long,
+            help = "List a page of revision metadata without historical bodies"
+        )]
         history: bool,
+        #[arg(long, conflicts_with_all = ["history", "before_revision", "revision", "current_only", "body"], help = "Fetch every revision and its content within the server response budget; use --history for larger histories")]
+        all_revisions: bool,
         #[arg(long, requires = "history", conflicts_with = "current_only", value_parser = clap::value_parser!(u32).range(1..=2147483647))]
         before_revision: Option<u32>,
-        #[arg(long, conflicts_with_all = ["history", "revision"], help = "Fetch only the current version, without revision history (also applies to JSON)")]
+        #[arg(long, conflicts_with_all = ["history", "revision", "all_revisions"], help = "Explicitly select the default: current version only, including JSON")]
         current_only: bool,
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["history", "all_revisions"], help = "Print only the current or selected revision body")]
         body: bool,
     },
     Update {

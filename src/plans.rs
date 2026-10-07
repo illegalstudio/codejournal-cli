@@ -47,9 +47,10 @@ pub fn run(
             id,
             revision,
             history,
+            all_revisions,
             before_revision,
             body,
-            current_only,
+            current_only: _,
         } => plan_show::show(
             api,
             tenant,
@@ -57,9 +58,9 @@ pub fn run(
             &id,
             revision,
             history,
+            all_revisions,
             before_revision,
             body,
-            current_only,
             json_mode,
         ),
         PlanAction::Create {

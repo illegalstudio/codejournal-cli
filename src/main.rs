@@ -92,6 +92,7 @@ mod output;
 mod path_ref;
 mod plan_args;
 mod plan_changes;
+mod plan_history;
 mod plan_read;
 mod plan_show;
 mod plan_step;

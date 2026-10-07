@@ -15,11 +15,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
         item = {"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "title": "Current",
                 "body": "Current body", "status": "done", "project_slug": "p",
-                "revision": 2, "refs": [{"kind": "commit", "value": "abcdef123"}]}
+                "revision": 60, "refs": [{"kind": "commit", "value": "abcdef123"}]}
         if parsed.path.endswith(("/docs/aaaaaaaa", "/plans/aaaaaaaa")):
             key = "doc" if "/docs/" in parsed.path else "plan"
-            payload = {key: item, "revision_next": None if query.get("history") == ["0"] else 1, "revisions": [] if query.get("history") == ["0"] else
-                       [{"body": "Previous body" * 100, "revision": 1}]}
+            if "revision" in query:
+                revision = int(query["revision"][0])
+                if not 1 <= revision <= 60:
+                    return self.respond(404, {"message": "Revision not found"})
+                item.update(revision=revision, body=f"Previous body {revision}")
+            before = int(query.get("history_before", [61])[0])
+            revisions = [{"body": f"Previous body {number}" * 100,
+                          "title": f"Version {number}", "revision": number}
+                         for number in range(min(before - 1, 60), 0, -1)]
+            cursor = None
+            if query.get("history") == ["0"]:
+                revisions = []
+            elif "history_content" in query or "history_before" in query:
+                if len(revisions) > 20:
+                    cursor = revisions[19]["revision"]
+                revisions = revisions[:20]
+                if query.get("history_content") == ["0"]:
+                    for row in revisions:
+                        row.update(body="", refs=[], content_included=False)
+            payload = {key: item, "revision_next": cursor, "revisions": revisions,
+                       "revision_count": 60, "current_revision": 60}
             status = 200
         elif parsed.path.endswith("/logs/aaaaaaaa"):
             payload, status = {"log": item}, 200

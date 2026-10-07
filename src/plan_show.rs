@@ -1,5 +1,5 @@
 use crate::api::Api;
-use crate::output;
+use crate::{output, plan_history};
 use anyhow::{Context, Result};
 use serde_json::Value;
 
@@ -17,21 +17,19 @@ pub fn show(
     id: &str,
     revision: Option<u32>,
     history: bool,
+    all_revisions: bool,
     before_revision: Option<u32>,
     body_only: bool,
-    current_only: bool,
     json_mode: bool,
 ) -> Result<()> {
     let mut params = Vec::new();
     if let Some(number) = revision {
         params.push(("revision", number.to_string()));
     }
-    if current_only || body_only || (!history && !json_mode) {
-        params.push(("history", "0".to_owned()));
-    } else if history {
+    if history {
         params.push(("history_content", "0".to_owned()));
     } else {
-        params.push(("history_content", "1".to_owned()));
+        params.push(("history", if all_revisions { "1" } else { "0" }.to_owned()));
     }
     if let Some(before) = before_revision {
         params.push(("history_before", before.to_string()));
@@ -60,30 +58,21 @@ pub fn show(
         format!("status:    {}", text(&item["status"])),
         format!("revision:  {}", item["revision"]),
         format!("updated:   {}", text(&item["updated_at"])),
+    ];
+    if let Some(count) = result["revision_count"].as_u64() {
+        lines.push(format!(
+            "revisions: {count} (current {})",
+            result["current_revision"]
+        ));
+    }
+    lines.extend([
         "".to_owned(),
         text(&item["title"]).to_owned(),
         "".to_owned(),
         text(&item["body"]).to_owned(),
-    ];
-    if history {
-        lines.push("".to_owned());
-        lines.push("History:".to_owned());
-        for record in result["revisions"].as_array().into_iter().flatten() {
-            lines.push(format!(
-                "  rev {} {} {}",
-                record["revision"],
-                text(&record["created_at"]),
-                text(&record["note"])
-            ));
-        }
-    }
-    if history {
-        if let Some(before) = result["revision_next"].as_u64() {
-            lines.push(format!(
-                "More revisions: cj {} show {id} --history --before-revision {before}",
-                noun(kind)
-            ));
-        }
+    ]);
+    if history || all_revisions {
+        plan_history::append(&mut lines, &result, noun(kind), id, all_revisions);
     }
     output::emit(&result, &lines.join("\n"), json_mode)
 }

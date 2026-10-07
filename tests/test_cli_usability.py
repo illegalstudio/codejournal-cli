@@ -69,14 +69,43 @@ class CliUsabilityTest(unittest.TestCase):
         self.assertIn("Replace the entire ref list", self.cli("doc", "update", "--help").stdout)
 
     def test_current_only_does_not_download_revision_bodies(self):
-        old = json.loads(self.cli("doc", "show", "aaaaaaaa", "--json").stdout)
-        self.assertEqual(len(old["revisions"]), 1)
-        self.assertTrue(Handler.paths[-1].endswith("?history_content=1"))
-        current = self.cli("doc", "show", "aaaaaaaa", "--json", "--current-only")
-        self.assertEqual(current.returncode, 0, current.stderr)
-        self.assertEqual(json.loads(current.stdout)["revisions"], [])
-        self.assertTrue(Handler.paths[-1].endswith("?history=0"))
-        self.assertIn("Current body", current.stdout)
+        for kind in ["doc", "plan"]:
+            current = self.cli(kind, "show", "aaaaaaaa", "--json")
+            self.assertEqual(current.returncode, 0, current.stderr)
+            data = json.loads(current.stdout)
+            self.assertEqual(data["revisions"], [])
+            self.assertEqual(data["revision_count"], 60)
+            self.assertEqual(data["current_revision"], 60)
+            self.assertEqual(data[kind]["body"], "Current body")
+            self.assertNotIn("Previous body", current.stdout)
+            self.assertTrue(Handler.paths[-1].endswith("?history=0"))
+            explicit = self.cli(kind, "show", "aaaaaaaa", "--json", "--current-only")
+            self.assertEqual(json.loads(explicit.stdout), data)
+            human = self.cli(kind, "show", "aaaaaaaa")
+            self.assertIn("revisions: 60 (current 60)", human.stdout)
+
+    def test_one_selected_revision_and_complete_history_are_explicit(self):
+        for kind in ["doc", "plan"]:
+            selected = self.cli(kind, "show", "aaaaaaaa", "--revision", "59", "--json")
+            self.assertEqual(selected.returncode, 0, selected.stderr)
+            data = json.loads(selected.stdout)
+            self.assertEqual(data[kind]["revision"], 59)
+            self.assertEqual(data[kind]["body"], "Previous body 59")
+            self.assertEqual(data["revisions"], [])
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(Handler.paths[-1]).query)
+            self.assertEqual(query, {"revision": ["59"], "history": ["0"]})
+            all_versions = self.cli(kind, "show", "aaaaaaaa", "--all-revisions", "--json")
+            self.assertEqual(all_versions.returncode, 0, all_versions.stderr)
+            self.assertEqual(len(json.loads(all_versions.stdout)["revisions"]), 60)
+            self.assertIn("Previous body 1", all_versions.stdout)
+            self.assertTrue(Handler.paths[-1].endswith("?history=1"))
+            human = self.cli(kind, "show", "aaaaaaaa", "--all-revisions")
+            self.assertIn("Previous body 59", human.stdout)
+            self.assertIn("Version 1", human.stdout)
+            self.assertNotEqual(self.cli(kind, "show", "aaaaaaaa", "--revision", "61").returncode, 0)
+            help_text = self.cli(kind, "show", "--help").stdout
+            self.assertIn("--all-revisions", help_text)
+            self.assertIn("numbered revision", help_text)
 
     def test_plan_and_doc_reads_skip_history_or_request_a_metadata_page(self):
         for kind in ["plan", "doc"]:
@@ -88,7 +117,8 @@ class CliUsabilityTest(unittest.TestCase):
                 self.assertIn("Current body", result.stdout)
             result = self.cli(kind, "show", "aaaaaaaa", "--history")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("--before-revision 1", result.stdout)
+            self.assertIn("--before-revision 41", result.stdout)
+            self.assertNotIn("Previous body", result.stdout)
             query = urllib.parse.parse_qs(urllib.parse.urlsplit(Handler.paths[-1]).query)
             self.assertEqual(query, {"history_content": ["0"]})
             result = self.cli(kind, "show", "aaaaaaaa", "--history", "--before-revision", "20")
@@ -96,7 +126,10 @@ class CliUsabilityTest(unittest.TestCase):
             query = urllib.parse.parse_qs(urllib.parse.urlsplit(Handler.paths[-1]).query)
             self.assertEqual(query, {"history_content": ["0"], "history_before": ["20"]})
             for options in [["--before-revision", "20"], ["--history", "--before-revision", "0"],
-                            ["--history", "--before-revision", "2147483648"]]:
+                            ["--history", "--before-revision", "2147483648"],
+                            ["--revision", "0"], ["--revision", "2147483648"],
+                            ["--revision", "1", "--history"], ["--all-revisions", "--history"],
+                            ["--all-revisions", "--body"], ["--all-revisions", "--revision", "1"]]:
                 paths = list(Handler.paths)
                 result = self.cli(kind, "show", "aaaaaaaa", *options)
                 self.assertNotEqual(result.returncode, 0)

@@ -70,7 +70,7 @@ cj task start ID
 cj task done ID --note "What changed"
 cj task add --title "Follow-up" --body "Why it matters"
 cj plan show ID
-cj plan show ID --json --current-only
+cj plan show ID --json
 cj plan update ID --body-file PLAN.md
 cj plan step ID 2 --done --note "Validated"
 cj plan step ID 2 --undone
@@ -80,7 +80,7 @@ Use `cj task add --to PROJECT` to forward work to another project. Keep longer p
 
 Checklist items are numbered from one in Markdown order, excluding fenced examples. Step updates send an atomic change with the current base revision; a concurrent edit returns a conflict instead of replacing the body. Read the plan again and retry after reviewing it.
 
-Plan statuses are `draft`, `active`, `done`, and `abandoned`; doc statuses are `draft`, `current`, and `outdated`. Help lists accepted statuses and feedback categories, and invalid values fail before an API request. `cj doc show ID --json --current-only` returns the current body, refs, and revision without downloading historical bodies. Updating a plan or doc with `--ref` replaces its entire ref list; omit the flag to retain existing refs.
+Plan statuses are `draft`, `active`, `done`, and `abandoned`; doc statuses are `draft`, `current`, and `outdated`. Help lists accepted statuses and feedback categories, and invalid values fail before an API request. Plan/doc show returns current content and lightweight revision counts by default, including JSON. Use `--revision N` for one specific version, `--history` for a paged index without old bodies, or `--all-revisions` to explicitly fetch all content within the server response budget. `--current-only` remains compatible. Updating a plan or doc with `--ref` replaces its entire ref list; omit the flag to retain existing refs.
 
 ## Notifications and offline work
 

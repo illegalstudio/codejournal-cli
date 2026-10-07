@@ -201,7 +201,17 @@ cj outbox receipt REQUEST_ID
 
 Checkout activity skips identical confirmed state for 15 minutes and sends real changes immediately. When earlier snapshots are waiting for delivery, later changes queue in order. Failed or uncertain requests retain their original IDs until acknowledged. Ordinary queued writes have a safe retry window of 90 days; older files remain pending so you can check existing records before resubmitting them.
 
-`cj plan show ID` and `cj doc show ID` download only the current content unless history is requested. `--history` lists 20 revision metadata rows and prints a command with `--before-revision N` for the next page. Use `--revision N --body` to read one historical body; `--json` alone includes one bounded history page.
+`cj plan show ID` and `cj doc show ID` return only the current version by default, including `--json`. Output reports the available revision count and current revision number without downloading old bodies. `--current-only` remains an explicit spelling of this default.
+
+```bash
+cj doc show DOC_ID                 # Current version and revision count
+cj doc show DOC_ID --json          # Same lightweight content as JSON
+cj doc show DOC_ID --revision 59   # Only revision 59, without history
+cj doc show DOC_ID --history       # An index of 20 revisions, without old bodies
+cj doc show DOC_ID --all-revisions # All revision content, explicitly requested
+```
+
+The same flags work for plans. `--history` prints a `--before-revision N` command for the next page. `--revision N --body` prints just that version's body. `--all-revisions` includes all saved revision contents within the server's complete-response budget (2,000 combined current/history rows and 8 MiB of body/ref/note data). Larger histories use the paged index and individual revision reads, or the account data download. Counts include the current version, even if an imported journal has gaps in its historical snapshots.
 
 Documents and plans accept bodies of up to 100,000 characters and 30 unique references. Split large documents or group references by subsystem. `cj rules show` prints only the rules on standard output, including an empty value when none are set; use `--json` for structured output. An unknown project remains an error.
 
