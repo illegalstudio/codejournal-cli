@@ -67,6 +67,13 @@ pub fn run(api: &Api, tenant: &str, name: Option<&str>, args: BriefArgs, json: b
             "log_limit": args.log_limit, "agent": agent, "session": session, "audit": args.audit,
             "visibility": if args.all { "all" } else { "active" }, "summary": !args.verbose}),
     )?;
+    if result["archived"] == true {
+        return output::emit(
+            &result,
+            &crate::project_commands::archive::message(&result),
+            json,
+        );
+    }
     if args.audit {
         let audit = brief_audit::project(&result);
         return output::emit(&audit, &brief_audit::render(&audit), json);

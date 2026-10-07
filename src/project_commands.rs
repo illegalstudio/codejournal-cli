@@ -4,6 +4,8 @@ use crate::{attribution, git, output, project, project_detail, project_paths};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
+pub(crate) mod archive;
+
 pub fn run(
     api: &Api,
     tenant: &str,
@@ -14,7 +16,13 @@ pub fn run(
     let slug = || project::slug(explicit);
     let base = format!("/api/v1/tenants/{tenant}/projects");
     match action {
-        ProjectAction::List => crate::project_list::run(api, tenant, json_mode),
+        ProjectAction::List(args) => crate::project_list::run(api, tenant, args, json_mode),
+        ProjectAction::Archive => {
+            crate::project_commands::archive::run(api, tenant, &slug()?, true, json_mode)
+        }
+        ProjectAction::Restore => {
+            crate::project_commands::archive::run(api, tenant, &slug()?, false, json_mode)
+        }
         ProjectAction::Init { name } => {
             crate::project_init::run(api, tenant, explicit, name.as_deref(), json_mode)
         }

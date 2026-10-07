@@ -85,7 +85,7 @@ pub enum Command {
         #[command(subcommand)]
         action: ProjectAction,
     },
-    Projects,
+    Projects(crate::project_args::ProjectListArgs),
     Checkouts {
         #[arg(long)]
         all_projects: bool,

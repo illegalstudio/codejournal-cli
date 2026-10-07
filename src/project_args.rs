@@ -1,8 +1,22 @@
-use clap::Subcommand;
+use clap::{Args, Subcommand};
+
+#[derive(Args, Default)]
+pub struct ProjectListArgs {
+    /// List archived projects only.
+    #[arg(long, conflicts_with = "all")]
+    pub archived: bool,
+    /// List active and archived projects.
+    #[arg(long)]
+    pub all: bool,
+}
 
 #[derive(Subcommand)]
 pub enum ProjectAction {
-    List,
+    List(ProjectListArgs),
+    /// Archive this project without deleting its history. Requires an online connection.
+    Archive,
+    /// Restore this archived project and allow writes again. Requires an online connection.
+    Restore,
     Init {
         #[arg(long)]
         name: Option<String>,

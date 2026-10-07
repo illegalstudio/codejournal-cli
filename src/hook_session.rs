@@ -38,6 +38,13 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
             .as_ref()
             .and_then(|_| project::slug(preferred.as_deref()).ok())
     });
+    if event == "SessionStart" {
+        let source = payload["source"].as_str().unwrap_or("startup");
+        hook_output::brief(cwd, source, &state.agent, session)?;
+    }
+    if crate::project_commands::archive::current().is_some() {
+        return Ok(());
+    }
     let base = json!({"session": session, "agent": state.agent, "project": project,
         "project_explicit": preferred.is_some() || state.project.is_some(), "checkout_path": state.root,
         "host": attribution::host(), "cwd": state.cwd, "ts": now});
@@ -56,7 +63,6 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
             let source = payload["source"].as_str().unwrap_or("startup");
             queue(&base, "start", "source", json!(source))?;
             session_state::save(session, &state)?;
-            hook_output::brief(cwd, source, &state.agent, session)?;
         }
         "UserPromptSubmit" => {
             state.turn_started_at = now.clone();

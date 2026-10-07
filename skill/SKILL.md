@@ -34,6 +34,12 @@ cj topics
 
 `cj browse` is interactive and should be suggested to the user, not run by an agent. `cj open` opens the hosted dashboard for this project.
 
+## Archived projects
+
+A brief with `archived: true`, an `Archived: read-only` notice, or a `project_archived` error means the project is intentionally inactive. Do not initialize it again, write missing rules, run maintenance or record work there. Do not restore it automatically to satisfy a journal instruction. Tell the user and restore only when they explicitly ask, using `cj project restore --project SLUG` while online. Explicit history reads remain available; default project lists, discovery and briefs hide archived context.
+
+Use `cj project archive --project SLUG` when the user asks to archive a completed project, `cj projects --archived` to find archives, and `cj projects --all` to inspect every project. Finish or cancel its active watches first. Preserve queued writes after an archive rejection; the user can restore the project before retrying synchronization.
+
 ## Record knowledge
 
 Add one verifiable, non-obvious fact per entry. Write entries in English, reuse existing topics, and reference the affected path or commit:

@@ -49,6 +49,10 @@ pub fn format(project: &Value) -> String {
         format!("id:              {}", value(&project["id"])),
         format!("created:         {}", value(&project["created_at"])),
         format!(
+            "archived:        {}",
+            optional(&project["archived_at"], "no")
+        ),
+        format!(
             "rules updated:   {}",
             optional(&project["rules_updated_at"], "never")
         ),

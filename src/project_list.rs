@@ -3,9 +3,32 @@ use crate::output;
 use anyhow::Result;
 use serde_json::{Value, json};
 
-pub fn run(api: &Api, tenant: &str, json_mode: bool) -> Result<()> {
-    let response = api.get(&format!("/api/v1/tenants/{tenant}/projects"))?;
-    let projects = response["projects"].as_array().cloned().unwrap_or_default();
+pub fn run(
+    api: &Api,
+    tenant: &str,
+    args: crate::project_args::ProjectListArgs,
+    json_mode: bool,
+) -> Result<()> {
+    let status = if args.all {
+        "all"
+    } else if args.archived {
+        "archived"
+    } else {
+        "active"
+    };
+    let query = if status == "active" {
+        String::new()
+    } else {
+        format!("?status={status}")
+    };
+    let response = api.get(&format!("/api/v1/tenants/{tenant}/projects{query}"))?;
+    let projects = response["projects"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|project| args.all || (project["archived_at"].is_string() == args.archived))
+        .collect::<Vec<_>>();
     let lines: Vec<_> = projects.iter().map(line).collect();
     let text = if lines.is_empty() {
         "  (no projects yet)".to_owned()
@@ -15,7 +38,7 @@ pub fn run(api: &Api, tenant: &str, json_mode: bool) -> Result<()> {
     let payload = json!({"projects": projects.iter().map(|project| json!({
         "slug": project["slug"], "name": project["name"],
         "remote_url": project["remote_url"], "active_entries": project["active_entries"],
-        "has_rules": project["has_rules"], "locked": project["locked"].as_bool().unwrap_or(false),
+        "archived_at": project["archived_at"], "has_rules": project["has_rules"], "locked": project["locked"].as_bool().unwrap_or(false),
     })).collect::<Vec<_>>()});
     output::emit(&payload, &text, json_mode)
 }
@@ -23,7 +46,9 @@ pub fn run(api: &Api, tenant: &str, json_mode: bool) -> Result<()> {
 fn line(project: &Value) -> String {
     let remote = project["remote_url"].as_str().unwrap_or("(no remote)");
     // Free workspaces read one project; the others keep their writes until a switch or upgrade.
-    let locked = if project["locked"] == true {
+    let locked = if project["archived_at"].is_string() {
+        "  (archived, read-only)"
+    } else if project["locked"] == true {
         "  (locked on Free)"
     } else {
         ""

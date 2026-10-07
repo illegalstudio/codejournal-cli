@@ -23,8 +23,12 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
         if audit { "&audit=1" } else { "" }
     );
     if api.offline() {
+        if let Some(archived) = crate::project_commands::archive::cached(api, base) {
+            return Ok(localize(archived, "offline", &body));
+        }
         return api_cache::read(api.server(), &api.token, &shared_cache)
             .or_else(|_| api.get(&cache_path))
+            .and_then(|result| crate::project_commands::archive::validate_cached(api, base, result))
             .map(|result| localize(result, "offline", &body));
     }
     if !audit && let Some(changes) = changed_files() {
@@ -45,13 +49,20 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
     }
     match api.post_noqueue(&format!("{base}/brief"), &body) {
         Ok(result) => {
+            let _ = crate::project_commands::archive::remember(api, base, &result);
             let _ = api_cache::write(api.server(), &api.token, &cache_path, &result);
             let _ = api_cache::write(api.server(), &api.token, &shared_cache, &result);
             Ok(localize(result, "remote", &body))
         }
         Err(error) if error.to_string().starts_with("API returned 4") => Err(error),
+        Err(_) if crate::project_commands::archive::cached(api, base).is_some() => Ok(localize(
+            crate::project_commands::archive::cached(api, base).unwrap_or_default(),
+            "offline",
+            &body,
+        )),
         Err(_) => api_cache::read(api.server(), &api.token, &shared_cache)
             .or_else(|_| api.get(&cache_path))
+            .and_then(|result| crate::project_commands::archive::validate_cached(api, base, result))
             .map(|result| localize(result, "offline", &body)),
     }
 }

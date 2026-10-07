@@ -8,6 +8,9 @@ pub fn render(
     pinned_limit: u32,
     log_limit: u32,
 ) -> String {
+    if data["archived"] == true {
+        return crate::project_commands::archive::message(data);
+    }
     let project = &data["project"];
     let mut lines = vec![format!(
         "Project: {} ({})",

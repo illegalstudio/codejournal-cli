@@ -22,7 +22,14 @@ pub fn brief(cwd: &Path, source: &str, agent: &str, session: &str) -> Result<()>
         let message = notice
             .as_ref()
             .map_or_else(|| text.clone(), |notice| format!("{notice}\n\n{text}"));
-        if source == "compact" {
+        if crate::project_commands::archive::current().is_some() {
+            crate::stdout::println!(
+                "{}",
+                json!({"journal_active": false, "hookSpecificOutput": {
+                    "hookEventName": "SessionStart", "additionalContext": message
+                }})
+            );
+        } else if source == "compact" {
             context(
                 "SessionStart",
                 &format!(
@@ -57,7 +64,10 @@ pub fn conflicts(warnings: &[String]) {
 }
 
 pub fn stop(payload: &Value, cwd: &Path, state: &mut session_state::SessionState) {
-    if state.journal_active != Some(true) || payload["stop_hook_active"].as_bool() == Some(true) {
+    if state.journal_active != Some(true)
+        || payload["stop_hook_active"].as_bool() == Some(true)
+        || crate::project_commands::archive::current().is_some()
+    {
         return;
     }
     let turn = if state.turn_started_at.is_empty() {

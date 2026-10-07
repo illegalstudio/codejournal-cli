@@ -158,9 +158,22 @@ Use `cj --help` and `cj <command> --help` for the full interface. The [embedded 
 
 `cj topics similar` and `cj garden` may report that topic analysis is partial for large or highly similar topic collections. Review the returned suggestions without assuming they include every duplicate. You can still merge other known duplicates with `cj topics merge SOURCES --into TARGET`. JSON output preserves the server's `topic_analysis` details.
 
+### Archive a finished project
+
+```bash
+cj project archive --project my-project
+cj projects --archived
+cj projects --all
+cj project restore --project my-project
+```
+
+Archiving is reversible and keeps the project's history. Archived projects disappear from normal discovery and agent briefs. New writes are rejected until you restore the project, including writes from older clients. You can still read records by ID or explicitly select the project, for example `cj --project my-project log list`. Finish or cancel running watches before archiving.
+
+Archive and restore require an online connection. Once this client has observed an archive, offline briefs also show only the archive notice. Already queued writes remain queued and may need an explicit restore before synchronization. Exports include archived history and archive dates; importing into a new project retains that state after its history is loaded.
+
 ### Discover active work
 
-Discovery returns concise summaries in both text and JSON. Defaults are current docs, active plans, open or in-progress tasks, open feedback, active knowledge and watches, and unread notifications. Recent work logs remain visible, including completed work. Project inventories have no lifecycle state; topic lists count active knowledge.
+Discovery returns concise summaries in both text and JSON. Defaults are current docs, active plans, open or in-progress tasks, open feedback, active knowledge and watches, and unread notifications. Recent work logs remain visible, including completed work. Project inventories default to active projects; use `cj projects --archived` or `--all` for archives; topic lists count active knowledge.
 
 ```bash
 cj doc list

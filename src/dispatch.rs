@@ -94,7 +94,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
         Command::Project { action } => {
             project_commands::run(&api, &tenant, project, action, cli.json)
         }
-        Command::Projects => project_list::run(&api, &tenant, cli.json),
+        Command::Projects(args) => project_list::run(&api, &tenant, args, cli.json),
         Command::Checkouts { all_projects } => {
             project_paths::list(&api, &tenant, project, all_projects, cli.json)
         }
