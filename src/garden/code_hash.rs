@@ -1,4 +1,5 @@
-use crate::{git, git_paths};
+use super::directory_files;
+use crate::git_paths;
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -30,36 +31,16 @@ pub fn record(row: &Value, root: &Path) -> Result<String> {
         if file.symlink_metadata().is_ok_and(|meta| !meta.is_dir()) {
             content(&file, root, &mut hash)?;
         } else {
-            let listed = git::bytes(&[
-                "--literal-pathspecs",
-                "ls-files",
-                "-z",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "--",
-                path,
-            ])
-            .unwrap_or_default();
-            let mut files = listed
-                .split(|byte| *byte == 0)
-                .filter(|item| !item.is_empty())
-                .collect::<Vec<_>>();
-            files.sort_unstable();
-            files.dedup();
-            if files.len() > 1000 {
-                bail!(
-                    "Too many files under a garden reference; narrow the reference before reviewing it"
-                );
-            }
-            for file in files {
+            directory_files::visit(root, path, |file| {
                 let name =
                     std::str::from_utf8(file).context("Garden reference has a non-UTF-8 path")?;
                 if git_paths::safe_path(name) && root.join(name).symlink_metadata().is_ok() {
                     hash.update(file);
                     content(&root.join(name), root, &mut hash)?;
                 }
-            }
+                Ok(())
+            })
+            .with_context(|| format!("Cannot snapshot garden reference {path}"))?;
         }
     }
     Ok(format!("{:x}", hash.finalize()))

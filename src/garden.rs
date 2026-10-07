@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 
 pub(crate) mod args;
 mod code_hash;
+mod directory_files;
 mod format;
 mod legacy;
 mod review;
