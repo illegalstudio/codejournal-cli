@@ -100,7 +100,7 @@ pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
     }
     let response = builder(api, request)?.send()?;
     let status = response.status();
-    let value: Value = crate::api::sanitized(response.json()?);
+    let value: Value = crate::api::response::decode(response)?;
     if !status.is_success() {
         return Err(api_status::error(status, &value));
     }

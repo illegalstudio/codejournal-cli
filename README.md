@@ -182,6 +182,14 @@ cj watch start --title "Wait for CI" --timeout 3h -- ./wait-for-ci.sh
 
 Timeouts accept integer seconds or the suffixes `s`, `m`, `h` and `d`, from one second to 24 hours. For example, `10800` and `3h` are equivalent. Commands accept at most 100 items including the executable, with at most 2,000 Unicode characters per item. The CLI checks these limits before authentication or starting a process. Put longer inline code in a script file instead of splitting or truncating it silently.
 
+`watch start` succeeds only after the detached runner has authenticated and spawned the command. A queued start exits unsuccessfully and reports `queued=true`, `started=false`, the reserved `watch_id` and the original `request_id` in JSON. Run `cj sync` with the original account and host to deliver the creation and recover its unused local authorization. Repeated synchronization never reruns an already consumed command.
+
+Watches begin as `starting`; an authenticated runner changes them to `running` and renews its lease every 30 seconds. If renewal stops, the server reports `lost` after the 120-second lease expires and its scheduled check runs. This means the command outcome is unknown. A late result can supply the actual outcome. `cj sync` also identifies older watches on this host whose local runner is absent, without restarting their commands.
+
+Use `cj watch list` for active watches, `cj watch list --all` for recent history, and `cj watch cancel ID` with a full UUID or unique prefix of at least eight hexadecimal characters. Cancellation works beyond the recent-history limit and without a local PID file. It signals only a verified matching runner. Cancelling a queued start retains its creation and cancellation requests for synchronization and prevents command execution.
+
+If startup fails, the error identifies a private `WATCH_ID.runner.log` file beside the local watch state. Inspect that file for authentication, transport or process errors, then use `cj sync` after correcting the cause. Changing the remote command, directory or timeout invalidates the original execution authorization.
+
 ## Offline work and recovery
 
 Reads can use cached responses; writes and hook events queue locally when delivery is deferred. Use `--offline` to request queued writes and cached reads explicitly. Cached briefs retain their known rules, but listed document bodies may not have been downloaded. A server failure with no cached response is reported separately from an empty result. Hook events retain their originating server, workspace and credential scope. Switching accounts or workspaces leaves those events queued for the original credentials; legacy events without that scope are retained without automatic delivery. Avoid storing secrets in journal content.

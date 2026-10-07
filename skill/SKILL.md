@@ -88,6 +88,8 @@ Use `cj notify --kind needs_input --title "..."` when the user may not be watchi
 
 The repository's `AGENTS.md` and the user's instructions take precedence over this skill.
 
+Watch startup succeeds only after the local command actually starts. A queued start exits nonzero with `queued=true`, `started=false`, `watch_id` and `request_id`; recover it with `cj sync` under the original account on the original host. Synchronization consumes unused local authorization once and never reruns an already started command. `starting` means awaiting the runner, `running` means it renews a lease, and `lost` means contact expired and the outcome is unknown. Startup failures identify a private runner log. Cancel by full UUID or unique prefix with `cj watch cancel ID`; cancellation uses direct retrieval and works without local PID metadata or a complete history download.
+
 ## Shared documentation
 
 Global docs belong to the current tenant and are available from every project with cross-project access. They are agent-facing documentation, not project rules. The full brief lists current and draft global docs separately; compact briefs include only docs with refs matching current Git changes. Open relevant docs with `cj doc show ID`.

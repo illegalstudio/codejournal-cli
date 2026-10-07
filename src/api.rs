@@ -7,6 +7,8 @@ use reqwest::blocking::Client;
 use serde_json::Value;
 use std::time::Duration;
 
+pub(crate) mod response;
+
 #[derive(Clone)]
 pub struct Api {
     pub(crate) client: Client,
@@ -64,6 +66,14 @@ impl Api {
         crate::api_read::get(self, path)
     }
 
+    pub fn get_fresh(&self, path: &str) -> Result<Value> {
+        if self.offline {
+            bail!("a fresh watch response is unavailable offline");
+        }
+        let path = project_bootstrap::read_path(self, path)?;
+        self.send(self.client.get(format!("{}{}", self.server, path)))
+    }
+
     pub fn post(&self, path: &str, body: &Value) -> Result<Value> {
         api_write::mutate(self, "POST", path, Some(body.clone()))
     }
@@ -112,7 +122,7 @@ impl Api {
             .send()
             .context("API request failed")?;
         let status = response.status();
-        let value: Value = sanitized(response.json().context("API returned invalid JSON")?);
+        let value = response::decode(response)?;
         if !status.is_success() {
             return Err(api_status::error(status, &value));
         }

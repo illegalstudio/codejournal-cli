@@ -20,6 +20,22 @@ pub fn timeout(value: &str) -> Result<u64, String> {
 }
 
 pub fn preflight(command: &Command) -> Result<()> {
+    if let Command::Watch {
+        action: WatchAction::Cancel { id },
+    } = command
+    {
+        let normalized = id.replace('-', "");
+        if id.len() > 36
+            || !(8..=32).contains(&normalized.len())
+            || !normalized.chars().all(|value| value.is_ascii_hexdigit())
+        {
+            bail!(
+                "watch ID must be a UUID or a prefix of at least 8 hexadecimal characters; nothing was sent"
+            );
+        }
+        return Ok(());
+    }
+
     let Command::Watch {
         action: WatchAction::Start { command, .. },
     } = command

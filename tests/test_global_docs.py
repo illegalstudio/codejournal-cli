@@ -131,12 +131,14 @@ class GlobalDocsTest(unittest.TestCase):
             "--title", "Shared", "--body", "Body").stdout)
         self.assertTrue(queued["queued"])
         self.cli("sync")
-        self.assertEqual(Handler.requests[-1][1], "/api/v1/tenants/demo/docs")
-        self.assertEqual(Handler.requests[-1][3], queued["id"])
+        written = [request for request in Handler.requests if request[0] == "POST"][-1]
+        self.assertEqual(written[1], "/api/v1/tenants/demo/docs")
+        self.assertEqual(written[3], queued["id"])
         self.cli("doc", "show", "aaaaaaaa", "--current-only")
         self.cli("--offline", "doc", "move", "aaaaaaaa", "--to", "@global")
         self.cli("sync")
-        self.assertEqual(Handler.requests[-1][2]["to"], "@global")
+        moved = [request for request in Handler.requests if request[0] == "PATCH"][-1]
+        self.assertEqual(moved[2]["to"], "@global")
 
     def test_full_and_compact_briefs_bound_shared_context(self):
         full = self.cli("--project", "fixture", "brief").stdout

@@ -1,50 +1,100 @@
 use crate::api::Api;
-use crate::{notification_delivery, watch_state, watches::authorization};
+use crate::{
+    notification_delivery, watch_state,
+    watches::{authorization, execution, lease, process},
+};
 use anyhow::Result;
+use fs2::FileExt;
 use serde_json::json;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom};
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
 
 pub fn run(api: &Api, tenant: &str, path: &str, id: &str) -> Result<()> {
-    let authorized = authorization::take(api, tenant, path, id)?;
-    let result = run_authorized(api, path, id, authorized);
-    for _ in 0..20 {
-        if watch_state::pid_path(id)?.exists() {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    let lock = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(watch_state::pid_path(id)?.with_extension("execution.lock"))?;
+    lock.try_lock_exclusive()?;
+    let authorized = authorization::load(api, tenant, path, id)?;
+    let scope = crate::outbox::fingerprint(api.server(), tenant, &api.token);
+    process::install_signals();
+    watch_state::write_pid(id, std::process::id(), &scope)?;
+    let result = run_authorized(api, tenant, path, id, authorized);
     watch_state::remove_pid(id);
     result
 }
 
 fn run_authorized(
     api: &Api,
+    tenant: &str,
     path: &str,
     id: &str,
     authorized: authorization::Authorization,
 ) -> Result<()> {
-    let watch = api.get(&format!("{path}/{id}"))?["watch"].clone();
-    if watch["status"] != "running" {
+    let fresh = lease::client(api)?;
+    let watch = fresh.get_fresh(&format!("{path}/{id}"))?["watch"].clone();
+    anyhow::ensure!(
+        watch["id"] == id,
+        "invalid fresh watch response; unused authorization retained"
+    );
+    if matches!(
+        watch["status"].as_str(),
+        Some("finished" | "timed_out" | "cancelled")
+    ) {
+        authorization::remove(id);
         return Ok(());
     }
+    anyhow::ensure!(
+        matches!(
+            watch["status"].as_str(),
+            Some("starting" | "running" | "lost")
+        ),
+        "invalid fresh watch status; unused authorization retained"
+    );
+    if let Err(error) = authorization::verify(&authorized, &watch, id) {
+        authorization::remove(id);
+        api.patch(&format!("{path}/{id}"), &json!({"status": "lost",
+            "tail": "Remote watch definition differs from the locally authorized command. Nothing was executed."}))?;
+        return Err(error);
+    }
+    let runner = authorized
+        .runner_id
+        .clone()
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let claimed = lease::renew(&fresh, path, id, &runner)?;
+    if claimed["active"] != true {
+        authorization::remove(id);
+        return Ok(());
+    }
+    if process::stopped() {
+        return Ok(());
+    }
+    let authorized = authorization::take(api, tenant, path, id)?;
     authorization::verify(&authorized, &watch, id)?;
     let output_path = watch_state::directory()?.join(format!("{id}.out"));
-    let outcome = execute(
-        &authorized.command,
-        &authorized.cwd,
-        authorized.timeout,
+    let outcome = execution::run(
+        &fresh,
+        path,
+        id,
+        &runner,
+        &authorized,
         &output_path,
+        claimed["watch"].clone(),
     );
     let tail = tail(&output_path).unwrap_or_default();
     let _ = fs::remove_file(output_path);
-    let (status, exit_code) = outcome?;
+    let (status, exit_code) = match outcome {
+        Ok(result) => result,
+        Err(error) => {
+            api.patch(&format!("{path}/{id}"), &json!({"status": "lost", "runner_id": runner,
+                "tail": "The local runner failed after claiming execution. The command was not restarted."}))?;
+            return Err(error);
+        }
+    };
     let result = api.patch(
         &format!("{path}/{id}"),
         &json!({
-            "status": status, "exit_code": exit_code, "tail": tail,
+            "status": status, "exit_code": exit_code, "tail": tail, "runner_id": runner,
         }),
     )?;
     if !result["notification"].is_null() {
@@ -52,49 +102,6 @@ fn run_authorized(
         let _ = notification_delivery::deliver(&result["notification"], where_text);
     }
     Ok(())
-}
-
-fn execute(
-    command: &[String],
-    cwd: &str,
-    timeout: Option<u64>,
-    output_path: &std::path::Path,
-) -> Result<(&'static str, i32)> {
-    let mut options = OpenOptions::new();
-    options.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let file = options.open(output_path)?;
-    let stderr = file.try_clone()?;
-    let spawned = Command::new(&command[0])
-        .args(&command[1..])
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stdout(Stdio::from(file))
-        .stderr(Stdio::from(stderr))
-        .spawn();
-    let mut child = match spawned {
-        Ok(child) => child,
-        Err(error) => {
-            fs::write(output_path, format!("could not start: {error}\n"))?;
-            return Ok(("finished", 127));
-        }
-    };
-    let started = Instant::now();
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return Ok(("finished", status.code().unwrap_or(1)));
-        }
-        if timeout.is_some_and(|seconds| started.elapsed() >= Duration::from_secs(seconds)) {
-            child.kill()?;
-            let _ = child.wait();
-            return Ok(("timed_out", 124));
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
 }
 
 fn tail(path: &std::path::Path) -> Result<String> {

@@ -1,0 +1,23 @@
+use anyhow::{Context, Result};
+use reqwest::blocking::Response;
+use serde_json::Value;
+
+pub fn decode(response: Response) -> Result<Value> {
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or("missing")
+        .split(';')
+        .next()
+        .unwrap_or("missing")
+        .chars()
+        .take(80)
+        .filter(|character| character.is_ascii_alphanumeric() || "/+.-".contains(*character))
+        .collect::<String>();
+    let (content_type, _) = crate::secret_redaction::text(&content_type);
+    response.json().map(super::sanitized).with_context(|| {
+        format!("API returned HTTP {status}, Content-Type {content_type}, with invalid JSON")
+    })
+}
