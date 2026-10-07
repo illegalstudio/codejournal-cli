@@ -94,6 +94,7 @@ fn attempt(
 }
 
 pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
+    crate::request_age::ensure_retryable(request.created_at)?;
     if api.offline {
         bail!("cannot replay while offline");
     }
@@ -115,6 +116,9 @@ fn builder(api: &Api, request: &PendingRequest) -> Result<reqwest::blocking::Req
         .bearer_auth(&api.token)
         .header("Accept", "application/json")
         .header("Idempotency-Key", &request.id);
+    if let Some(seconds) = request.created_at {
+        builder = builder.header("Idempotency-Created-At", seconds.to_string());
+    }
     if let Some(body) = &request.body {
         builder = builder.json(body);
     }

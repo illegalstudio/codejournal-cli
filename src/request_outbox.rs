@@ -17,6 +17,8 @@ pub struct PendingRequest {
     pub method: String,
     pub path: String,
     pub body: Option<Value>,
+    #[serde(default)]
+    pub created_at: Option<u64>,
 }
 
 fn directory() -> Result<PathBuf> {
@@ -59,7 +61,13 @@ pub(crate) fn entries() -> Result<Vec<(PathBuf, PendingRequest)>> {
     paths.sort();
     paths
         .into_iter()
-        .map(|path| Ok((path.clone(), serde_json::from_slice(&fs::read(path)?)?)))
+        .map(|path| {
+            let mut request: PendingRequest = serde_json::from_slice(&fs::read(&path)?)?;
+            if request.created_at.is_none() {
+                request.created_at = Some(crate::request_age::legacy_created_at(&path)?);
+            }
+            Ok((path, request))
+        })
         .collect()
 }
 
@@ -120,6 +128,7 @@ pub fn new(server: &str, method: &str, path: &str, body: Option<Value>) -> Pendi
         method: method.to_owned(),
         path: path.to_owned(),
         body,
+        created_at: Some(crate::request_age::now()),
     }
 }
 

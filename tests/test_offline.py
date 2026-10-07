@@ -5,6 +5,7 @@ import pathlib
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 
 
@@ -14,6 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class Handler(http.server.BaseHTTPRequestHandler):
     requests = []
     fail_once = False
+    creation_times = []
 
     def log_message(self, *_args):
         pass
@@ -37,6 +39,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         self.requests.append((self.headers.get("Idempotency-Key"), self.path, body))
+        self.creation_times.append(self.headers.get("Idempotency-Created-At"))
         if self.fail_once:
             type(self).fail_once = False
             self.respond(503, {"error": "transient"})
@@ -61,6 +64,7 @@ class OfflineTest(unittest.TestCase):
 
     def setUp(self):
         Handler.requests.clear()
+        Handler.creation_times.clear()
         Handler.fail_once = False
         self.temp = tempfile.TemporaryDirectory(prefix="cj-offline-")
         self.addCleanup(self.temp.cleanup)
@@ -91,6 +95,7 @@ class OfflineTest(unittest.TestCase):
         self.assertEqual(result["flushed"], 1)
         self.assertEqual(Handler.requests[0][0], queued["id"])
         self.assertEqual(Handler.requests[0][2]["title"], "Fixture note")
+        self.assertTrue(int(Handler.creation_times[0]) > time.time() - 60)
         self.assertEqual(json.loads(self.cli("status"))["pending_outbox"], 0)
 
     def test_server_failure_queues_same_request_id(self):
@@ -101,6 +106,29 @@ class OfflineTest(unittest.TestCase):
         self.cli("sync")
         self.assertEqual(len(Handler.requests), 2)
         self.assertEqual(Handler.requests[0][0], Handler.requests[1][0])
+
+    def test_expired_queue_is_preserved_without_replaying(self):
+        for legacy in [False, True]:
+            self.cli("--offline", "add", "--kind", "gotcha", "--title", "Old queued write", "--body", "Synthetic")
+            path = sorted((self.base / "state").rglob("requests/*.json"))[-1]
+            request = json.loads(path.read_text())
+            seconds = int(time.time()) - 91 * 86400
+            if legacy:
+                request.pop("created_at")
+            else:
+                request["created_at"] = seconds
+            path.write_text(json.dumps(request))
+            if legacy:
+                target = path.with_name(f"{seconds * 1000000000:020}-{request['id']}.json")
+                path.rename(target)
+                path = target
+            result = subprocess.run([self.binary, "--project", "fixture", "sync"], cwd=self.base,
+                env=self.env, capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("safe retry window has expired", result.stderr)
+            self.assertTrue(path.exists())
+            self.assertEqual(Handler.requests, [])
+            path.unlink()
 
     def test_offline_queue_masks_secrets_before_writing_to_disk(self):
         secret = "ghp_" + "Z9y8" * 9
