@@ -1,66 +1,127 @@
-use crate::{api::Api, garden_docs, garden_format, output, project_bootstrap, staleness};
+use crate::{api::Api, output, project_bootstrap};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
+
+pub(crate) mod args;
+mod code_hash;
+mod format;
+mod legacy;
+mod review;
+mod scan;
 
 pub fn run(
     api: &Api,
     tenant: &str,
     project: Option<&str>,
-    dry_run: bool,
+    mut args: args::GardenArgs,
     json_mode: bool,
 ) -> Result<()> {
-    if api.offline() && !dry_run {
-        bail!("garden applies fixes and needs a writable journal; use --dry-run offline");
+    if api.offline() && !args.dry_run {
+        bail!("Garden needs an online connection; use --dry-run for a cached preview");
     }
     let slug = project_bootstrap::resolved_slug(api, tenant, project)?;
-    let path = format!("/api/v1/tenants/{tenant}/projects/{slug}");
-    let mut payload = api.get(&format!("{path}/garden/report"))?;
-    let mut stale_docs = Vec::new();
-    let mut entries = Vec::new();
-    let mut page = 1_u64;
-    loop {
-        let mut result = api.get(&format!("{path}/garden?page={page}"))?;
-        staleness::enrich(api, &path, &mut result)?;
-        stale_docs.extend(garden_docs::check(api, &path, &result["docs"])?);
-        entries.extend(result["entries"].as_array().cloned().unwrap_or_default());
-        let Some(next) = result["next_page"].as_u64() else {
-            break;
-        };
-        if next <= page {
-            bail!("invalid garden pagination")
+    let base = format!("/api/v1/tenants/{tenant}/projects/{slug}");
+    if let Some(args::GardenAction::Review(action)) = args.action.take() {
+        if args.dry_run || args.all || args.after.is_some() || args.limit != 5 {
+            bail!("List options cannot be combined with garden review");
         }
-        page = next;
+        return review::run(api, &base, action, json_mode);
     }
-    let stale: Vec<_> = entries
-        .iter()
-        .filter(|entry| entry["staleness"]["stale"] == true)
-        .cloned()
-        .collect();
-    let elsewhere: Vec<_> = entries
-        .iter()
-        .filter(|entry| entry["staleness"]["stale"] != true && has_refs(entry, "elsewhere"))
-        .cloned()
-        .collect();
-    let applied = if dry_run {
-        Vec::new()
-    } else {
-        let result = api.post(&format!("{path}/garden/maintenance"), &json!({}))?;
-        if result["topic_analysis"]["truncated"] == true {
-            payload["topic_analysis"] = result["topic_analysis"].clone();
+    let limit = if args.all { 25 } else { args.limit };
+    let mut path = format!("{base}/garden/review?limit={limit}");
+    if let Some(after) = &args.after {
+        path.push_str(&format!("&after={after}"));
+    }
+    let mut result = match api.get(&path) {
+        Ok(value) if value["findings"].is_array() && value["counts"].is_object() => value,
+        Ok(_) => {
+            if args.after.is_some() {
+                bail!("This server does not support persistent garden reviews");
+            }
+            return legacy::run(
+                api,
+                tenant,
+                project,
+                args.dry_run,
+                json_mode,
+                args.all,
+                args.limit as usize,
+            );
         }
-        result["applied"].as_array().cloned().unwrap_or_default()
+        Err(error)
+            if error.to_string().starts_with("API returned 404")
+                || error.to_string().starts_with("API returned 405") =>
+        {
+            if args.after.is_some() {
+                bail!("This server does not support persistent garden reviews");
+            }
+            return legacy::run(
+                api,
+                tenant,
+                project,
+                args.dry_run,
+                json_mode,
+                args.all,
+                args.limit as usize,
+            );
+        }
+        Err(error) => return Err(error),
     };
-    payload["project"] = json!(slug);
-    payload["dry_run"] = json!(dry_run);
-    payload["applied"] = json!(applied);
-    payload["stale_entries"] = json!(stale);
-    payload["other_branch_entries"] = json!(elsewhere);
-    payload["stale_docs"] = json!(stale_docs);
-    output::emit(&payload, &garden_format::render(&payload), json_mode)
+    let mut applied = json!([]);
+    let mut automatic = json!({});
+    let mut partial = false;
+    if !api.offline() && args.after.is_none() {
+        if !args.dry_run {
+            applied =
+                api.post(&format!("{base}/garden/maintenance"), &json!({}))?["applied"].clone();
+        }
+        let scan = scan::run(api, &base, args.dry_run)?;
+        automatic = scan["automatic"].clone();
+        partial = scan["partial"] == true;
+        result = if args.dry_run {
+            preview(scan, args.limit as usize, args.all)
+        } else {
+            api.get(&path)?
+        };
+    }
+    if args.all && !args.dry_run {
+        complete(api, &base, &mut result)?;
+    }
+    result["project"] = json!(slug);
+    result["dry_run"] = json!(args.dry_run);
+    result["applied"] = applied;
+    result["automatic"] = automatic;
+    result["partial"] = json!(partial);
+    output::emit(&result, &format::render(&result), json_mode)
 }
 
-fn has_refs(entry: &Value, kind: &str) -> bool {
-    entry["staleness"][kind]
-        .as_array()
-        .is_some_and(|items| !items.is_empty())
+fn preview(mut result: Value, limit: usize, all: bool) -> Value {
+    let mut rows = result["findings"].as_array().cloned().unwrap_or_default();
+    if !all {
+        rows.truncate(limit);
+    }
+    result["next"] = Value::Null;
+    result["findings"] = json!(rows);
+    if let Some(value) = result.as_object_mut() {
+        value.remove("reviewed");
+        value.remove("deferred");
+    }
+    result
+}
+
+fn complete(api: &Api, base: &str, result: &mut Value) -> Result<()> {
+    let mut rows = result["findings"].as_array().cloned().unwrap_or_default();
+    let mut next = result["next"].as_str().map(str::to_owned);
+    let mut seen = std::collections::HashSet::new();
+    while let Some(after) = next {
+        if !seen.insert(after.clone()) {
+            bail!("Invalid garden continuation");
+        }
+        let page = api.get(&format!("{base}/garden/review?limit=25&after={after}"))?;
+        rows.extend(page["findings"].as_array().into_iter().flatten().cloned());
+        next = page["next"].as_str().map(str::to_owned);
+    }
+    result["findings"] = json!(rows);
+    result["next"] = Value::Null;
+    Ok(())
 }

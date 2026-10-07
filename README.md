@@ -156,7 +156,21 @@ cj open
 
 Use `cj --help` and `cj <command> --help` for the full interface. The [embedded skill](skill/SKILL.md) explains plans, tasks, docs, refs, maintenance, and the agent workflow.
 
-`cj topics similar` and `cj garden` may report that topic analysis is partial for large or highly similar topic collections. Review the returned suggestions without assuming they include every duplicate. You can still merge other known duplicates with `cj topics merge SOURCES --into TARGET`. JSON output preserves the server's `topic_analysis` details.
+`cj topics similar` and `cj garden` may report that topic analysis is partial for large or highly similar topic collections. Review the returned suggestions without assuming they include every duplicate. You can still merge other known duplicates with `cj topics merge SOURCES --into TARGET`. JSON output identifies incomplete analysis.
+
+### Review journal maintenance
+
+`cj garden` shows five pending findings, with priority and progress counts. Read the target and verify the cited code before recording an outcome. Safe automatic repairs and running a scan do not acknowledge manual reviews.
+
+```bash
+cj garden
+cj garden review FINDING_ID --outcome verified --note "Checked the cited code."
+cj garden --after FINDING_UUID
+cj garden --all
+cj garden --dry-run
+```
+
+Use `--limit N` for 1 to 25 findings. `--after` continues the stored queue without rescanning; `--all` requests the complete pending output. `--dry-run --all` previews everything without writes. A review needs an evidence note and supports `verified`, `corrected`, `superseded`, `obsolete`, `dismissed` or `deferred`; deferral also requires `--until` with a future timestamp. Correct the underlying content with its normal command first. Reviewed evidence stays hidden until the relevant knowledge or files change, and pending counts remain in the brief. Older servers provide a bounded report and explicitly identify unavailable persistent reviews.
 
 ### Archive a finished project
 

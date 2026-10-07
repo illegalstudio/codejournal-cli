@@ -94,6 +94,24 @@ Default discovery in text and JSON returns current docs, active plans, open/in-p
 
 Lists and normal briefs return summaries without record bodies. Request `--verbose` for content and full metadata, or deliberately read a chosen ID. Visibility and detail are independent: `--all` still uses summaries. `--global`, `--local` and `--all-projects` change scope without widening lifecycle visibility. `cj brief --all` opts into inactive records; `--verbose` supplies full JSON content. Hooks and cached briefs preserve complete rules, active coordination and recent work while following the same defaults. Exports and backups preserve all data.
 
+## Incremental maintenance
+
+When the brief says maintenance is due or reviews are pending, run `cj garden` and work through its small batch. The default is five pending findings, prioritized by severity. A scan and safe automatic repairs do not count as reviewing the content. Read the target entry, doc or plan and check the cited implementation before deciding.
+
+Fix inaccurate content with its normal update, supersede or obsolete command, then record the finding's outcome with evidence:
+
+```sh
+cj garden review FINDING_ID --outcome verified --note "Checked the cited code and regression."
+cj garden review FINDING_ID --outcome corrected --note "Updated doc DOC_ID to match the implementation."
+cj garden review FINDING_ID --outcome deferred --until 2026-10-14T00:00:00Z --note "Awaiting the migration."
+```
+
+Use `verified`, `corrected`, `superseded`, `obsolete`, `dismissed` or `deferred` to describe the actual result. Notes are required; deferral needs a future timestamp. A review records a decision without changing its underlying content. Never acknowledge unverified findings or mass-dismiss a long queue. Leave unrelated items pending when the current task does not justify their review.
+
+Use `--after FINDING_UUID` to continue the stored queue without another scan, `--limit N` for 1 to 25 items, and `--all` only when the complete pending report is needed. `--dry-run` writes nothing; `--dry-run --all` explicitly previews every finding. Preview IDs become reviewable after a matching online scan. Offline previews are cached and may be stale; record outcomes online. Older servers explicitly report that persistent reviews are unavailable.
+
+Reviewed evidence stays suppressed across sessions, unrelated commits and committing already reviewed changes. A relevant content or cited-file change creates a new finding. The brief keeps pending counts visible, and scan/review timestamps remain separate. Preserve existing pending requests and let `cj sync` retry review writes safely.
+
 ## Notifications and offline work
 
 Use `cj notify --kind needs_input --title "..."` when the user may not be watching and their input is required. Use `cj watch start --title "..." -- COMMAND` when asked to report when a long command ends. `cj status` shows pending writes by server; `cj sync` replays only the configured server's writes. Other servers' queues remain intact. Use `cj outbox list` without authentication to inspect request IDs, servers, methods and paths; `--body` includes redacted bodies and `--server URL` filters them. `cj outbox drop REQUEST_ID` permanently discards one pending write. It never removes hook events. Transport errors, 5xx responses, deferred writes and invalid JSON success responses keep the same durable ID for replay, including project-bootstrap retries. Rejected writes explicitly say they were not queued. Offline doc moves require cached source details and destination project details; fetch them online first. Use `--to @global`, not `global`, for tenant-global docs. The session-start hook surfaces unavailable authentication before the first write. The session hook records activity and notifications without prompt text or file contents.

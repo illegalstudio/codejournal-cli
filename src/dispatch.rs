@@ -59,9 +59,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
             )
         }
         Command::Entry { action } => knowledge_mutations::entry(&api, &tenant, action, cli.json),
-        Command::Garden { dry_run } => {
-            crate::garden::run(&api, &tenant, project, dry_run, cli.json)
-        }
+        Command::Garden(args) => crate::garden::run(&api, &tenant, project, args, cli.json),
         Command::Digest(args) => digest::run(
             &api,
             &tenant,

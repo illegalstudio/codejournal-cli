@@ -138,9 +138,6 @@ pub enum Command {
         #[command(subcommand)]
         action: crate::hook_args::HooksAction,
     },
-    Garden {
-        #[arg(long)]
-        dry_run: bool,
-    },
+    Garden(crate::garden::args::GardenArgs),
     Digest(crate::digest::DigestArgs),
 }

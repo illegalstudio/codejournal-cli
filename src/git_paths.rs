@@ -38,17 +38,19 @@ pub fn observe(entries: &[Value], root: &Path) -> Vec<Value> {
             if !safe_path(path) {
                 return None;
             }
-            let present = root.join(path).symlink_metadata().is_ok();
+            let checkout = reference_path(path, root);
+            let present = root.join(checkout).symlink_metadata().is_ok();
             let branches: Vec<&String> = branches
                 .iter()
-                .filter(|branch| safe_branch(branch) && object_has_path(branch, path))
+                .filter(|branch| safe_branch(branch) && object_has_path(branch, checkout))
                 .collect();
             let commits: Vec<&String> = commits
                 .iter()
-                .filter(|commit| safe_commit(commit) && object_has_path(commit, path))
+                .filter(|commit| safe_commit(commit) && object_has_path(commit, checkout))
                 .collect();
             let default = default.as_deref().is_some_and(|branch| {
-                object_has_path(branch, path) || object_has_path(&format!("origin/{branch}"), path)
+                object_has_path(branch, checkout)
+                    || object_has_path(&format!("origin/{branch}"), checkout)
             });
             Some(
                 json!({"path": path, "present": present, "branches": branches,
@@ -64,6 +66,27 @@ pub fn safe_path(path: &str) -> bool {
         && !Path::new(path)
             .components()
             .any(|part| matches!(part, std::path::Component::ParentDir))
+}
+
+/// Legacy refs may name a source location. Prefer an existing literal filename.
+pub fn reference_path<'a>(path: &'a str, root: &Path) -> &'a str {
+    if !safe_path(path) || root.join(path).symlink_metadata().is_ok() {
+        return path;
+    }
+    let Some((file, location)) = path.rsplit_once(':') else {
+        return path;
+    };
+    let parts = location.split('-').collect::<Vec<_>>();
+    if parts.len() <= 2
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+        && safe_path(file)
+    {
+        file
+    } else {
+        path
+    }
 }
 
 fn safe_branch(branch: &str) -> bool {

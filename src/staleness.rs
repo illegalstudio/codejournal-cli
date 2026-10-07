@@ -42,6 +42,7 @@ fn check_batch(
         let present: Vec<_> = entry["refs"].as_array().into_iter().flatten()
             .filter(|item| item["kind"] == "path")
             .filter_map(|item| item["value"].as_str())
+            .map(|path| git_paths::reference_path(path, root))
             .filter(|path| git_paths::safe_path(path) && root.join(path).exists()).collect();
         Some(json!({"id": id, "changes": git_history::changes_since(entry["created_at"].as_str(), &present)}))
     }).collect();
