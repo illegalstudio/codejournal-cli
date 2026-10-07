@@ -17,20 +17,26 @@ pub fn run(
 ) -> Result<()> {
     match action {
         NotificationAction::List {
-            unread,
+            unread: _,
             read,
+            all,
             kind,
             project_only,
             limit,
             verbose,
         } => {
-            let mut params = vec![("limit", limit.to_string())];
-            if unread {
-                params.push(("state", "unread".into()));
-            }
-            if read {
-                params.push(("state", "read".into()));
-            }
+            let state = if all {
+                "all"
+            } else if read {
+                "read"
+            } else {
+                "unread"
+            };
+            let mut params = vec![
+                ("limit", limit.to_string()),
+                ("state", state.to_owned()),
+                ("summary", if verbose { "0" } else { "1" }.to_owned()),
+            ];
             if let Some(kind) = kind {
                 params.push(("kind", kind));
             }
@@ -41,11 +47,12 @@ pub fn run(
                 ));
             }
             let url = reqwest::Url::parse_with_params("http://local/", &params)?;
-            let result = api.get(&format!(
+            let mut result = api.get(&format!(
                 "{}?{}",
                 endpoint(tenant),
                 url.query().unwrap_or("")
             ))?;
+            crate::output::discovery::list(&mut result, "notifications", state, verbose);
             let mut lines = vec![format!("{} unread (* marks unread)", result["unread"])];
             for row in result["notifications"].as_array().into_iter().flatten() {
                 let id = value(&row["id"]).replace('-', "");

@@ -37,9 +37,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
         Command::Open => open_dashboard::open(api, server, tenant, project, cli.json),
         Command::Web(args) => open_dashboard::web(api, server, tenant, project, args, cli.json),
         Command::Search(args) => entry_search::run(&api, &tenant, project, args, cli.json),
-        Command::Recent { limit, kind } => {
-            entry_search::recent(&api, &tenant, project, limit, kind.as_deref(), cli.json)
-        }
+        Command::Recent(args) => entry_search::recent(&api, &tenant, project, args, cli.json),
         Command::Show { id, no_track } => knowledge::show(&api, &tenant, &id, no_track, cli.json),
         Command::Topics { action } => topics::run(&api, &tenant, project, action, cli.json),
         Command::Supersede { id, by } => {

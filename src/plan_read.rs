@@ -18,7 +18,9 @@ pub fn list(
     tenant: &str,
     explicit_project: Option<&str>,
     kind: &str,
-    status: String,
+    status: Option<String>,
+    all: bool,
+    verbose: bool,
     grep: Option<String>,
     path: Option<String>,
     all_projects: bool,
@@ -34,7 +36,15 @@ pub fn list(
             project::slug(explicit_project)?
         )
     };
-    let mut params = vec![("status", status)];
+    let status = if all {
+        "all".to_owned()
+    } else {
+        status.unwrap_or_else(|| if kind == "docs" { "current" } else { "active" }.to_owned())
+    };
+    let mut params = vec![
+        ("status", status),
+        ("summary", if verbose { "0" } else { "1" }.to_owned()),
+    ];
     if global {
         params.push(("scope", "global".to_owned()));
     } else if kind == "docs" && !all_projects && !local {
@@ -47,7 +57,8 @@ pub fn list(
         params.push(("path", path));
     }
     let query = reqwest::Url::parse_with_params("http://local/", &params)?;
-    let result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
+    let mut result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
+    crate::output::discovery::list(&mut result, kind, &params[0].1, verbose);
     let mut lines = Vec::new();
     for item in result[kind].as_array().into_iter().flatten() {
         let where_text = if all_projects || global || item["scope"] == "global" {
@@ -71,6 +82,13 @@ pub fn list(
             item["revision"].as_u64().unwrap_or(0),
             &when[..when.len().min(10)]
         ));
+        if verbose {
+            lines.extend(
+                text(&item["body"])
+                    .lines()
+                    .map(|line| format!("      {line}")),
+            );
+        }
     }
     output::emit(
         &result,

@@ -11,9 +11,28 @@ pub fn body(markdown: &str) -> Result<()> {
 }
 
 pub fn preflight(command: &mut Command) -> Result<()> {
+    let doc = matches!(command, Command::Doc { .. });
     let (Command::Plan { action } | Command::Doc { action }) = command else {
         return Ok(());
     };
+    if let PlanAction::List {
+        status: Some(status),
+        ..
+    } = action
+    {
+        let accepted: &[&str] = if doc {
+            &["current", "draft", "outdated", "open", "all"]
+        } else {
+            &["active", "draft", "done", "abandoned", "open", "all"]
+        };
+        if !accepted.contains(&status.as_str()) {
+            bail!(
+                "invalid {} list status {status}; use {}",
+                if doc { "doc" } else { "plan" },
+                accepted.join(", ")
+            );
+        }
+    }
     if let PlanAction::Create {
         body,
         body_file,

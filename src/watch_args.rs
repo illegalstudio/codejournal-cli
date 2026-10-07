@@ -19,6 +19,8 @@ pub enum WatchAction {
     List {
         #[arg(long)]
         all: bool,
+        #[arg(short, long, help = "Include commands and full record metadata")]
+        verbose: bool,
     },
     Cancel {
         id: String,
@@ -36,6 +38,8 @@ pub enum NotificationAction {
         unread: bool,
         #[arg(long)]
         read: bool,
+        #[arg(long, conflicts_with_all = ["unread", "read"], help = "Include read notifications")]
+        all: bool,
         #[arg(long)]
         kind: Option<String>,
         #[arg(long)]

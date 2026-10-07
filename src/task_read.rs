@@ -19,7 +19,17 @@ pub fn list(
             project::slug(explicit_project)?
         )
     };
-    let mut params = vec![("status", args.status)];
+    let mut params = vec![
+        (
+            "status",
+            if args.all {
+                "all".to_owned()
+            } else {
+                args.status
+            },
+        ),
+        ("summary", if args.verbose { "0" } else { "1" }.to_owned()),
+    ];
     if let Some(source) = args.source {
         params.push(("from", source));
     }
@@ -30,12 +40,21 @@ pub fn list(
         params.push(("forwarded", "1".to_owned()));
     }
     let query = reqwest::Url::parse_with_params("http://local/", &params)?;
-    let result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
+    let mut result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
+    crate::output::discovery::list(&mut result, "tasks", &params[0].1, args.verbose);
     let lines: Vec<_> = result["tasks"]
         .as_array()
         .into_iter()
         .flatten()
-        .map(|task| line(task, args.all_projects))
+        .map(|task| {
+            let mut text = line(task, args.all_projects);
+            if args.verbose {
+                for detail in string(&task["body"]).lines() {
+                    text.push_str(&format!("\n      {detail}"));
+                }
+            }
+            text
+        })
         .collect();
     output::emit(
         &result,

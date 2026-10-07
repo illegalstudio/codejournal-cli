@@ -59,8 +59,14 @@ pub fn run(
             command,
             json_output,
         ),
-        WatchAction::List { all } => {
-            let result = api.get(&local_list_path(&path, all)?)?;
+        WatchAction::List { all, verbose } => {
+            let mut result = api.get(&local_list_path(&path, all, verbose)?)?;
+            crate::output::discovery::list(
+                &mut result,
+                "watches",
+                if all { "all" } else { "active" },
+                verbose,
+            );
             output::emit(&result, &watch_format::list(&result), json_output)
         }
         WatchAction::Cancel { id } => cancel::run(api, tenant, &path, &id, json_output),
@@ -68,12 +74,13 @@ pub fn run(
     }
 }
 
-fn local_list_path(path: &str, all: bool) -> Result<String> {
+fn local_list_path(path: &str, all: bool, verbose: bool) -> Result<String> {
     let host = attribution::host();
     let query = reqwest::Url::parse_with_params(
         "http://local/",
         [
             ("all", if all { "1" } else { "0" }),
+            ("summary", if verbose { "0" } else { "1" }),
             ("host", host.as_str()),
         ],
     )?;

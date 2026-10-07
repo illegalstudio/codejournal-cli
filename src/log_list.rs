@@ -19,7 +19,10 @@ pub fn run(
             project::slug(explicit_project)?
         )
     };
-    let mut params = vec![("limit", args.limit.to_string())];
+    let mut params = vec![
+        ("limit", args.limit.to_string()),
+        ("summary", if args.verbose { "0" } else { "1" }.to_owned()),
+    ];
     for (key, value) in [
         ("since", args.since),
         ("agent", args.agent),
@@ -27,12 +30,23 @@ pub fn run(
         ("plan", args.plan),
         ("grep", args.grep),
     ] {
-        if let Some(value) = value {
+        if let Some(value) = value
+            && (key != "status" || value != "all")
+        {
             params.push((key, value));
         }
     }
     let query = reqwest::Url::parse_with_params("http://local/", &params)?;
-    let result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
+    let mut result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
+    crate::output::discovery::list(
+        &mut result,
+        "logs",
+        params
+            .iter()
+            .find(|(key, _)| *key == "status")
+            .map_or("all", |(_, value)| value.as_str()),
+        args.verbose,
+    );
     let mut lines = Vec::new();
     for log in result["logs"].as_array().into_iter().flatten() {
         lines.push(line(log, args.all_projects));

@@ -26,7 +26,7 @@ pub struct LogListArgs {
     pub since: Option<String>,
     #[arg(long)]
     pub agent: Option<String>,
-    #[arg(long, value_parser = ["done", "in_progress", "blocked"])]
+    #[arg(long, value_parser = ["done", "in_progress", "blocked", "all"])]
     pub status: Option<String>,
     #[arg(long)]
     pub plan: Option<String>,

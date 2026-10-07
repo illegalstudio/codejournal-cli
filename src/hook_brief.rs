@@ -27,6 +27,8 @@ pub fn online(source: &str, agent: &str, session: &str) -> Option<String> {
             ("log_limit", "5"),
             ("agent", agent),
             ("session", session),
+            ("visibility", "active"),
+            ("summary", "1"),
         ],
     )
     .ok()?;
@@ -42,6 +44,7 @@ pub fn online(source: &str, agent: &str, session: &str) -> Option<String> {
         &path,
         json!({
             "limit": 10, "pinned_limit": 15, "log_limit": 5, "agent": agent, "session": session,
+            "visibility": "active", "summary": true,
         }),
     )
     .or_else(|error| {
@@ -56,6 +59,7 @@ pub fn online(source: &str, agent: &str, session: &str) -> Option<String> {
             json!({
                 "limit": 10, "pinned_limit": 15, "log_limit": 5,
                 "agent": agent, "session": session,
+                "visibility": "active", "summary": true,
             }),
         )
     })
@@ -69,5 +73,9 @@ pub fn online(source: &str, agent: &str, session: &str) -> Option<String> {
 pub fn cache_path(cwd: &Path) -> Option<PathBuf> {
     let parent = outbox::directory().ok()?.parent()?.to_path_buf();
     let digest = Sha256::digest(cwd.to_string_lossy().as_bytes());
-    Some(parent.join("briefs").join(format!("{digest:x}.txt")))
+    Some(
+        parent
+            .join("briefs")
+            .join(format!("{digest:x}-active-v1.txt")),
+    )
 }

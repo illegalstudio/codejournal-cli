@@ -17,9 +17,15 @@ pub struct BriefArgs {
     /// Recent logs, 0-200; use 0 to omit this section.
     #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u32).range(0..=200))]
     pub log_limit: u32,
-    /// Shorten text output; JSON retains the full payload. Use --audit for lean JSON.
+    /// Shorten text output further; JSON uses summaries by default.
     #[arg(long)]
     pub compact: bool,
+    /// Include inactive records explicitly.
+    #[arg(long)]
+    pub all: bool,
+    /// Include full content and metadata in JSON.
+    #[arg(short, long)]
+    pub verbose: bool,
     /// Read only complete rules, active sessions and project task/plan/doc metadata, without global content or maintenance suggestions.
     #[arg(long, conflicts_with_all = ["compact", "max_chars"])]
     pub audit: bool,
@@ -40,6 +46,11 @@ pub fn run(api: &Api, tenant: &str, name: Option<&str>, args: BriefArgs, json: b
         ("pinned_limit", args.pinned_limit.to_string()),
         ("log_limit", args.log_limit.to_string()),
         ("agent", agent.clone()),
+        (
+            "visibility",
+            if args.all { "all" } else { "active" }.to_owned(),
+        ),
+        ("summary", if args.verbose { "0" } else { "1" }.to_owned()),
     ];
     if let Some(session) = &session {
         params.push(("session", session.clone()));
@@ -53,14 +64,22 @@ pub fn run(api: &Api, tenant: &str, name: Option<&str>, args: BriefArgs, json: b
         &path,
         &format!("{path}/brief?{}", query.query().unwrap_or("")),
         json!({"limit": args.limit, "pinned_limit": args.pinned_limit,
-            "log_limit": args.log_limit, "agent": agent, "session": session, "audit": args.audit}),
+            "log_limit": args.log_limit, "agent": agent, "session": session, "audit": args.audit,
+            "visibility": if args.all { "all" } else { "active" }, "summary": !args.verbose}),
     )?;
     if args.audit {
         let audit = brief_audit::project(&result);
         return output::emit(&audit, &brief_audit::render(&audit), json);
     }
     if name.is_none() {
+        result["entries"] = result["recent"].clone();
         staleness::enrich(api, &path, &mut result)?;
+        result["recent"] = result["entries"].clone();
+    }
+    if !args.verbose
+        && let Some(fields) = result.as_object_mut()
+    {
+        fields.remove("entries");
     }
     let full = brief_format::render(
         &result,

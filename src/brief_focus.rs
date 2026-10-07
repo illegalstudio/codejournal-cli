@@ -6,22 +6,26 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
+mod discovery;
+
 pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<Value> {
     let canonical = project_bootstrap::read_path(api, base)?;
     let cache_path = cache_path.replacen(base, &canonical, 1);
     let base = canonical.as_str();
     let audit = body["audit"] == true;
     let shared_cache = format!(
-        "{base}/brief-cache?limit={}&pinned_limit={}&log_limit={}{}",
+        "{base}/brief-cache?limit={}&pinned_limit={}&log_limit={}&visibility={}&summary={}{}",
         body["limit"],
         body["pinned_limit"],
         body["log_limit"],
+        body["visibility"].as_str().unwrap_or("active"),
+        body["summary"] == true,
         if audit { "&audit=1" } else { "" }
     );
     if api.offline() {
         return api_cache::read(api.server(), &api.token, &shared_cache)
             .or_else(|_| api.get(&cache_path))
-            .map(|result| localize(result, "offline"));
+            .map(|result| localize(result, "offline", &body));
     }
     if !audit && let Some(changes) = changed_files() {
         if changes["files"]
@@ -43,16 +47,21 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
         Ok(result) => {
             let _ = api_cache::write(api.server(), &api.token, &cache_path, &result);
             let _ = api_cache::write(api.server(), &api.token, &shared_cache, &result);
-            Ok(localize(result, "remote"))
+            Ok(localize(result, "remote", &body))
         }
         Err(error) if error.to_string().starts_with("API returned 4") => Err(error),
         Err(_) => api_cache::read(api.server(), &api.token, &shared_cache)
             .or_else(|_| api.get(&cache_path))
-            .map(|result| localize(result, "offline")),
+            .map(|result| localize(result, "offline", &body)),
     }
 }
 
-fn localize(mut result: Value, mode: &str) -> Value {
+fn localize(mut result: Value, mode: &str, policy: &Value) -> Value {
+    discovery::apply(
+        &mut result,
+        policy["visibility"] != "all",
+        policy["summary"] == true,
+    );
     result["mode"] = Value::String(mode.to_owned());
     result["pending_outbox"] =
         Value::from(outbox::pending().unwrap_or(0) + request_outbox::pending().unwrap_or(0));

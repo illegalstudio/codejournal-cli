@@ -158,6 +158,27 @@ Use `cj --help` and `cj <command> --help` for the full interface. The [embedded 
 
 `cj topics similar` and `cj garden` may report that topic analysis is partial for large or highly similar topic collections. Review the returned suggestions without assuming they include every duplicate. You can still merge other known duplicates with `cj topics merge SOURCES --into TARGET`. JSON output preserves the server's `topic_analysis` details.
 
+### Discover active work
+
+Discovery returns concise summaries in both text and JSON. Defaults are current docs, active plans, open or in-progress tasks, open feedback, active knowledge and watches, and unread notifications. Recent work logs remain visible, including completed work. Project inventories have no lifecycle state; topic lists count active knowledge.
+
+```bash
+cj doc list
+cj doc list --status outdated
+cj doc list --all
+cj task list --status done
+cj plan list --all --verbose
+cj search "cache" --all-statuses
+cj notifications list --read
+cj notifications list --all
+cj brief --all
+cj brief --verbose --json
+```
+
+`--all` includes inactive records; `--status` selects one state where supported. `--verbose` independently requests bodies and full metadata. Scope flags such as `--global` and `--all-projects` retain the active defaults. Read a chosen record by ID for its content; plan/doc history still requires `--revision`, `--history` or `--all-revisions`. Legacy `--status open` on docs explicitly selects draft, current and outdated records.
+
+The brief and session hooks keep complete project rules, active coordination and recent work. Default JSON omits record bodies and duplicate project rules. Cached reads follow the same visibility and detail policy; explicit all-record or verbose caches cannot replace default context. Exports and backups retain every record.
+
 ### Read a repository audit
 
 For a focused inspection, including scripts that inspect several repositories:
@@ -170,7 +191,7 @@ cj doc show DOC_ID --current-only
 
 The audit contains complete project rules, recent active sessions, entry counts, and project-local task, plan and document metadata. It omits document bodies, search vectors, shared knowledge, global documents and maintenance suggestions. It does not refresh detected project packages or inspect Git references. Its cache is separate from the full brief cache, and cached output is marked offline. Older servers remain compatible because the client also filters their full response; the updated backend avoids reading unnecessary bodies in the first place.
 
-`--compact` shortens the normal text brief and keeps the full JSON contract. Use `--audit` for lean JSON. The normal brief accepts `--limit 0`, `--pinned-limit 0` and `--log-limit 0` to omit recent entries, pinned entries and recent logs respectively; these zero limits require the updated backend. Audit rules are never truncated, and `--audit` cannot be combined with `--compact` or `--max-chars`.
+`--compact` shortens the normal text brief further. Normal JSON uses summaries; request `--verbose` for full content or `--audit` for the narrower repository inspection. The normal brief accepts `--limit 0`, `--pinned-limit 0` and `--log-limit 0` to omit recent entries, pinned entries and recent logs respectively; these zero limits require the updated backend. Audit rules are never truncated, and `--audit` cannot be combined with `--compact` or `--max-chars`.
 
 `cj garden` remains the broader maintenance workflow, including shared topic names and relevant global knowledge. A read-only repository audit does not require running maintenance.
 

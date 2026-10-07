@@ -9,8 +9,8 @@ class BriefAuditTest(AuditCase):
         row = {"id": "a", "title": "Local work", "status": "active", "body": huge, "search_vector": huge}
         return {"project": {"id": "p", "slug": "fixture", "rules": "Do not duplicate rules"},
                 "rules": "Complete rule\n" * 1000, "counts": {"active": 1},
-                "plans": [row], "docs": [row], "tasks": [row], "recent": [row],
-                "pinned": [row], "logs": [row], "global_docs": [row], "global": [row],
+                "plans": [row], "docs": [{**row, "status": "current"}], "tasks": [{**row, "status": "open"}], "recent": [row],
+                "pinned": [row], "logs": [row], "global_docs": [{**row, "status": "current"}], "global": [row],
                 "garden_hint": "Run garden", "other_sessions": [{"id": "s", "agent": "codex",
                     "branch": "feature", "host": "fixture", "checkout_path": "/work", "files": ["src/task.rs"]}]}
 
@@ -23,7 +23,7 @@ class BriefAuditTest(AuditCase):
             handler.reply(200, response)
 
         with patch.object(Handler, "do_POST", respond):
-            normal = self.cli("--project", "fixture", "--json", "brief")
+            normal = self.cli("--project", "fixture", "--json", "brief", "--verbose")
             self.assertEqual(normal.returncode, 0, normal.stderr)
             audit = self.cli("--project", "fixture", "--json", "brief", "--audit")
             self.assertEqual(audit.returncode, 0, audit.stderr)
@@ -41,7 +41,7 @@ class BriefAuditTest(AuditCase):
         cached = json.loads(self.cli("--project", "fixture", "--offline", "--json", "brief", "--audit").stdout)
         self.assertEqual(cached["rules"], response["rules"])
         self.assertEqual(cached["mode"], "offline")
-        full = json.loads(self.cli("--project", "fixture", "--offline", "--json", "brief").stdout)
+        full = json.loads(self.cli("--project", "fixture", "--offline", "--json", "brief", "--verbose").stdout)
         self.assertIn("body", full["docs"][0])
 
     def test_zero_limits_are_explicit_and_invalid_limits_fail_before_login(self):

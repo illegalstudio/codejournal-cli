@@ -10,7 +10,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ENTRY_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-ENTRY = {"id": ENTRY_ID, "title": "Branch helper", "refs": [
+ENTRY = {"id": ENTRY_ID, "title": "Branch helper", "status": "active", "refs": [
     {"kind": "path", "value": "src/helper.rs"},
     {"kind": "branch", "value": "feat/helper"},
 ]}

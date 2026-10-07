@@ -16,7 +16,7 @@ pub fn entries(
             .unwrap_or_default();
         let status = if all_statuses { "all" } else { "active" };
         let result = api.get(&format!(
-            "/api/v1/tenants/{tenant}/entries?limit=100&page={page}&status={status}{scope}"
+            "/api/v1/tenants/{tenant}/entries?limit=100&page={page}&status={status}&summary=1{scope}"
         ))?;
         for entry in result["entries"].as_array().into_iter().flatten() {
             let id = value(&entry["id"]);

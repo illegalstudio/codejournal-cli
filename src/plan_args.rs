@@ -3,8 +3,19 @@ use clap::Subcommand;
 #[derive(Subcommand)]
 pub enum PlanAction {
     List {
-        #[arg(long, default_value = "open")]
-        status: String,
+        #[arg(
+            long,
+            help = "Select a status explicitly; defaults to current docs or active plans"
+        )]
+        status: Option<String>,
+        #[arg(
+            long,
+            conflicts_with = "status",
+            help = "Include every lifecycle status"
+        )]
+        all: bool,
+        #[arg(short, long, help = "Include bodies and full record metadata")]
+        verbose: bool,
         #[arg(long)]
         grep: Option<String>,
         #[arg(long)]

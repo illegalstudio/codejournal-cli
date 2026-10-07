@@ -1,8 +1,10 @@
 use crate::api::Api;
-use crate::search_args::SearchArgs;
+use crate::search_args::{RecentArgs, SearchArgs};
 use crate::{output, project_bootstrap, staleness};
 use anyhow::Result;
-use serde_json::{Value, json};
+use serde_json::json;
+
+mod format;
 
 fn root(tenant: &str) -> String {
     format!("/api/v1/tenants/{tenant}/entries")
@@ -15,7 +17,10 @@ pub fn run(
     args: SearchArgs,
     json_mode: bool,
 ) -> Result<()> {
-    let mut params = vec![("limit", args.limit.to_string())];
+    let mut params = vec![
+        ("limit", args.limit.to_string()),
+        ("summary", if args.verbose { "0" } else { "1" }.to_owned()),
+    ];
     if !args.all_projects {
         params.push((
             "project",
@@ -48,14 +53,20 @@ pub fn recent(
     api: &Api,
     tenant: &str,
     explicit_project: Option<&str>,
-    limit: u32,
-    kind: Option<&str>,
+    args: RecentArgs,
     json_mode: bool,
 ) -> Result<()> {
     let slug = project_bootstrap::resolved_slug(api, tenant, explicit_project)?;
-    let mut params = vec![("project", slug), ("limit", limit.to_string())];
-    if let Some(kind) = kind {
-        params.push(("kind", kind.to_owned()));
+    let mut params = vec![
+        ("project", slug),
+        ("limit", args.limit.to_string()),
+        ("summary", if args.verbose { "0" } else { "1" }.to_owned()),
+    ];
+    if let Some(kind) = args.kind {
+        params.push(("kind", kind));
+    }
+    if args.all {
+        params.push(("status", "all".to_owned()));
     }
     fetch(api, tenant, params, json_mode, false)
 }
@@ -78,10 +89,39 @@ fn fetch(
             )?;
         }
     }
+    crate::output::discovery::list(
+        &mut response,
+        "entries",
+        params
+            .iter()
+            .find(|(key, _)| *key == "status")
+            .map_or("active", |(_, value)| value.as_str()),
+        params
+            .iter()
+            .any(|(key, value)| *key == "summary" && value == "0"),
+    );
+    if params
+        .iter()
+        .any(|(key, value)| *key == "summary" && value == "1")
+        && let Some(fields) = response["project"].as_object_mut()
+    {
+        fields.retain(|key, _| matches!(key.as_str(), "id" | "slug" | "name"));
+    }
     let entries = response["entries"].as_array().cloned().unwrap_or_default();
     let lines: Vec<_> = entries
         .iter()
-        .map(|entry| entry_line(entry, all_projects))
+        .map(|entry| {
+            let mut line = format::line(entry, all_projects);
+            if params
+                .iter()
+                .any(|(key, value)| *key == "summary" && value == "0")
+            {
+                for detail in entry["body"].as_str().unwrap_or("").lines() {
+                    line.push_str(&format!("\n      {detail}"));
+                }
+            }
+            line
+        })
         .collect();
     let payload = json!({
         "project": response["project"], "entries": entries, "cached": response["cached"] == true, "notices": [],
@@ -95,54 +135,4 @@ fn fetch(
         },
         json_mode,
     )
-}
-
-fn entry_line(entry: &Value, all_projects: bool) -> String {
-    let id = string(&entry["id"]).replace('-', "");
-    let id = &id[..id.len().min(8)];
-    let date = string(&entry["created_at"]);
-    let date = &date[..date.len().min(10)];
-    let topics = array_text(&entry["topics"]);
-    let topic_suffix = if topics.is_empty() {
-        String::new()
-    } else {
-        format!("  [{topics}]")
-    };
-    let status = string(&entry["status"]);
-    let status_suffix = if status == "active" {
-        String::new()
-    } else {
-        format!("  ({status})")
-    };
-    let global = if string(&entry["scope"]) == "global" {
-        "  [global]"
-    } else {
-        ""
-    };
-    let wrong = entry["usage"]["wrong"].as_u64().unwrap_or(0);
-    let wrong = if wrong > 0 {
-        format!("  [reported wrong {wrong}x]")
-    } else {
-        String::new()
-    };
-    let prefix = if all_projects {
-        format!("  [{}]", string(&entry["project_slug"]))
-    } else {
-        "  ".to_owned()
-    };
-    format!(
-        "{prefix}{id}  {:<12} {date}  {}{topic_suffix}{status_suffix}{global}{wrong}",
-        string(&entry["kind"]),
-        string(&entry["title"])
-    )
-}
-
-fn string(value: &Value) -> &str {
-    value.as_str().unwrap_or("")
-}
-fn array_text(value: &Value) -> String {
-    value
-        .as_array()
-        .map(|items| items.iter().map(string).collect::<Vec<_>>().join(", "))
-        .unwrap_or_default()
 }

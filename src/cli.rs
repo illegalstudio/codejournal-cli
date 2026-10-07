@@ -44,12 +44,7 @@ pub enum Command {
     Open,
     Web(crate::open_dashboard::WebArgs),
     Search(crate::search_args::SearchArgs),
-    Recent {
-        #[arg(long, default_value_t = 20)]
-        limit: u32,
-        #[arg(long)]
-        kind: Option<String>,
-    },
+    Recent(crate::search_args::RecentArgs),
     /// Read a knowledge entry. For work logs, use cj log show ID.
     Show {
         id: String,

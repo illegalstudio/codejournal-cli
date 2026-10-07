@@ -106,7 +106,7 @@ class DeferredResponseTest(unittest.TestCase):
 
     def test_agent_receives_upgrade_notice_with_or_without_cached_brief(self):
         Handler.refusal = 426
-        cache = self.base / "state/codejournal/briefs" / (hashlib.sha256(str(self.base).encode()).hexdigest() + ".txt")
+        cache = self.base / "state/codejournal/briefs" / (hashlib.sha256(str(self.base).encode()).hexdigest() + "-active-v1.txt")
         for cached in (False, True):
             with self.subTest(cached=cached):
                 if cached:

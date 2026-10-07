@@ -25,6 +25,8 @@ pub fn run(
     match action {
         PlanAction::List {
             status,
+            all,
+            verbose,
             grep,
             path,
             all_projects,
@@ -36,6 +38,8 @@ pub fn run(
             project,
             kind,
             status,
+            all,
+            verbose,
             grep,
             path,
             all_projects,

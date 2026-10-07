@@ -14,11 +14,11 @@ class WatchFeedbackTest(WatchCase):
         command = "echo \x1b[2J\x9b31m"
         Handler.watches[ident] = {"id": ident, "status": "running", "title": title,
                                   "command": json.dumps([command]), "host": socket.gethostname()}
-        output = self.cli("watch", "list", "--all")
+        output = self.cli("watch", "list", "--all", "--verbose")
         for character in ["\x1b", "\x07", "\x9b"]:
             self.assertNotIn(character, output)
         self.assertIn("attacker", output)
-        structured = json.loads(self.cli("--json", "watch", "list", "--all"))
+        structured = json.loads(self.cli("--json", "watch", "list", "--all", "--verbose"))
         self.assertEqual(structured["watches"][0]["title"], title)
         self.assertEqual(json.loads(structured["watches"][0]["command"]), [command])
 
@@ -70,7 +70,7 @@ class WatchFeedbackTest(WatchCase):
         self.assertEqual(Handler.notifications[-1]["title"], "Slow: timed out")
         running = json.loads(self.cli("--json", "watch", "start", "--title", "Long", "--",
                                       "sleep", "30"))["watch"]
-        listing = self.cli("watch", "list", "--all")
+        listing = self.cli("watch", "list", "--all", "--verbose")
         self.assertIn("Fake CI", listing)
         self.assertIn("[sh -c echo FAILED; exit 3]", listing)
         other = subprocess.run([self.binary, "--project", "another", "watch", "list", "--all"],

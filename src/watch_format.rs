@@ -15,12 +15,17 @@ pub fn list(result: &Value) -> String {
                 .replace('T', " ");
             let title = watch["title"].as_str().unwrap_or("");
             let command = command(&watch["command"]);
+            let command = if command.is_empty() {
+                String::new()
+            } else {
+                format!("  [{command}]")
+            };
             let exit = if status == "finished" {
                 format!("  exit {}", watch["exit_code"])
             } else {
                 String::new()
             };
-            format!("  {id}  {status:<10} {started}  {title}  [{command}]{exit}")
+            format!("  {id}  {status:<10} {started}  {title}{command}{exit}")
         })
         .collect::<Vec<_>>();
     if lines.is_empty() {

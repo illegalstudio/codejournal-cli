@@ -108,7 +108,7 @@ class LocalFeedbackTest(unittest.TestCase):
         self.fail("Detached test activity publisher did not finish")
 
     def test_authentication_notice_and_cached_brief_form_one_hook_response(self):
-        cache = self.base / "state/codejournal/briefs" / (hashlib.sha256(str(self.repo).encode()).hexdigest() + ".txt")
+        cache = self.base / "state/codejournal/briefs" / (hashlib.sha256(str(self.repo).encode()).hexdigest() + "-active-v1.txt")
         cache.parent.mkdir(parents=True)
         cache.write_text("Cached synthetic project brief")
         self.env.pop("CJ_TOKEN")

@@ -30,6 +30,12 @@ pub struct FeedbackAddArgs {
 pub struct FeedbackListArgs {
     #[arg(long, default_value = "open", value_parser = ["open", "done", "dismissed", "all"])]
     pub status: String,
+    #[arg(
+        long,
+        conflicts_with = "status",
+        help = "Include resolved and dismissed feedback"
+    )]
+    pub all: bool,
     #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(CATEGORIES))]
     pub category: Option<String>,
     #[arg(short, long)]

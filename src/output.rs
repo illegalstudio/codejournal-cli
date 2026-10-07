@@ -4,6 +4,8 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
+pub(crate) mod discovery;
+
 thread_local! {
     static MASKED: RefCell<BTreeMap<String, usize>> = RefCell::new(BTreeMap::new());
 }

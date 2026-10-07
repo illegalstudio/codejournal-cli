@@ -26,8 +26,12 @@ pub struct TaskAddArgs {
 
 #[derive(Args)]
 pub struct TaskListArgs {
-    #[arg(long, default_value = "active")]
+    #[arg(long, default_value = "active", value_parser = ["active", "open", "in_progress", "closed", "done", "dismissed", "all"])]
     pub status: String,
+    #[arg(long, conflicts_with = "status", help = "Include closed tasks")]
+    pub all: bool,
+    #[arg(short, long, help = "Include bodies and full record metadata")]
+    pub verbose: bool,
     #[arg(long)]
     pub all_projects: bool,
     #[arg(long = "from")]

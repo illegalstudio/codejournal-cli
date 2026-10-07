@@ -69,12 +69,23 @@ fn add(
 }
 
 fn list(api: &Api, tenant: &str, args: FeedbackListArgs, json_mode: bool) -> Result<()> {
-    let mut params = vec![("status", args.status.clone())];
+    let mut params = vec![
+        (
+            "status",
+            if args.all {
+                "all".to_owned()
+            } else {
+                args.status.clone()
+            },
+        ),
+        ("summary", if args.verbose { "0" } else { "1" }.to_owned()),
+    ];
     if let Some(category) = args.category {
         params.push(("category", category));
     }
     let query = reqwest::Url::parse_with_params("http://local/", &params)?;
-    let result = api.get(&format!("{}?{}", path(tenant), query.query().unwrap_or("")))?;
+    let mut result = api.get(&format!("{}?{}", path(tenant), query.query().unwrap_or("")))?;
+    crate::output::discovery::list(&mut result, "feedback", &params[0].1, args.verbose);
     let mut lines = Vec::new();
     for item in result["feedback"].as_array().into_iter().flatten() {
         let date = string(&item["created_at"]);

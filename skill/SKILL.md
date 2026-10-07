@@ -82,6 +82,12 @@ Checklist items are numbered from one in Markdown order, excluding fenced exampl
 
 Plan statuses are `draft`, `active`, `done`, and `abandoned`; doc statuses are `draft`, `current`, and `outdated`. Help lists accepted statuses and feedback categories, and invalid values fail before an API request. Plan/doc show returns current content and lightweight revision counts by default, including JSON. Use `--revision N` for one specific version, `--history` for a paged index without old bodies, or `--all-revisions` to explicitly fetch all content within the server response budget. `--current-only` remains compatible. Updating a plan or doc with `--ref` replaces its entire ref list; omit the flag to retain existing refs.
 
+## Active discovery and detail
+
+Default discovery in text and JSON returns current docs, active plans, open/in-progress tasks, open feedback, active knowledge and watches, and unread notifications. Recent work logs remain useful context, including completed work. Draft or terminal records require an explicit lifecycle flag. Use `cj doc list --status outdated`, `cj plan list --status draft`, `cj task list --status done`, or list `--all` for every status. Knowledge search accepts `--all-statuses` (alias `--all`), and notifications accept `--read` or `--all`.
+
+Lists and normal briefs return summaries without record bodies. Request `--verbose` for content and full metadata, or deliberately read a chosen ID. Visibility and detail are independent: `--all` still uses summaries. `--global`, `--local` and `--all-projects` change scope without widening lifecycle visibility. `cj brief --all` opts into inactive records; `--verbose` supplies full JSON content. Hooks and cached briefs preserve complete rules, active coordination and recent work while following the same defaults. Exports and backups preserve all data.
+
 ## Notifications and offline work
 
 Use `cj notify --kind needs_input --title "..."` when the user may not be watching and their input is required. Use `cj watch start --title "..." -- COMMAND` when asked to report when a long command ends. `cj status` shows pending writes by server; `cj sync` replays only the configured server's writes. Other servers' queues remain intact. Use `cj outbox list` without authentication to inspect request IDs, servers, methods and paths; `--body` includes redacted bodies and `--server URL` filters them. `cj outbox drop REQUEST_ID` permanently discards one pending write. It never removes hook events. Transport errors, 5xx responses, deferred writes and invalid JSON success responses keep the same durable ID for replay, including project-bootstrap retries. Rejected writes explicitly say they were not queued. Offline doc moves require cached source details and destination project details; fetch them online first. Use `--to @global`, not `global`, for tenant-global docs. The session-start hook surfaces unavailable authentication before the first write. The session hook records activity and notifications without prompt text or file contents.
@@ -92,7 +98,7 @@ Watch startup succeeds only after the local command actually starts. A queued st
 
 ## Shared documentation
 
-Global docs belong to the current tenant and are available from every project with cross-project access. They are agent-facing documentation, not project rules. The full brief lists current and draft global docs separately; compact briefs include only docs with refs matching current Git changes. Open relevant docs with `cj doc show ID`.
+Global docs belong to the current tenant and are available from every project with cross-project access. They are agent-facing documentation, not project rules. The full brief lists current global docs separately; compact briefs include only docs with refs matching current Git changes. Open relevant docs with `cj doc show ID`.
 
 ```sh
 cj doc create --global --title "Shared runbook" --body-file RUNBOOK.md --ref path:src
