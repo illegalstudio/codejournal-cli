@@ -70,7 +70,7 @@ pub fn resolve(api: &Api, request: &mut PendingRequest) -> Result<()> {
         if uuid::Uuid::parse_str(&old).is_err() {
             continue;
         }
-        let result = match receipt(api, &tenant, &old) {
+        let result = match api.get_fresh(&format!("/api/v1/tenants/{tenant}/requests/{old}")) {
             Ok(value) => value,
             Err(error) if error.to_string().contains("404") => continue,
             Err(error) => return Err(error),

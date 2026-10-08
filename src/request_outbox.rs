@@ -1,14 +1,14 @@
 use crate::{api::Api, outbox};
 use anyhow::Result;
-use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
+
+pub(crate) mod delivery;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PendingRequest {
@@ -19,9 +19,13 @@ pub struct PendingRequest {
     pub body: Option<Value>,
     #[serde(default)]
     pub created_at: Option<u64>,
+    #[serde(default)]
+    pub origin: Option<String>,
+    #[serde(default)]
+    pub retry_at: Option<u64>,
 }
 
-fn directory() -> Result<PathBuf> {
+pub(crate) fn directory() -> Result<PathBuf> {
     let root = outbox::directory()?.parent().unwrap().join("requests");
     fs::create_dir_all(&root)?;
     #[cfg(unix)]
@@ -61,12 +65,19 @@ pub(crate) fn entries() -> Result<Vec<(PathBuf, PendingRequest)>> {
     paths.sort();
     paths
         .into_iter()
-        .map(|path| {
-            let mut request: PendingRequest = serde_json::from_slice(&fs::read(&path)?)?;
-            if request.created_at.is_none() {
-                request.created_at = Some(crate::request_age::legacy_created_at(&path)?);
-            }
-            Ok((path, request))
+        .filter_map(|path| {
+            let bytes = match fs::read(&path) {
+                Ok(bytes) => bytes,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+                Err(error) => return Some(Err(error.into())),
+            };
+            Some((|| {
+                let mut request: PendingRequest = serde_json::from_slice(&bytes)?;
+                if request.created_at.is_none() {
+                    request.created_at = Some(crate::request_age::legacy_created_at(&path)?);
+                }
+                Ok((path, request))
+            })())
         })
         .collect()
 }
@@ -88,37 +99,7 @@ pub fn has_project_init(server: &str, path: &str, slug: &str) -> Result<bool> {
 }
 
 pub fn flush(api: &Api) -> Result<usize> {
-    let lock = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open(directory()?.join(".flush.lock"))?;
-    if lock.try_lock_exclusive().is_err() {
-        return Ok(0);
-    }
-    let mut count = 0;
-    let mut aliases = HashMap::<String, String>::new();
-    for (path, request) in entries()? {
-        if request.server != api.server() {
-            continue;
-        }
-        let mut replay = request.clone();
-        for (old, new) in &aliases {
-            if replay.path == *old || replay.path.starts_with(&format!("{old}/")) {
-                replay.path = replay.path.replacen(old, new, 1);
-                break;
-            }
-        }
-        crate::request_ids::resolve(api, &mut replay)?;
-        let response = api.replay(&replay).map_err(|error| {
-            error.context(format!("queued request {} remains pending", request.id))
-        })?;
-        if let Some((old, new)) = crate::project_cache::cache_created(api, &request, &response)? {
-            aliases.insert(old, new);
-        }
-        fs::remove_file(path)?;
-        count += 1;
-    }
-    Ok(count)
+    delivery::flush(api, None, usize::MAX)
 }
 
 pub fn new(server: &str, method: &str, path: &str, body: Option<Value>) -> PendingRequest {
@@ -129,6 +110,8 @@ pub fn new(server: &str, method: &str, path: &str, body: Option<Value>) -> Pendi
         path: path.to_owned(),
         body,
         created_at: Some(crate::request_age::now()),
+        origin: None,
+        retry_at: None,
     }
 }
 

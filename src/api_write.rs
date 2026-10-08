@@ -1,7 +1,8 @@
+use crate::api::queue::{queued, queued_after};
 use crate::{
     api::Api,
     api_status, output, project_bootstrap,
-    request_outbox::{self, PendingRequest, QueuedWrite},
+    request_outbox::{self, PendingRequest},
     secret_redaction,
 };
 use anyhow::{Result, bail};
@@ -15,6 +16,11 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
         output::record_masking(secret_redaction::value(value));
     }
     let mut request = request_outbox::new(&api.server, method, path, body);
+    if !api.token.is_empty()
+        && let Some(tenant) = path.split('/').nth(4)
+    {
+        request.origin = Some(crate::outbox::fingerprint(api.server(), tenant, &api.token));
+    }
     let can_queue = path.starts_with("/api/v1/tenants/");
     if let Some(tenant) = project_bootstrap::tenant_for_path(api, path) {
         let slug = project_bootstrap::ensure(api, &tenant, false).map_err(|error| {
@@ -32,7 +38,7 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
             ))
         })?;
     }
-    if api.offline {
+    if api.offline || (can_queue && has_prior_request(api, &request)?) {
         if !can_queue {
             bail!("this command is unavailable offline");
         }
@@ -72,15 +78,19 @@ fn attempt(
     };
     let status = response.status();
     if can_queue && status.is_server_error() {
-        return queued(request);
+        return queued_after(
+            request,
+            crate::api::response_error::retry_after(response.headers()),
+        );
     }
     if can_queue && api_status::deferred(status) {
+        let delay = crate::api::response_error::retry_after(response.headers());
         let value = response
             .json::<Value>()
             .map(crate::api::sanitized)
             .unwrap_or_default();
         api_status::warn(status, &value);
-        return queued(request);
+        return queued_after(request, delay);
     }
     let value = match response.json() {
         Ok(value) => crate::api::sanitized(value),
@@ -99,11 +109,7 @@ pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
         bail!("cannot replay while offline");
     }
     let response = builder(api, request)?.send()?;
-    let status = response.status();
-    let value: Value = crate::api::response::decode(response)?;
-    if !status.is_success() {
-        return Err(api_status::error(status, &value));
-    }
+    let value = crate::api::response::checked(response)?;
     crate::project_cache::updated(api, request, &value)?;
     if request.path.ends_with("/checkout-activity")
         && let Some(body) = &request.body
@@ -131,12 +137,10 @@ fn builder(api: &Api, request: &PendingRequest) -> Result<reqwest::blocking::Req
     Ok(builder)
 }
 
-fn queued<T>(request: &PendingRequest) -> Result<T> {
-    request_outbox::enqueue(request).map_err(|error| {
-        error.context(format!(
-            "write could not be queued (request {})",
-            request.id
-        ))
-    })?;
-    Err(QueuedWrite(request.id.clone()).into())
+fn has_prior_request(api: &Api, request: &PendingRequest) -> Result<bool> {
+    let tenant = request.path.split('/').nth(4).unwrap_or("");
+    let origin = request.origin.as_deref().unwrap_or("");
+    Ok(request_outbox::entries()?
+        .iter()
+        .any(|(_, prior)| request_outbox::delivery::matches(prior, api.server(), tenant, origin)))
 }

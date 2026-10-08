@@ -70,14 +70,20 @@ pub fn entries() -> Result<Vec<(PathBuf, Value)>> {
     paths.sort();
     paths
         .into_iter()
-        .map(|path| {
-            let value = serde_json::from_slice(&fs::read(&path)?)?;
-            Ok((path, value))
+        .filter_map(|path| match fs::read(&path) {
+            Ok(bytes) => Some(
+                serde_json::from_slice(&bytes)
+                    .map(|value| (path, value))
+                    .map_err(Into::into),
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => Some(Err(error.into())),
         })
         .collect()
 }
 
 pub fn spawn_flush() -> Result<()> {
+    let _ = crate::request_sync::wake_configured();
     if std::env::var("CODE_JOURNAL_HOOK_FLUSH").as_deref() == Ok("off") {
         return Ok(());
     }

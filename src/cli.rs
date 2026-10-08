@@ -31,6 +31,10 @@ pub enum Command {
     Whoami,
     Status,
     Sync,
+    #[command(hide = true)]
+    RequestSync {
+        origin: String,
+    },
     Outbox {
         #[command(subcommand)]
         action: crate::outbox_commands::OutboxAction,
@@ -141,3 +145,7 @@ pub enum Command {
     Garden(crate::garden::args::GardenArgs),
     Digest(crate::digest::DigestArgs),
 }
+
+#[cfg(test)]
+#[path = "cli_body_tests.rs"]
+mod body_tests;

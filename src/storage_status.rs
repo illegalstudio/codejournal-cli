@@ -3,7 +3,14 @@ use crate::{config::Config, outbox, outbox_flush, output, request_outbox};
 use anyhow::Result;
 use serde_json::json;
 
-pub fn status(json_mode: bool) -> Result<()> {
+pub fn status(json_mode: bool, offline: bool) -> Result<()> {
+    let startup_error = if offline {
+        None
+    } else {
+        crate::request_sync::wake_configured()
+            .err()
+            .map(|error| error.to_string())
+    };
     let path = crate::config::path()?;
     let config = Config::load().ok();
     let server = config.as_ref().map(|value| value.server.as_str());
@@ -16,18 +23,30 @@ pub fn status(json_mode: bool) -> Result<()> {
     let notice = crate::log_commits::pending(&[], false)
         .err()
         .map(|error| error.to_string());
+    let mut automatic = crate::request_sync::status::inspect(config.as_ref())?;
+    if let Some(error) = startup_error {
+        automatic["last_error"] = json!(error);
+        automatic["blocked"] = json!(true);
+    }
+    let hooks = outbox::pending()?;
+    let writes = request_outbox::pending()?;
     let result = json!({
         "config_path": path, "database_path": null, "mode": if config.is_some() { "remote" } else { "unconfigured" },
         "remote_configured": config.is_some(), "server": server, "tenant": tenant,
-        "pending_outbox": outbox::pending()? + request_outbox::pending()?, "last_sync_at": null, "pending_writes_by_server": by_server, "notices": notice.iter().collect::<Vec<_>>(),
+        "pending_outbox": hooks + writes, "pending_hook_events": hooks, "pending_writes": writes,
+        "last_sync_at": automatic["last_sync_at"], "automatic_sync": automatic,
+        "pending_writes_by_server": by_server, "notices": notice.iter().collect::<Vec<_>>(),
     });
     let text = format!(
-        "config:      {}{}\nstorage:     {}\nremote:      {}\noutbox:      {} pending",
+        "config:      {}{}\nstorage:     {}\nremote:      {}\noutbox:      {} pending ({} writes, {} hook events)\n{}",
         path.display(),
         if path.exists() { "" } else { " (missing)" },
         result["mode"].as_str().unwrap_or("unconfigured"),
         server.unwrap_or("not configured (run `cj login`)"),
-        result["pending_outbox"]
+        result["pending_outbox"],
+        writes,
+        hooks,
+        crate::request_sync::status::describe(&result["automatic_sync"])
     );
     let text = notice.map_or_else(
         || text.clone(),
@@ -43,6 +62,7 @@ pub fn sync(api: &Api, json_mode: bool) -> Result<()> {
     let requests = request_outbox::flush(api);
     let resumed = crate::watches::recovery::resume(api, &tenant)?;
     let flushed = hooks + requests?;
+    crate::request_sync::status::synchronized(api, &tenant)?;
     let reconciliation = crate::watches::recovery::reconcile(api, &tenant);
     let reconciled = reconciliation.is_ok();
     let mut notices = Vec::new();

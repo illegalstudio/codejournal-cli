@@ -17,6 +17,9 @@ pub fn run() -> Result<()> {
     if let Some(cwd) = &cli.cwd {
         std::env::set_current_dir(cwd)?;
     }
+    if let Command::RequestSync { origin } = &cli.command {
+        return request_sync::worker::run(cli.server.as_deref(), origin);
+    }
     if let Command::Hook { event, kind } = &cli.command {
         let _ = hook::run(event, kind.as_deref());
         return Ok(());
@@ -45,7 +48,7 @@ pub fn run() -> Result<()> {
         return login::run(cli.server.as_deref());
     }
     if matches!(cli.command, Command::Status) {
-        return storage_status::status(cli.json);
+        return storage_status::status(cli.json, cli.offline);
     }
     if matches!(&cli.command, Command::Outbox { action } if !matches!(action, outbox_commands::OutboxAction::Receipt { .. }))
         && let Command::Outbox { action } = cli.command
@@ -85,7 +88,12 @@ pub fn run() -> Result<()> {
     api.set_auto_project(cli.project.is_none() && checkout_identity::current().is_some());
     let tenant = config.tenant.clone();
     let json_mode = cli.json;
-    match dispatch::run(&api, &server, &tenant, cli) {
+    let automatic = !cli.offline && !matches!(cli.command, Command::Sync);
+    let result = dispatch::run(&api, &server, &tenant, cli);
+    if automatic && let Err(error) = request_sync::wake(&api, &tenant) {
+        eprintln!("Automatic synchronization could not start: {error}; run cj sync.");
+    }
+    match result {
         Err(error)
             if error
                 .downcast_ref::<request_outbox::QueuedWrite>()
@@ -93,7 +101,7 @@ pub fn run() -> Result<()> {
         {
             let queued = error.downcast_ref::<request_outbox::QueuedWrite>().unwrap();
             if json_mode {
-                let mut receipt = serde_json::json!({"queued": true, "id": queued.0, "request_id": queued.0, "resource_id": null, "next": "Run cj sync, then find the created resource with its list/search command. Do not use request_id as a resource ID."});
+                let mut receipt = serde_json::json!({"queued": true, "id": queued.0, "request_id": queued.0, "resource_id": null, "next": "Background delivery retries when online. Run cj sync to retry now, then find the created resource with its list/search command. Do not use request_id as a resource ID."});
                 if let Some(upgrade) = api_upgrade::details() {
                     receipt["upgrade_required"] = serde_json::Value::Bool(true);
                     receipt["compatibility"] = upgrade;
@@ -104,7 +112,7 @@ pub fn run() -> Result<()> {
                     crate::stdout::println!("{notice}");
                 }
                 crate::stdout::println!(
-                    "Queued request_id: {} (not a resource ID). Run cj sync, then find the created resource with its list/search command.",
+                    "Queued request_id: {} (not a resource ID). Background delivery retries when online. Run cj sync to retry now, then find the created resource with its list/search command.",
                     queued.0
                 );
             }

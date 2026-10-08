@@ -128,6 +128,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
         }
         Command::Notify(args) => notification_send::run(&api, &tenant, project, args, cli.json),
         Command::Login
+        | Command::RequestSync { .. }
         | Command::Update(..)
         | Command::Setup(..)
         | Command::Logout

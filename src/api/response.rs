@@ -2,6 +2,21 @@ use anyhow::{Context, Result};
 use reqwest::blocking::Response;
 use serde_json::Value;
 
+pub fn checked(response: Response) -> Result<Value> {
+    let status = response.status();
+    let delay = super::response_error::retry_after(response.headers());
+    let value = decode(response)
+        .map_err(|error| super::response_error::ResponseError::wrap(status, delay, error))?;
+    if !status.is_success() {
+        return Err(super::response_error::ResponseError::wrap(
+            status,
+            delay,
+            crate::api_status::error(status, &value),
+        ));
+    }
+    Ok(value)
+}
+
 pub fn decode(response: Response) -> Result<Value> {
     let status = response.status();
     let content_type = response

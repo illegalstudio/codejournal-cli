@@ -15,6 +15,10 @@ pub fn publish(api: &Api, endpoint: &str, body: &Value) -> Result<Value> {
                     .path
                     .starts_with(&format!("{tenant_root}/projects/"))
                 && request.path.ends_with("/checkout-activity")
+                && request.origin.as_deref().is_none_or(|origin| {
+                    let tenant = endpoint.split('/').nth(4).unwrap_or("");
+                    origin == crate::outbox::fingerprint(api.server(), tenant, &api.token)
+                })
                 && request.body.as_ref().is_some_and(|queued| {
                     queued["host"] == body["host"] && queued["path"] == body["path"]
                 })

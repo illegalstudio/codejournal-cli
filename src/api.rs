@@ -1,5 +1,5 @@
 use crate::{
-    api_status, api_version, api_write, output, project_bootstrap, request_outbox::PendingRequest,
+    api_version, api_write, output, project_bootstrap, request_outbox::PendingRequest,
     secret_redaction,
 };
 use anyhow::{Context, Result, bail};
@@ -7,7 +7,9 @@ use reqwest::blocking::Client;
 use serde_json::Value;
 use std::time::Duration;
 
+pub(crate) mod queue;
 pub(crate) mod response;
+pub(crate) mod response_error;
 
 #[derive(Clone)]
 pub struct Api {
@@ -121,12 +123,7 @@ impl Api {
             .header("Accept", "application/json")
             .send()
             .context("API request failed")?;
-        let status = response.status();
-        let value = response::decode(response)?;
-        if !status.is_success() {
-            return Err(api_status::error(status, &value));
-        }
-        Ok(value)
+        response::checked(response)
     }
 }
 

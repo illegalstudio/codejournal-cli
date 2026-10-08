@@ -24,8 +24,6 @@ mod browse_list;
 mod browse_picker;
 mod checkout_identity;
 mod cli;
-#[cfg(test)]
-mod cli_body_tests;
 mod cli_parse;
 mod codex_rules;
 mod commands;
@@ -115,6 +113,7 @@ mod refs_move;
 mod request_age;
 mod request_ids;
 mod request_outbox;
+mod request_sync;
 mod rules;
 mod runtime;
 mod search_args;
