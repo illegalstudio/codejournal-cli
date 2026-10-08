@@ -9,6 +9,7 @@ mod format;
 mod legacy;
 mod review;
 mod scan;
+mod scan_batches;
 
 pub fn run(
     api: &Api,

@@ -1,5 +1,5 @@
-use super::code_hash;
-use crate::{api::Api, git, git_history, git_paths};
+use super::scan_batches;
+use crate::{api::Api, git};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
@@ -11,32 +11,37 @@ pub fn run(api: &Api, base: &str, preview: bool) -> Result<Value> {
     let mut reviewed = 0;
     let mut deferred = 0;
     let mut page = 1;
-    loop {
+    let mut result = loop {
         let data = api.get(&format!("{base}/garden?page={page}&review=1"))?;
-        if let Some(root) = &root {
-            for key in ["entries", "docs"] {
-                let rows = data[key].as_array().cloned().unwrap_or_default();
-                for batch in rows.chunks(32) {
-                    for body in batches(key, batch, root)? {
-                        let result = api.post_noqueue(&url, &body)?;
-                        if preview {
-                            accumulate(&result, &mut findings, &mut reviewed, &mut deferred);
-                        }
-                    }
-                }
-            }
-        }
-        let Some(next) = data["next_page"].as_u64() else {
-            break;
-        };
-        if next <= page {
+        let next = data["next_page"].as_u64();
+        if next.is_some_and(|next| next <= page) {
             bail!("invalid garden pagination");
         }
-        page = next;
-    }
-    let mut result = api.post_noqueue(&url, &json!({"complete": true}))?;
+        let mut batches = match &root {
+            Some(root) => scan_batches::page(&data, root)?,
+            None => Vec::new(),
+        };
+        if next.is_none() {
+            if batches.is_empty() {
+                batches.push(json!({}));
+            }
+            if let Some(last) = batches.last_mut() {
+                last["complete"] = json!(true);
+            }
+        }
+        let mut last = Value::Null;
+        for body in batches {
+            last = api.post_noqueue(&url, &body)?;
+            if preview {
+                accumulate(&last, &mut findings, &mut reviewed, &mut deferred);
+            }
+        }
+        match next {
+            Some(next) => page = next,
+            None => break last,
+        }
+    };
     if preview {
-        accumulate(&result, &mut findings, &mut reviewed, &mut deferred);
         findings.sort_by(|a, b| {
             b["priority"]
                 .as_i64()
@@ -50,48 +55,6 @@ pub fn run(api: &Api, base: &str, preview: bool) -> Result<Value> {
         result.as_object_mut().map(|value| value.remove("progress"));
     }
     Ok(result)
-}
-
-fn batches(key: &str, rows: &[Value], root: &std::path::Path) -> Result<Vec<Value>> {
-    let observations = if key == "entries" {
-        git_paths::observe(rows, root)
-    } else {
-        Vec::new()
-    };
-    if observations.len() > 1000 && rows.len() > 1 {
-        let middle = rows.len() / 2;
-        let mut parts = batches(key, &rows[..middle], root)?;
-        parts.extend(batches(key, &rows[middle..], root)?);
-        return Ok(parts);
-    }
-    let mut changes = Vec::new();
-    for row in rows {
-        let paths = row["refs"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter(|item| item["kind"] == "path")
-            .filter_map(|item| item["value"].as_str())
-            .map(|path| git_paths::reference_path(path, root))
-            .filter(|path| {
-                git_paths::safe_path(path) && (key != "entries" || root.join(path).exists())
-            })
-            .collect::<Vec<_>>();
-        let timestamp = if key == "entries" {
-            "created_at"
-        } else {
-            "updated_at"
-        };
-        let mut observation = json!({"id": row["id"], "changes": git_history::changes_since(row[timestamp].as_str(), &paths),
-            "code_hash": code_hash::record(row, root)?});
-        if let Some(hash) = row["content_hash"].as_str() {
-            observation["content_hash"] = json!(hash);
-        }
-        changes.push(observation);
-    }
-    let mut body = json!({"observations": observations});
-    body[key] = json!(changes);
-    Ok(vec![body])
 }
 
 fn accumulate(result: &Value, findings: &mut Vec<Value>, reviewed: &mut u64, deferred: &mut u64) {
