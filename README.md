@@ -156,7 +156,7 @@ cj open
 
 Use `cj --help` and `cj <command> --help` for the full interface. The [embedded skill](skill/SKILL.md) explains plans, tasks, docs, refs, maintenance, and the agent workflow.
 
-`cj topics similar` and `cj garden` may report that topic analysis is partial for large or highly similar topic collections. Review the returned suggestions without assuming they include every duplicate. You can still merge other known duplicates with `cj topics merge SOURCES --into TARGET`. JSON output identifies incomplete analysis.
+`cj topics similar` and `cj garden` analyze the selected project and relevant global knowledge. Use `cj topics similar --all-projects` for an explicit workspace-wide comparison. They may report that topic analysis is partial for large or highly similar topic collections. Review the returned suggestions without assuming they include every duplicate. You can still merge other known duplicates with `cj topics merge SOURCES --into TARGET`. JSON output identifies incomplete analysis.
 
 ### Review journal maintenance
 
@@ -228,7 +228,7 @@ The audit contains complete project rules, recent active sessions, entry counts,
 cj watch start --title "Wait for CI" --timeout 3h -- ./wait-for-ci.sh
 ```
 
-Timeouts accept integer seconds or the suffixes `s`, `m`, `h` and `d`, from one second to 24 hours. For example, `10800` and `3h` are equivalent. Commands accept at most 100 items including the executable, with at most 2,000 Unicode characters per item. The CLI checks these limits before authentication or starting a process. Put longer inline code in a script file instead of splitting or truncating it silently.
+Timeouts accept integer seconds or the suffixes `s`, `m`, `h` and `d`, from one second to 24 hours. For example, `10800` and `3h` are equivalent. Commands preserve whitespace and accept empty argument values, with a nonempty executable, at most 100 items and at most 2,000 Unicode characters per item. The CLI checks these limits before authentication or starting a process. Put longer inline code in a script file instead of splitting or truncating it silently.
 
 `watch start` succeeds only after the detached runner has authenticated and spawned the command. A queued start exits unsuccessfully and reports `queued=true`, `started=false`, the reserved `watch_id` and the original `request_id` in JSON. Run `cj sync` with the original account and host to deliver the creation and recover its unused local authorization. Repeated synchronization never reruns an already consumed command.
 
@@ -236,7 +236,7 @@ Watches begin as `starting`; an authenticated runner changes them to `running` a
 
 Use `cj watch list` for active watches, `cj watch list --all` for recent history, and `cj watch cancel ID` with a full UUID or unique prefix of at least eight hexadecimal characters. Cancellation works beyond the recent-history limit and without a local PID file. It signals only a verified matching runner. Cancelling a queued start retains its creation and cancellation requests for synchronization and prevents command execution.
 
-If startup fails, the error identifies a private `WATCH_ID.runner.log` file beside the local watch state. Inspect that file for authentication, transport or process errors, then use `cj sync` after correcting the cause. Changing the remote command, directory or timeout invalidates the original execution authorization.
+If startup fails, the error identifies a private `WATCH_ID.runner.log` file beside the local watch state. Inspect that file for authentication, transport or process errors, then use `cj sync` after correcting the cause. Changing the remote command, directory or timeout invalidates the original execution authorization. Mismatch diagnostics identify fields and argument indexes without printing values.
 
 ## Offline work and recovery
 
@@ -248,7 +248,7 @@ Reads can use cached responses; writes and hook events queue locally when delive
 
 Writes can queue offline even when the system keyring cannot be reached. Without access to the credential, credential-scoped cached reads are unavailable. Platform keyring failures are retried twice, after 100 ms and 250 ms; a missing credential is not retried. A keyring access error does not mean the saved token is missing. Sandbox access can differ between invocations, so retry once in the same permitted execution context. Persistent access denial needs a user-managed permission change; repeated retries cannot grant access. Use `--offline` for queued writes while access is unavailable.
 
-A queued `request_id` identifies the synchronization request, **not** the created entry, plan, document, task or log. After synchronization, obtain the resource ID before making dependent updates:
+A queued `request_id` identifies the synchronization request. Plan and document creation additionally reserves a distinct `resource_id`, usable immediately for `--offline` updates and checklist progress with the updated server. Current reads show projected local content, marked as pending and unsynchronized. Each update remains a separate ordered request; revisions and conflicts are checked during delivery. Entry, task and log creation still require a receipt after synchronization:
 
 ```bash
 cj status
@@ -278,3 +278,14 @@ Documents and plans accept bodies of up to 100,000 characters and 30 unique refe
 Licensed under [MIT](LICENSE).
 
 Imports pack at most 100 records and 512 KiB per client chunk. The service accepts up to 64 MiB, 50,000 records and 1,000 project records per staged batch, with bodies limited to 100,000 characters. A single record must fit a chunk; oversized records fail before upload.
+
+`cj --version` and `cj status` identify the build revision and whether its CLI source was dirty at compilation; the release number continues to control API compatibility and package updates.
+
+Move selected knowledge without recreating it:
+
+```bash
+cj entry move ENTRY_ID --to destination-project --dry-run
+cj entry move ENTRY_ID --to destination-project --path-prefix apps/tool --replace-prefix ""
+```
+
+The move retains the entry ID, creation time, author, topics and usage history, and records original refs and project provenance. It affects one selected entry; repeat it for other explicitly selected entries.
