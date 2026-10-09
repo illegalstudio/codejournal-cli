@@ -85,6 +85,17 @@ pub fn render(data: &Value) -> String {
     if data["partial"] == true {
         lines.push("Topic analysis is partial; other findings remain reviewable. Explicit topic merges remain available with cj topics merge.".into());
     }
+    if data["code_scan_partial"] == true {
+        lines.push(format!("Code scan incomplete: {} records could not be read; their previous findings remain pending.", data["snapshot_failure_count"]));
+        for failure in data["scan_failures"].as_array().into_iter().flatten() {
+            lines.push(format!(
+                "  {} {}: {}",
+                value(&failure["kind"]),
+                value(&failure["id"]),
+                value(&failure["error"])
+            ));
+        }
+    }
     if data["cached"] == true {
         lines.push(
             "Cached review queue: counts and findings may be outdated; record outcomes online."

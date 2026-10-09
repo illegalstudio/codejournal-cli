@@ -66,8 +66,11 @@ pub fn run(
                 json_mode,
             )
         }
-        Some(TopicsAction::Similar) => {
-            let result = api.get(&format!("/api/v1/tenants/{tenant}/topics/similar"))?;
+        Some(TopicsAction::Similar { all_projects }) => {
+            let result = api.get(&format!(
+                "/api/v1/tenants/{tenant}/topics/similar?project={slug}&all_projects={}",
+                u8::from(all_projects)
+            ))?;
             let certain: Vec<Vec<String>> = serde_json::from_value(result["certain"].clone())?;
             let possible: Vec<Vec<String>> = serde_json::from_value(result["possible"].clone())?;
             let mut lines = vec![

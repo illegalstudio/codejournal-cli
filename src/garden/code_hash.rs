@@ -29,7 +29,8 @@ pub fn record(row: &Value, root: &Path) -> Result<String> {
             b"missing".as_slice()
         });
         if file.symlink_metadata().is_ok_and(|meta| !meta.is_dir()) {
-            content(&file, root, &mut hash)?;
+            content(&file, root, &mut hash)
+                .with_context(|| format!("Cannot snapshot garden reference {path}"))?;
         } else {
             directory_files::visit(root, path, |file| {
                 let name =

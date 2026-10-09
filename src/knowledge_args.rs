@@ -24,7 +24,11 @@ pub enum TopicsAction {
         #[arg(long)]
         into: String,
     },
-    Similar,
+    Similar {
+        /// Analyze every project's topics explicitly.
+        #[arg(long)]
+        all_projects: bool,
+    },
 }
 
 #[derive(Subcommand)]

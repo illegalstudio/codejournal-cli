@@ -51,8 +51,15 @@ pub fn run(
             );
         }
         Err(error)
-            if error.to_string().starts_with("API returned 404")
-                || error.to_string().starts_with("API returned 405") =>
+            if error
+                .downcast_ref::<crate::api::response_error::ResponseError>()
+                .is_some_and(|response| {
+                    [
+                        reqwest::StatusCode::NOT_FOUND,
+                        reqwest::StatusCode::METHOD_NOT_ALLOWED,
+                    ]
+                    .contains(&response.status)
+                }) =>
         {
             if args.after.is_some() {
                 bail!("This server does not support persistent garden reviews");
@@ -72,6 +79,8 @@ pub fn run(
     let mut applied = json!([]);
     let mut automatic = json!({});
     let mut partial = false;
+    let mut snapshots =
+        json!({"code_scan_partial": false, "snapshot_failure_count": 0, "scan_failures": []});
     if !api.offline() && args.after.is_none() {
         if !args.dry_run {
             applied =
@@ -80,6 +89,13 @@ pub fn run(
         let scan = scan::run(api, &base, args.dry_run)?;
         automatic = scan["automatic"].clone();
         partial = scan["partial"] == true;
+        for key in [
+            "code_scan_partial",
+            "snapshot_failure_count",
+            "scan_failures",
+        ] {
+            snapshots[key] = scan[key].clone();
+        }
         result = if args.dry_run {
             preview(scan, args.limit as usize, args.all)
         } else {
@@ -94,6 +110,21 @@ pub fn run(
     result["applied"] = applied;
     result["automatic"] = automatic;
     result["partial"] = json!(partial);
+    result["topic_analysis_partial"] = json!(partial);
+    for key in [
+        "code_scan_partial",
+        "snapshot_failure_count",
+        "scan_failures",
+    ] {
+        result[key] = snapshots[key].clone();
+    }
+    result["review_queue_complete"] = json!(
+        result["next"].is_null()
+            && (!args.dry_run
+                || args.all
+                || result["counts"]["pending"].as_u64().unwrap_or(0)
+                    <= result["findings"].as_array().map_or(0, Vec::len) as u64)
+    );
     output::emit(&result, &format::render(&result), json_mode)
 }
 

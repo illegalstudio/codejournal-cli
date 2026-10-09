@@ -8,7 +8,7 @@ ANALYSIS = {"truncated": True, "analyzed_topics": 500, "comparisons": 10000}
 
 
 def read_response(handler):
-    if handler.path.endswith("/topics/similar"):
+    if handler.path.split("?")[0].endswith("/topics/similar"):
         handler.reply(200, {"certain": [], "possible": [], "topic_analysis": ANALYSIS})
     elif handler.path.endswith("/garden/report"):
         handler.reply(200, {"topic_groups": [], "possible_topics": [], "topic_analysis": ANALYSIS})

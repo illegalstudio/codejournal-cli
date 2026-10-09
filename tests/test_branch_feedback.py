@@ -47,7 +47,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                        "title": "No paths", "refs": []}], "docs": self.docs[1:], "next_page": None})
         elif "/entries?" in self.path:
             self.respond({"entries": [ENTRY]})
-        elif self.path.endswith("/topics/similar"):
+        elif self.path.split("?")[0].endswith("/topics/similar"):
             self.respond({"certain": [["remote", "remote-alias"]], "possible": []})
         elif self.path.endswith("/garden/report"):
             self.respond({"secrets": [], "reported_wrong": [], "topic_groups": [],

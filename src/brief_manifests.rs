@@ -39,11 +39,13 @@ pub fn fingerprints() -> Option<Value> {
             add(token.as_str(), &mut plain, &mut complex);
         }
         for span in code.find_iter(&text) {
-            for token in words.find_iter(span.as_str()) {
-                let word = token.as_str().trim_matches(['.', '/', '-']).to_lowercase();
-                if !word.contains(['.', '/']) {
-                    quoted.insert(fingerprint(&word));
-                }
+            let word = span.as_str().trim_matches('`').to_lowercase();
+            if words
+                .find(&word)
+                .is_some_and(|token| token.as_str() == word)
+                && !word.contains(['.', '/'])
+            {
+                quoted.insert(fingerprint(&word));
             }
         }
     }
@@ -55,7 +57,7 @@ fn add(token: &str, plain: &mut BTreeSet<String>, complex: &mut BTreeSet<String>
     if word.len() < 2 {
         return;
     }
-    if !word.contains(['.', '/']) {
+    if !word.contains(['.', '/', '-']) {
         plain.insert(fingerprint(&word));
         return;
     }
@@ -94,5 +96,7 @@ mod tests {
         assert!(complex.contains(&fingerprint("github.com/acme/toolbox")));
         assert!(complex.contains(&fingerprint("acme/toolbox")));
         assert!(!plain.contains(&fingerprint("toolbox")));
+        add("illegalstudio-context", &mut plain, &mut complex);
+        assert!(complex.contains(&fingerprint("illegalstudio-context")));
     }
 }

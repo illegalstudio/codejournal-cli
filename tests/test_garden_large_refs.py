@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import subprocess
 from unittest.mock import patch
 
@@ -88,3 +89,35 @@ class GardenLargeReferenceTest(AuditCase):
         rows = ''.join(f'100644 {blob} {stage}\tsrc/conflicted.rs\n' for stage in [1, 2, 3])
         self.git('update-index', '--index-info', stdin=rows)
         self.assertEqual(self.snapshot(), self.expected(['conflicted.rs']))
+
+    def test_unreadable_reference_preserves_other_scans_and_identifies_the_record(self):
+        if os.geteuid() == 0:
+            self.skipTest('File permissions require an unprivileged test user')
+        blocked = self.files / 'blocked.rs'
+        blocked.write_text('Private source contents must not appear in diagnostics')
+        blocked.chmod(0)
+        self.addCleanup(blocked.chmod, 0o600)
+        (self.repo / 'good.rs').write_text('Readable source')
+        other = '12345678-0000-4000-8000-000000000000'
+        def metadata(handler):
+            if '/garden?' not in handler.path:
+                return modern.read(handler)
+            handler.reply(200, {'entries': [
+                {'id': RESOURCE, 'refs': [{'kind': 'path', 'value': 'src/blocked.rs'}]},
+                {'id': other, 'refs': [{'kind': 'path', 'value': 'good.rs'}]}],
+                'docs': [], 'next_page': None})
+        with patch.object(Handler, 'do_GET', metadata):
+            for dry_run in (False, True):
+                Handler.calls.clear()
+                result = self.cli('--json', '--project', 'fixture', 'garden', *(['--dry-run'] if dry_run else []))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                data = json.loads(result.stdout)
+                self.assertTrue(data['code_scan_partial'])
+                self.assertEqual(data['snapshot_failure_count'], 1)
+                self.assertEqual(data['scan_failures'][0]['id'], RESOURCE)
+                self.assertIn('src/blocked.rs', data['scan_failures'][0]['error'])
+                self.assertNotIn('Private source contents', result.stdout + result.stderr)
+                scan = next(body for _, path, body in Handler.calls if path.endswith(('/scan', '/preview')))
+                self.assertTrue(scan['complete'])
+                self.assertTrue(scan['code_partial'])
+                self.assertEqual([row['id'] for row in scan['entries']], [other])
