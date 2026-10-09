@@ -259,7 +259,7 @@ cj outbox receipt REQUEST_ID
 
 `cj sync` can recover older dependencies through stored request receipts. It keeps requests pending when recovery cannot be verified. `cj status` reports a changed HEAD that commit hooks have not captured; use explicit `--ref commit:SHA` references for recovery.
 
-Checkout activity skips identical confirmed state for 15 minutes and sends real changes immediately. When earlier snapshots are waiting for delivery, later changes queue in order. Failed or uncertain requests retain their original IDs until acknowledged. Ordinary queued writes have a safe retry window of 90 days; older files remain pending so you can check existing records before resubmitting them.
+Checkout activity skips identical confirmed state for 15 minutes and sends real changes immediately. When earlier snapshots are waiting for delivery, later changes queue in order. Failed or uncertain requests retain their original IDs until acknowledged. Ordinary queued writes have a safe retry window of 90 days; older files remain pending so you can check existing records before resubmitting them. The server can release older saved responses to free space while retaining protection against duplicate writes. If a retry reports that its response was released, the request stays queued for verification; use `cj outbox receipt REQUEST_ID` for supported resource IDs before deciding how to reconcile it.
 
 `cj plan show ID` and `cj doc show ID` return only the current version by default, including `--json`. Output reports the available revision count and current revision number without downloading old bodies. `--current-only` remains an explicit spelling of this default.
 

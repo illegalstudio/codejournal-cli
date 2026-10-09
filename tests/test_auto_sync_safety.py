@@ -69,6 +69,20 @@ class AutoSyncSafetyTest(AutoSyncCase):
         self.assertEqual(path.read_bytes(), before)
         self.assertEqual(Handler.calls, [])
 
+    def test_evicted_response_preserves_pending_writes_without_automatic_resubmission(self):
+        self.enqueue("Accepted before response eviction")
+        self.enqueue("Later")
+        before = {path.name: path.read_bytes() for path in self.queue()}
+        Handler.failures[:] = [410]
+        self.cli("projects")
+        self.wait_for(lambda: self.saved().get("blocked"))
+        self.assertIn("saved response was released", self.saved()["last_error"])
+        for _ in range(3):
+            self.cli("projects")
+        self.assertEqual(len(Handler.calls), 1)
+        self.assertEqual(Handler.applied, [])
+        self.assertEqual({path.name: path.read_bytes() for path in self.queue()}, before)
+
     def test_unbound_legacy_queue_blocks_later_writes_until_explicit_verified_sync(self):
         self.enqueue("Legacy")
         path = self.queue()[0]

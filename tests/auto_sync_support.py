@@ -50,6 +50,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         key = self.headers.get("Idempotency-Key")
         self.calls.append((key, self.path, body, time.monotonic()))
         status = self.failures.pop(0) if self.failures else 201
+        if status == 410:
+            self.respond(410, {"error": "idempotency_response_evicted", "applied": True,
+                               "message": "This request already succeeded, but its saved response was released."})
+            return
         if status in [401, 422, 429]:
             self.respond(status, {"message": "synthetic rejection"})
             return
