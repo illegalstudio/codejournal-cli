@@ -40,7 +40,15 @@ fi
 [ "$actual" = "$expected" ] || fail 'Checksum mismatch; installation aborted.'
 tar -xzf "$work/$asset" -C "$work" cj
 chmod 755 "$work/cj"
-[ "$("$work/cj" --version)" = "cj $version" ] || fail 'Downloaded binary version does not match the release.'
+reported="$("$work/cj" --version)"
+printf '%s\n' "$reported" | LC_ALL=C awk -v version="$version" '
+  NR != 1 { invalid=1 }
+  $0 !~ /^cj [0-9]+\.[0-9]+\.[0-9]+( \(([a-fA-F0-9]+|unknown)(\+dirty)?\))?$/ { invalid=1 }
+  $2 != version { invalid=1 }
+  NF == 3 { build=$3; sub(/^\(/, "", build); sub(/(\+dirty)?\)$/, "", build);
+    if (build != "unknown" && (length(build) < 7 || length(build) > 40)) invalid=1 }
+  END { exit invalid || NR != 1 }
+' || fail 'Downloaded binary version does not match the release.'
 destination="${CJ_INSTALL_DIR:-$HOME/.local/bin}"
 mkdir -p "$destination"
 [ ! -d "$destination/cj" ] || fail 'The destination cj is a directory.'

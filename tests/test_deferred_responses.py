@@ -94,7 +94,7 @@ class DeferredResponseTest(unittest.TestCase):
         for version, agent in Handler.headers_seen:
             self.assertEqual(version, VERSION)
             self.assertTrue(agent.startswith(f"cj/{VERSION} ("))
-        self.assertEqual(self.cli("--version").stdout.strip(), f"cj {VERSION}")
+        self.assertTrue(self.cli("--version").stdout.strip().startswith(f"cj {VERSION} ("))
 
     def test_login_refusal_has_update_guidance_and_sends_the_release(self):
         Handler.refusal = 426

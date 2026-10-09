@@ -18,7 +18,7 @@ class ReleaseMetadataTests(unittest.TestCase):
         subprocess.run(["cargo", "build", "--locked"], cwd=ROOT, check=True, capture_output=True)
         version = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
         output = subprocess.check_output([str(ROOT / "target/debug/cj"), "--version"], text=True)
-        self.assertEqual(output.strip(), f"cj {version}")
+        self.assertRegex(output.strip(), rf"^cj {version} \((?:[0-9a-f]{{7,40}}|unknown)(?:\+dirty)?\)$")
 
     def test_manifests_reference_exact_verified_archives(self):
         with tempfile.TemporaryDirectory(prefix="cj-metadata-") as temporary:

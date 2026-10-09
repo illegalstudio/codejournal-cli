@@ -79,6 +79,21 @@ esac
         self.assertIn("Checksum mismatch", result.stderr)
         self.assertEqual(previous.read_text(), "previous binary")
 
+    def test_build_diagnostics_are_accepted_without_changing_release_checks(self):
+        for build in ['abcdef012345', 'abcdef0+dirty', 'unknown']:
+            self.archive('0.1.0 (' + build + ')')
+            result = self.install()
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_invalid_build_diagnostics_cannot_replace_an_existing_executable(self):
+        previous = self.output / 'cj'
+        previous.write_text('previous binary')
+        for version in ['0.1.0 (invalid)', '9.9.9 (abcdef0)', '0.1.0 extra']:
+            self.archive(version)
+            result = self.install()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(previous.read_text(), 'previous binary')
+
     def test_checksum_does_not_allow_a_wrong_binary_version(self):
         self.archive("9.9.9")
         result = self.install()

@@ -1,6 +1,7 @@
 mod archive;
 mod manager;
 mod releases;
+mod version;
 
 use anyhow::{Context, Result, bail};
 use clap::Args;
@@ -66,7 +67,7 @@ pub fn run(args: &UpdateArgs, json_mode: bool) -> Result<()> {
 fn validate(path: &Path, version: &Version) -> Result<()> {
     let output = Command::new(path).arg("--version").output()?;
     if !output.status.success()
-        || String::from_utf8(output.stdout)?.trim() != format!("cj {version}")
+        || !version::matches(String::from_utf8(output.stdout)?.trim(), version)?
     {
         bail!("downloaded executable does not match the release version; update aborted");
     }

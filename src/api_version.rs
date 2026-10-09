@@ -5,6 +5,15 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use std::time::Duration;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const REVISION: &str = env!("CJ_BUILD_REVISION");
+pub const DIRTY: bool = !env!("CJ_BUILD_SUFFIX").is_empty();
+pub const DISPLAY: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (",
+    env!("CJ_BUILD_REVISION"),
+    env!("CJ_BUILD_SUFFIX"),
+    ")"
+);
 pub const HEADER: &str = "X-Cj-Version";
 
 /// HTTP client that sends the release in `X-Cj-Version` and the user agent.

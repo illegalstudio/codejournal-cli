@@ -31,6 +31,7 @@ pub fn status(json_mode: bool, offline: bool) -> Result<()> {
     let hooks = outbox::pending()?;
     let writes = request_outbox::pending()?;
     let result = json!({
+        "version": crate::api_version::VERSION, "build_revision": crate::api_version::REVISION, "build_dirty": crate::api_version::DIRTY,
         "config_path": path, "database_path": null, "mode": if config.is_some() { "remote" } else { "unconfigured" },
         "remote_configured": config.is_some(), "server": server, "tenant": tenant,
         "pending_outbox": hooks + writes, "pending_hook_events": hooks, "pending_writes": writes,
@@ -38,7 +39,8 @@ pub fn status(json_mode: bool, offline: bool) -> Result<()> {
         "pending_writes_by_server": by_server, "notices": notice.iter().collect::<Vec<_>>(),
     });
     let text = format!(
-        "config:      {}{}\nstorage:     {}\nremote:      {}\noutbox:      {} pending ({} writes, {} hook events)\n{}",
+        "cli:         {}\nconfig:      {}{}\nstorage:     {}\nremote:      {}\noutbox:      {} pending ({} writes, {} hook events)\n{}",
+        crate::api_version::DISPLAY,
         path.display(),
         if path.exists() { "" } else { " (missing)" },
         result["mode"].as_str().unwrap_or("unconfigured"),
