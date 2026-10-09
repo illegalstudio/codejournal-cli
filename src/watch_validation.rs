@@ -48,9 +48,9 @@ pub fn preflight(command: &Command) -> Result<()> {
         );
     }
     for (index, value) in command.iter().enumerate() {
-        if value.trim().is_empty() || value.chars().count() > 2000 {
+        if (index == 0 && value.trim().is_empty()) || value.chars().count() > 2000 {
             bail!(
-                "watch command item {} must contain 1-2000 characters; use a script file for longer code. Nothing was sent or started",
+                "watch command item {} exceeds its budget or has an empty executable; allow at most 2000 characters and use a script file for longer code. Nothing was sent or started",
                 index + 1
             );
         }
@@ -78,7 +78,7 @@ mod tests {
         for (argument, accepted) in [
             ("è".repeat(2000), true),
             ("è".repeat(2001), false),
-            (String::new(), false),
+            (String::new(), true),
         ] {
             let cli = Cli::try_parse_from([
                 "cj", "watch", "start", "--title", "Test", "--", "true", &argument,

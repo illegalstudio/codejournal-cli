@@ -10,7 +10,7 @@ class WatchValidationTest(AuditCase):
         for arguments, message in [
             (["sh", "-c", f"touch {marker}; #" + "x" * 2001], "item 3"),
             (["true"] * 101, "100 arguments"),
-            (["true", ""], "1-2000 characters"),
+            (["", "true"], "empty executable"),
         ]:
             result = self.cli("watch", "start", "--title", "Invalid", "--", *arguments)
             self.assertNotEqual(result.returncode, 0)

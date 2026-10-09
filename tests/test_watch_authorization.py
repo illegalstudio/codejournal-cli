@@ -49,3 +49,28 @@ class WatchAuthorizationTest(WatchCase):
         self.cli("sync")
         self.wait(data["watch_id"], "finished")
         self.assertTrue(marker.exists())
+
+    def test_multiline_whitespace_and_empty_arguments_start_and_finish_once(self):
+        script = "\nimport sys\nprint(repr(sys.argv[1:]))\n"
+        created = json.loads(self.cli("--json", "watch", "start", "--title", "Literal arguments",
+                                      "--", "python3", "-c", script, "", "  spaced  "))
+        result = self.wait(created["watch"]["id"], "finished")
+        self.assertEqual(result["exit_code"], 0)
+        self.assertIn("['', '  spaced  ']", result["tail"])
+        stored = Handler.watches[created["watch"]["id"]]
+        self.assertEqual(json.loads(stored["command"])[2:], [script, "", "  spaced  "])
+        self.assertEqual(len(Handler.watches), 1)
+
+    def test_mismatch_diagnostics_name_argument_index_without_values(self):
+        private = "private-synthetic-argument"
+        Handler.override = {"command": json.dumps(["true", private])}
+        result = subprocess.run([self.binary, "--project", "p", "watch", "start", "--title", "Mismatch",
+                                "--", "true", "authorized-value"], env=self.env, cwd=ROOT,
+                                capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(result.returncode, 0)
+        ident = next(iter(Handler.watches))
+        text = (pathlib.Path(self.temp.name) / "state" / "codejournal" / "watches" / f"{ident}.runner.log").read_text()
+        self.assertIn("command[1]", text)
+        self.assertIn("Execution refused", text)
+        self.assertNotIn(private, text)
+        self.assertNotIn("authorized-value", text)

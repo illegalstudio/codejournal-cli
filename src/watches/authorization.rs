@@ -1,10 +1,12 @@
 use crate::{api::Api, outbox, watch_state};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+
+mod definition;
+pub use definition::verify;
 
 #[derive(Serialize, Deserialize)]
 pub struct Authorization {
@@ -99,19 +101,6 @@ pub fn take(api: &Api, tenant: &str, endpoint: &str, id: &str) -> Result<Authori
         bail!("watch execution authorization belongs to another local scope");
     }
     Ok(authorization)
-}
-
-pub fn verify(authorization: &Authorization, watch: &Value, id: &str) -> Result<()> {
-    let remote: Value =
-        serde_json::from_str(watch["command"].as_str().context("watch command missing")?)?;
-    if watch["id"] != id
-        || remote != crate::api::sanitized(json!(authorization.command))
-        || watch["cwd"] != crate::api::sanitized(json!(authorization.cwd))
-        || watch["timeout"] != json!(authorization.timeout)
-    {
-        bail!("remote watch definition differs from the locally authorized command");
-    }
-    Ok(())
 }
 
 pub fn remove(id: &str) {
