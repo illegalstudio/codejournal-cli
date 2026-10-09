@@ -37,7 +37,8 @@ class FeedbackOfflineTest(AuditCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         receipt = json.loads(result.stdout)
         self.assertEqual(receipt["id"], receipt["request_id"])
-        self.assertIsNone(receipt["resource_id"])
+        self.assertNotEqual(receipt["resource_id"], receipt["request_id"])
+        self.assertEqual(receipt["plan"]["id"], receipt["resource_id"])
         self.assertEqual(Handler.calls, [])
 
     def test_pending_receipts_cannot_be_used_as_resource_ids(self):

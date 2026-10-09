@@ -6,8 +6,9 @@ use crate::{
     secret_redaction,
 };
 use anyhow::{Result, bail};
-use reqwest::Method;
 use serde_json::Value;
+
+mod request;
 
 pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Result<Value> {
     crate::request_ids::reject_pending(api, path, body.as_ref())?;
@@ -63,6 +64,11 @@ pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Resul
             .context(format!("write not queued (request {})", request.id)));
     }
     crate::project_cache::updated(api, &request, &value)?;
+    crate::plan_write::pending::remember(
+        api,
+        request.path.split('/').nth(4).unwrap_or(""),
+        &value,
+    )?;
     Ok(value)
 }
 
@@ -71,7 +77,7 @@ fn attempt(
     request: &PendingRequest,
     can_queue: bool,
 ) -> Result<(reqwest::StatusCode, Value)> {
-    let response = match builder(api, request)?.send() {
+    let response = match request::builder(api, request)?.send() {
         Ok(response) => response,
         Err(_) if can_queue => return queued(request),
         Err(error) => return Err(error.into()),
@@ -108,9 +114,17 @@ pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
     if api.offline {
         bail!("cannot replay while offline");
     }
-    let response = builder(api, request)?.send()?;
-    let value = crate::api::response::checked(response)?;
+    let response = request::builder(api, request)?.send()?;
+    let value = crate::api::response::at(
+        response,
+        &format!("{} {}{}", request.method, api.server(), request.path),
+    )?;
     crate::project_cache::updated(api, request, &value)?;
+    crate::plan_write::pending::remember(
+        api,
+        request.path.split('/').nth(4).unwrap_or(""),
+        &value,
+    )?;
     if request.path.ends_with("/checkout-activity")
         && let Some(body) = &request.body
     {
@@ -118,23 +132,6 @@ pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
             .acknowledge()?;
     }
     Ok(value)
-}
-
-fn builder(api: &Api, request: &PendingRequest) -> Result<reqwest::blocking::RequestBuilder> {
-    let method = Method::from_bytes(request.method.as_bytes())?;
-    let mut builder = api
-        .client
-        .request(method, format!("{}{}", api.server, request.path))
-        .bearer_auth(&api.token)
-        .header("Accept", "application/json")
-        .header("Idempotency-Key", &request.id);
-    if let Some(seconds) = request.created_at {
-        builder = builder.header("Idempotency-Created-At", seconds.to_string());
-    }
-    if let Some(body) = &request.body {
-        builder = builder.json(body);
-    }
-    Ok(builder)
 }
 
 fn has_prior_request(api: &Api, request: &PendingRequest) -> Result<bool> {

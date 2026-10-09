@@ -78,7 +78,7 @@ pub fn run(api: &Api, tenant: &str, name: Option<&str>, args: BriefArgs, json: b
         let audit = brief_audit::project(&result);
         return output::emit(&audit, &brief_audit::render(&audit), json);
     }
-    if name.is_none() {
+    if name.is_none() && result["mode"] == "remote" {
         result["entries"] = result["recent"].clone();
         staleness::enrich(api, &path, &mut result)?;
         result["recent"] = result["entries"].clone();

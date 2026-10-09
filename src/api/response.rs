@@ -17,6 +17,20 @@ pub fn checked(response: Response) -> Result<Value> {
     Ok(value)
 }
 
+pub fn at(response: Response, endpoint: &str) -> Result<Value> {
+    let status = response.status();
+    let delay = super::response_error::retry_after(response.headers());
+    let endpoint = endpoint.split('?').next().unwrap_or(endpoint);
+    let (endpoint, _) = crate::secret_redaction::text(endpoint);
+    checked(response).map_err(|error| {
+        let guidance = if status == reqwest::StatusCode::NOT_FOUND {
+            "; check cj status for the server/workspace and cj projects for registration; the server may not support this endpoint"
+        } else { "" };
+        super::response_error::ResponseError::wrap(status, delay,
+            anyhow::anyhow!("{error} ({endpoint}){guidance}"))
+    })
+}
+
 pub fn decode(response: Response) -> Result<Value> {
     let status = response.status();
     let content_type = response

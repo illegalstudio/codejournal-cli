@@ -146,7 +146,8 @@ class CliUsabilityTest(unittest.TestCase):
         result = self.cli("log", "show", "bbbbbbbb")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Log not found", result.stderr)
-        self.assertLess(len(result.stderr), 150)
+        self.assertLess(len(result.stderr), 500)
+        self.assertIn("/logs/bbbbbbbb", result.stderr)
         for text in ["PrivateClass", "/private", "trace", "secret", "hidden"]:
             self.assertNotIn(text, result.stderr)
 

@@ -87,6 +87,11 @@ impl Api {
         self.send(
             self.client
                 .post(format!("{}{}", self.server, path))
+                .timeout(Duration::from_secs(if path.ends_with("/brief") {
+                    5
+                } else {
+                    20
+                }))
                 .json(&body),
         )
     }
@@ -118,12 +123,13 @@ impl Api {
     }
 
     fn send(&self, request: reqwest::blocking::RequestBuilder) -> Result<Value> {
-        let response = request
+        let request = request
             .bearer_auth(&self.token)
             .header("Accept", "application/json")
-            .send()
-            .context("API request failed")?;
-        response::checked(response)
+            .build()?;
+        let endpoint = format!("{} {}", request.method(), request.url());
+        let response = self.client.execute(request).context("API request failed")?;
+        response::at(response, &endpoint)
     }
 }
 

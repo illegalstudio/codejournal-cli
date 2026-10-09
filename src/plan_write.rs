@@ -3,6 +3,8 @@ use crate::{attribution, commands, input, output, refs};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
+pub(crate) mod pending;
+
 fn noun(kind: &str) -> &str {
     if kind == "docs" { "doc" } else { "plan" }
 }
@@ -38,14 +40,36 @@ pub fn create(
     } else {
         commands::path(tenant, project)?
     };
-    let result = api.post(
-        &format!("{base}/{kind}"),
-        &json!({
-            "title": title, "body": body, "status": status, "not_before": not_before,
-            "refs": refs::parse_all(&raw_refs)?, "agent": attribution::agent(agent.as_deref()),
-            "host": attribution::host(),
-        }),
-    )?;
+    let resource_id = uuid::Uuid::new_v4().to_string();
+    let payload = json!({
+        "id": resource_id, "title": title, "body": body, "status": status, "not_before": not_before,
+        "refs": refs::parse_all(&raw_refs)?, "agent": attribution::agent(agent.as_deref()),
+        "host": attribution::host(),
+    });
+    let result = match api.post(&format!("{base}/{kind}"), &payload) {
+        Ok(result) => result,
+        Err(error)
+            if error
+                .downcast_ref::<crate::request_outbox::QueuedWrite>()
+                .is_some() =>
+        {
+            let request_id = error
+                .downcast_ref::<crate::request_outbox::QueuedWrite>()
+                .map(|queued| queued.0.as_str())
+                .unwrap_or("");
+            return output::emit(
+                &json!({"queued": true, "synced": false, "id": request_id,
+                "request_id": request_id, "resource_id": resource_id, "resource_type": kind,
+                noun(kind): crate::api::sanitized(payload)}),
+                &format!(
+                    "Queued {kind} creation for synchronization (request {request_id}); resource ID: {resource_id}. Use this resource ID for --offline updates; it is not synchronized yet."
+                ),
+                json_mode,
+            );
+        }
+        Err(error) => return Err(error),
+    };
+    pending::remember(api, tenant, &result)?;
     let item = &result[noun(kind)];
     output::emit(
         &json!({noun(kind): item, "queued": false, "warnings": []}),

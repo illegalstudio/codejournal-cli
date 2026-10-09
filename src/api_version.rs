@@ -22,6 +22,7 @@ pub fn client(timeout: Duration) -> reqwest::Result<Client> {
     headers.insert(HEADER, HeaderValue::from_static(VERSION));
     Client::builder()
         .timeout(timeout)
+        .connect_timeout(timeout.min(Duration::from_secs(2)))
         .user_agent(user_agent())
         .default_headers(headers)
         .build()

@@ -2,7 +2,7 @@ use crate::{
     api::{Api, sanitized},
     api_cache, api_status, project_bootstrap,
 };
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use serde_json::Value;
 
 pub fn fallback(api: &Api, path: &str, cause: &str) -> Result<Value> {
@@ -15,13 +15,18 @@ pub fn fallback(api: &Api, path: &str, cause: &str) -> Result<Value> {
             Ok(sanitized(value))
         }
         Err(_) => bail!(
-            "{cause}. No cached response is available for this request. Cached briefs may still be available with cj brief --offline. Retry online when the service is available; pending writes can be inspected with cj outbox list"
+            "{cause}. No cached response is available for this request; project context is unavailable, not empty. Cached briefs may still be available with cj brief --offline. Work can continue locally and durable writes can be queued with --offline; queued writes are not synchronized. Inspect them with cj outbox list and retry online when the service is available"
         ),
     }
 }
 
 pub fn get(api: &Api, path: &str) -> Result<Value> {
     crate::request_ids::reject_pending(api, path, None)?;
+    if api.offline()
+        && let Some(value) = crate::plan_write::pending::read(api, path)?
+    {
+        return Ok(value);
+    }
     let path = project_bootstrap::read_path(api, path)?;
     if api.offline() {
         return fallback(api, &path, "Offline mode");
@@ -31,27 +36,45 @@ pub fn get(api: &Api, path: &str) -> Result<Value> {
         .get(format!("{}{}", api.server(), path))
         .bearer_auth(&api.token)
         .header("Accept", "application/json")
+        .timeout(std::time::Duration::from_secs(
+            if path.contains("/export") { 20 } else { 5 },
+        ))
         .send()
     {
         Ok(response) => response,
-        Err(_) => return fallback(api, &path, "The Code Journal server could not be reached"),
+        Err(error) => {
+            return fallback(
+                api,
+                &path,
+                &format!(
+                    "The Code Journal server could not be reached (GET {}{}){}",
+                    api.server(),
+                    path.split('?').next().unwrap_or(&path),
+                    if error.is_timeout() {
+                        ": read timed out"
+                    } else {
+                        ""
+                    }
+                ),
+            );
+        }
     };
     let status = response.status();
-    if status.is_server_error() {
-        return fallback(
-            api,
-            &path,
-            &format!("The Code Journal server returned {status}"),
-        );
-    }
-    let value = sanitized(response.json().context("API returned invalid JSON")?);
-    if api_status::deferred(status) {
-        api_status::warn(status, &value);
-        return fallback(api, &path, &api_status::message(status, &value));
-    }
-    if !status.is_success() {
-        return Err(api_status::error(status, &value));
-    }
+    let value = match crate::api::response::at(response, &format!("GET {}{path}", api.server())) {
+        Ok(value) => value,
+        Err(error)
+            if status.is_server_error()
+                || status.is_success()
+                || api_status::deferred(status)
+                || status == reqwest::StatusCode::REQUEST_TIMEOUT =>
+        {
+            if api_status::deferred(status) {
+                eprintln!("warning: {error}");
+            }
+            return fallback(api, &path, &error.to_string());
+        }
+        Err(error) => return Err(error),
+    };
     let _ = api_cache::write(api.server(), &api.token, &path, &value);
     Ok(value)
 }

@@ -9,6 +9,11 @@ use std::collections::BTreeSet;
 mod discovery;
 
 pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<Value> {
+    if body["session"].is_null()
+        && let Some(fields) = body.as_object_mut()
+    {
+        fields.remove("session");
+    }
     let canonical = project_bootstrap::read_path(api, base)?;
     let cache_path = cache_path.replacen(base, &canonical, 1);
     let base = canonical.as_str();
@@ -54,14 +59,38 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
             let _ = api_cache::write(api.server(), &api.token, &shared_cache, &result);
             Ok(localize(result, "remote", &body))
         }
-        Err(error) if error.to_string().starts_with("API returned 4") => Err(error),
+        Err(error)
+            if error
+                .downcast_ref::<crate::api::response_error::ResponseError>()
+                .is_some_and(|response| {
+                    [
+                        reqwest::StatusCode::METHOD_NOT_ALLOWED,
+                        reqwest::StatusCode::NOT_IMPLEMENTED,
+                    ]
+                    .contains(&response.status)
+                }) =>
+        {
+            api.get(&cache_path)
+                .map(|result| localize(result, "remote", &body))
+        }
+        Err(error)
+            if error
+                .downcast_ref::<crate::api::response_error::ResponseError>()
+                .is_some_and(|response| {
+                    response.status.is_client_error()
+                        && !crate::api_status::deferred(response.status)
+                        && response.status != reqwest::StatusCode::REQUEST_TIMEOUT
+                }) =>
+        {
+            Err(error)
+        }
         Err(_) if crate::project_commands::archive::cached(api, base).is_some() => Ok(localize(
             crate::project_commands::archive::cached(api, base).unwrap_or_default(),
             "offline",
             &body,
         )),
-        Err(_) => api_cache::read(api.server(), &api.token, &shared_cache)
-            .or_else(|_| api.get(&cache_path))
+        Err(error) => crate::api_read::fallback(api, &shared_cache, &format!("{error:#}"))
+            .or_else(|_| crate::api_read::fallback(api, &cache_path, &format!("{error:#}")))
             .and_then(|result| crate::project_commands::archive::validate_cached(api, base, result))
             .map(|result| localize(result, "offline", &body)),
     }
