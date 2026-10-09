@@ -23,7 +23,9 @@ pub fn run(api: &Api, tenant: &str, project: &str, id: &str) -> Result<Value> {
     let path = format!("{}/watches", super::endpoint(tenant, project));
     let authorized = authorization::load(api, tenant, &path, id)?;
     let ready = watch_state::pid_path(id)?.with_extension("ready.json");
+    let failure = watch_state::pid_path(id)?.with_extension("failure.json");
     let _ = fs::remove_file(&ready);
+    let _ = fs::remove_file(&failure);
     let log = watch_state::pid_path(id)?.with_extension("runner.log");
     let mut options = OpenOptions::new();
     options.write(true).create(true).truncate(true);
@@ -75,8 +77,15 @@ pub fn run(api: &Api, tenant: &str, project: &str, id: &str) -> Result<Value> {
         }
         std::thread::sleep(Duration::from_millis(20));
     }
+    let diagnostic = fs::read(&failure)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+        .and_then(|value| value["error"].as_str().map(str::to_owned))
+        .map(|error| format!(": {error}"))
+        .unwrap_or_default();
+    let _ = fs::remove_file(failure);
     bail!(
-        "watch did not start; inspect {}. Any unused local authorization is retained for cj sync",
+        "watch did not start{diagnostic}; inspect {}. Any unused local authorization is retained for cj sync",
         log.display()
     )
 }

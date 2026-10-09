@@ -53,6 +53,10 @@ fn run_authorized(
     );
     if let Err(error) = authorization::verify(&authorized, &watch, id) {
         authorization::remove(id);
+        watch_state::write_json(
+            &watch_state::pid_path(id)?.with_extension("failure.json"),
+            &json!({"error": error.to_string()}),
+        )?;
         api.patch(&format!("{path}/{id}"), &json!({"status": "lost",
             "tail": "Remote watch definition differs from the locally authorized command. Nothing was executed."}))?;
         return Err(error);
