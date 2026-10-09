@@ -5,6 +5,8 @@ use crate::{attribution, refs};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
+mod entry_move;
+
 fn path(tenant: &str, id: &str) -> String {
     format!("/api/v1/tenants/{tenant}/entries/{id}")
 }
@@ -84,6 +86,22 @@ pub fn obsolete(api: &Api, tenant: &str, id: &str, json_mode: bool) -> Result<()
 
 pub fn entry(api: &Api, tenant: &str, action: EntryAction, json_mode: bool) -> Result<()> {
     match action {
+        EntryAction::Move {
+            id,
+            to,
+            path_prefix,
+            replace_prefix,
+            dry_run,
+        } => entry_move::run(
+            api,
+            tenant,
+            &id,
+            &to,
+            path_prefix,
+            replace_prefix,
+            dry_run,
+            json_mode,
+        ),
         EntryAction::Flag {
             id,
             wrong,

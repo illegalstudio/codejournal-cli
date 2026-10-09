@@ -33,6 +33,18 @@ pub enum TopicsAction {
 
 #[derive(Subcommand)]
 pub enum EntryAction {
+    /// Transfer one entry while preserving its ID, timestamps, topics and usage history.
+    Move {
+        id: String,
+        #[arg(long)]
+        to: String,
+        #[arg(long, requires = "replace_prefix")]
+        path_prefix: Option<String>,
+        #[arg(long, requires = "path_prefix")]
+        replace_prefix: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
+    },
     Flag {
         id: String,
         #[arg(long, conflicts_with = "helpful", required_unless_present = "helpful")]
