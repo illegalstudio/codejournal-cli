@@ -50,10 +50,14 @@ pub fn move_to(
     kind: &str,
     id: &str,
     target: &str,
+    with_logs: bool,
     note: Option<String>,
     agent: Option<String>,
     json_mode: bool,
 ) -> Result<()> {
+    if with_logs && kind != "plans" {
+        bail!("--with-logs is only supported for plan moves");
+    }
     let compact = id.replace('-', "");
     if !(8..=32).contains(&compact.len()) || !compact.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         bail!("invalid plan or doc ID");
@@ -77,12 +81,13 @@ pub fn move_to(
     if target == "@global" && kind != "docs" {
         bail!("plans cannot be moved to global scope");
     }
+    let mut input = json!({"action": "move", "to": target,
+        "note": note, "agent": attribution::agent(agent.as_deref()), "host": attribution::host()});
+    if with_logs {
+        input["with_logs"] = json!(true);
+    }
     let result = api
-        .patch(
-            &path(tenant, kind, id),
-            &json!({"action": "move", "to": target,
-        "note": note, "agent": attribution::agent(agent.as_deref()), "host": attribution::host()}),
-        )
+        .patch(&path(tenant, kind, id), &input)
         .map_err(|error| {
             if kind == "docs"
                 && target == "global"
@@ -95,9 +100,17 @@ pub fn move_to(
                 error
             }
         })?;
+    let logs = if with_logs {
+        let count = result["moved_logs"].as_u64().ok_or_else(|| anyhow::anyhow!(
+            "Plan moved, but the server did not confirm linked log transfer; update the server before moving logs"
+        ))?;
+        format!(" Moved {count} linked work log(s).")
+    } else {
+        String::new()
+    };
     output::emit(
         &result,
-        &format!("Moved {} {} to {target}.", noun(kind), short(id)),
+        &format!("Moved {} {} to {target}.{logs}", noun(kind), short(id)),
         json_mode,
     )
 }

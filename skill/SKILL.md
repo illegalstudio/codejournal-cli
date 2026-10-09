@@ -28,11 +28,14 @@ Search before rediscovering a behavior or debugging a known failure:
 ```sh
 cj search "keyword"
 cj search "keyword" --all-projects
+cj search "liveness" --literal
 cj show ENTRY_ID
 cj topics
 ```
 
 `cj browse` is interactive and should be suggested to the user, not run by an agent. `cj open` opens the hosted dashboard for this project.
+
+Search results include a short matching excerpt in text and JSON. If stemming returns unrelated words, use `--literal` for a case-insensitive phrase in titles, bodies or refs, preserving punctuation. It requires a query and cannot combine with `--any` or `--prefix`.
 
 ## Archived projects
 
@@ -64,6 +67,8 @@ cj log add --title "Implemented the device flow" --status done \
 ```
 
 The client links session commits where possible. Use `--no-auto-commits` when the log must not cite them.
+
+Move an existing work log with `cj log move ID --to SLUG`, preserving its ID, timestamp, content, attribution, refs and plan link. Preview with `--dry-run` while online; previews never queue. `cj plan move ID --to SLUG --with-logs` transfers the plan and all linked live logs atomically, including logs left in earlier projects. Without that option, only the plan moves. Stored activity archives remain read-only, and every affected project must be writable.
 
 Read a previous work log with `cj log show LOG_ID`, or add `--body` for its body alone. `cj show` reads knowledge entries. For automatic commit linking, run the commit and the log in separate tool calls with enabled, trusted commit-tracking hooks so the post-tool hook can record the commit first. In one shell invocation, supply `--ref commit:HEAD` (resolved immediately to a full SHA) or an explicit SHA. If HEAD changed without being captured, retry with an explicit commit ref or `--no-auto-commits` to omit commits. Repeating the log command alone cannot recover missing hook data. A queued log reserves its commit refs too, avoiding duplicate automatic links. Correct an existing log with `cj log update LOG_ID --ref commit:SHA`; this replaces all refs, so include paths or URLs you want to retain. `--clear-refs` removes them. Archived logs are read-only.
 

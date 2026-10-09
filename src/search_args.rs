@@ -13,6 +13,8 @@ pub struct SearchArgs {
     pub any: bool,
     #[arg(long)]
     pub prefix: bool,
+    #[arg(long, requires = "query", conflicts_with_all = ["any", "prefix"], help = "Match the literal phrase, ignoring case and without stemming")]
+    pub literal: bool,
     #[arg(long, alias = "all")]
     pub all_statuses: bool,
     #[arg(short, long, help = "Include entry bodies and full record metadata")]

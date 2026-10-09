@@ -119,6 +119,12 @@ pub enum PlanAction {
             help = "Destination project slug; use @global to make a doc tenant-global"
         )]
         target: String,
+        #[arg(
+            long,
+            alias = "include-linked-logs",
+            help = "Also transfer linked live work logs (plans only)"
+        )]
+        with_logs: bool,
         #[arg(long)]
         note: Option<String>,
         #[arg(long)]

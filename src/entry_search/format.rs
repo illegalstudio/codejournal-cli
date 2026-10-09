@@ -33,11 +33,18 @@ pub fn line(entry: &Value, all_projects: bool) -> String {
     } else {
         "  ".to_owned()
     };
-    format!(
+    let mut line = format!(
         "{prefix}{id}  {:<12} {date}  {}{topic_suffix}{status_suffix}{global}{wrong}",
         string(&entry["kind"]),
         string(&entry["title"])
-    )
+    );
+    if let Some(excerpt) = entry["match_excerpt"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+    {
+        line.push_str(&format!("\n      match: {excerpt}"));
+    }
+    line
 }
 
 fn string(value: &Value) -> &str {

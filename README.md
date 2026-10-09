@@ -150,6 +150,7 @@ cj project init
 cj brief
 cj add --kind discovery --title "Cache invalidation" --body "Record what future sessions should know."
 cj search cache
+cj search liveness --literal
 cj log add --title "Completed the cache fix" --status done --body "Describe the change and validation."
 cj open
 ```
@@ -209,6 +210,18 @@ cj brief --verbose --json
 The brief and session hooks keep complete project rules, active coordination and recent work. Default JSON omits record bodies and duplicate project rules. Cached reads follow the same visibility and detail policy; explicit all-record or verbose caches cannot replace default context. Exports and backups retain every record.
 
 `cj feedback show ID` reads one complete report, including its resolution and attribution, without fetching the feedback list. Use a full ID or a unique prefix of at least eight hexadecimal characters. Closed or dismissed reports and reports from archived projects remain readable by ID; no repository checkout is required.
+
+Search results include a short matching excerpt. Use `cj search "liveness" --literal` when you need a case-insensitive phrase without stemming, including identifiers such as `worker::probe` or paths. `%` and `_` remain literal. This mode requires a query and cannot combine with `--any` or `--prefix`.
+
+### Move work history
+
+```bash
+cj log move LOG_ID --to destination --dry-run
+cj log move LOG_ID --to destination
+cj plan move PLAN_ID --to destination --with-logs
+```
+
+Moving a log keeps its ID, original date, content, attribution, refs and plan link. `--with-logs` moves a plan and all its linked live logs in one transaction, including logs left in earlier projects. Without it, only the plan moves. All affected projects must be writable; stored activity archives remain read-only. A log preview requires an online connection and never queues; actual moves support the offline outbox.
 
 ### Read a repository audit
 

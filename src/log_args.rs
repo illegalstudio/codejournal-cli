@@ -58,4 +58,12 @@ pub enum LogAction {
         #[arg(long, help = "Print only the log body")]
         body: bool,
     },
+    /// Transfer a work log while preserving its identity, content and plan link.
+    Move {
+        id: String,
+        #[arg(long = "to")]
+        target: String,
+        #[arg(long, help = "Preview without changing or queueing the log")]
+        dry_run: bool,
+    },
 }

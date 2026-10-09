@@ -27,6 +27,12 @@ pub fn run(
             project_bootstrap::resolved_slug(api, tenant, explicit_project)?,
         ));
     }
+    if args.query.is_some() {
+        params.push(("excerpt", "1".to_owned()));
+    }
+    if args.literal {
+        params.push(("literal", "1".to_owned()));
+    }
     for (key, value) in [
         ("q", args.query),
         ("kind", args.kind),

@@ -101,9 +101,12 @@ pub fn run(
         PlanAction::Move {
             id,
             target,
+            with_logs,
             note,
             agent,
-        } => plan_changes::move_to(api, tenant, kind, &id, &target, note, agent, json_mode),
+        } => plan_changes::move_to(
+            api, tenant, kind, &id, &target, with_logs, note, agent, json_mode,
+        ),
         PlanAction::Step {
             id,
             number,

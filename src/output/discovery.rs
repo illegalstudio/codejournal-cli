@@ -46,6 +46,7 @@ pub fn list(data: &mut Value, section: &str, status: &str, verbose: bool) {
                         | "agent"
                         | "refs"
                         | "topics"
+                        | "match_excerpt"
                         | "usage"
                         | "staleness"
                         | "category"
