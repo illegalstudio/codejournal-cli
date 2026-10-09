@@ -43,17 +43,18 @@ pub fn commit_from_output(cwd: &Path, output: &str) -> Option<String> {
 }
 
 pub fn reachable(cwd: &Path, sha: &str) -> bool {
-    command(
-        cwd,
-        &[
-            "for-each-ref",
-            &format!("--contains={sha}"),
-            "--format=%(refname)",
-            "refs/heads",
-            "refs/remotes",
-        ],
+    command(cwd, &["merge-base", "--is-ancestor", sha, "HEAD"]).is_some()
+}
+
+pub fn checkout(cwd: &Path) -> Option<String> {
+    let root = command(cwd, &["rev-parse", "--show-toplevel"])?;
+    Some(
+        PathBuf::from(root)
+            .canonicalize()
+            .ok()?
+            .to_string_lossy()
+            .into_owned(),
     )
-    .is_some_and(|refs| !refs.is_empty())
 }
 
 pub fn head(cwd: &Path) -> Option<String> {

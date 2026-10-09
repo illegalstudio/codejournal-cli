@@ -16,6 +16,9 @@ pub fn pending(explicit_refs: &[String], no_auto: bool) -> Result<Vec<String>> {
     if state.repo_common.as_deref() != Some(common.as_str()) {
         return Ok(Vec::new());
     }
+    let checkout = session_git::checkout(&cwd);
+    let own_checkout =
+        |sha: &str| state.commit_checkouts.get(sha).or(state.root.as_ref()) == checkout.as_ref();
     if let Some(head) = session_git::head(&cwd)
         && state
             .turn_head
@@ -34,7 +37,9 @@ pub fn pending(explicit_refs: &[String], no_auto: bool) -> Result<Vec<String>> {
     Ok(state
         .commits
         .iter()
-        .filter(|sha| !state.logged.contains(*sha) && session_git::reachable(&cwd, sha))
+        .filter(|sha| {
+            !state.logged.contains(*sha) && own_checkout(sha) && session_git::reachable(&cwd, sha)
+        })
         .cloned()
         .collect())
 }

@@ -122,6 +122,9 @@ class SessionFeedbackTest(unittest.TestCase):
         self.hook("PostToolUse", "session-two", "git commit -m 'other session'", other)
         self.cli("log", "add", "--title", "My work", "--body", "Done")
         logs = [body for path, body in Handler.calls if path.endswith("/logs")]
+        self.assertEqual(logs[-1]["refs"], [])
+        self.cli("log", "add", "--title", "Worktree work", "--body", "Done", cwd=worktree)
+        logs = [body for path, body in Handler.calls if path.endswith("/logs")]
         self.assertEqual(logs[-1]["refs"], [{"kind": "commit", "value": expected}])
         self.cli("log", "add", "--title", "Follow-up", "--body", "Talked")
         logs = [body for path, body in Handler.calls if path.endswith("/logs")]

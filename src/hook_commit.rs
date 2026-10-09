@@ -31,6 +31,9 @@ pub fn record(payload: &Value, cwd: &Path, state: &mut session_state::SessionSta
         }
     });
     if let Some(sha) = commit {
+        if let Some(checkout) = session_git::checkout(&target) {
+            state.commit_checkouts.insert(sha.clone(), checkout);
+        }
         if !state.commits.contains(&sha) {
             state.commits.push(sha);
         }
