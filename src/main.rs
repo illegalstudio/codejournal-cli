@@ -37,6 +37,7 @@ mod entry_search;
 mod export;
 mod feedback;
 mod feedback_args;
+mod feedback_show;
 mod garden;
 mod garden_docs;
 mod garden_format;

@@ -194,6 +194,8 @@ cj doc list
 cj doc list --status outdated
 cj doc list --all
 cj task list --status done
+cj feedback show FEEDBACK_ID
+cj feedback show FEEDBACK_ID --json
 cj plan list --all --verbose
 cj search "cache" --all-statuses
 cj notifications list --read
@@ -205,6 +207,8 @@ cj brief --verbose --json
 `--all` includes inactive records; `--status` selects one state where supported. `--verbose` independently requests bodies and full metadata. Scope flags such as `--global` and `--all-projects` retain the active defaults. Read a chosen record by ID for its content; plan/doc history still requires `--revision`, `--history` or `--all-revisions`. Legacy `--status open` on docs explicitly selects draft, current and outdated records.
 
 The brief and session hooks keep complete project rules, active coordination and recent work. Default JSON omits record bodies and duplicate project rules. Cached reads follow the same visibility and detail policy; explicit all-record or verbose caches cannot replace default context. Exports and backups retain every record.
+
+`cj feedback show ID` reads one complete report, including its resolution and attribution, without fetching the feedback list. Use a full ID or a unique prefix of at least eight hexadecimal characters. Closed or dismissed reports and reports from archived projects remain readable by ID; no repository checkout is required.
 
 ### Read a repository audit
 

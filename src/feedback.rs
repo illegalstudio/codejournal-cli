@@ -24,6 +24,7 @@ pub fn run(
     match action {
         FeedbackAction::Add(args) => add(api, tenant, explicit_project, args, json_mode),
         FeedbackAction::List(args) => list(api, tenant, args, json_mode),
+        FeedbackAction::Show { id } => crate::feedback_show::show(api, tenant, &id, json_mode),
         FeedbackAction::Close { id, note } => status(api, tenant, &id, "done", note, json_mode),
         FeedbackAction::Dismiss { id, note } => {
             status(api, tenant, &id, "dismissed", note, json_mode)

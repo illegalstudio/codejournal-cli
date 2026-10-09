@@ -46,6 +46,10 @@ pub struct FeedbackListArgs {
 pub enum FeedbackAction {
     Add(FeedbackAddArgs),
     List(FeedbackListArgs),
+    /// Read one report by full ID or a unique prefix, including resolved feedback.
+    Show {
+        id: String,
+    },
     Close {
         id: String,
         #[arg(long)]

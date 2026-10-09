@@ -80,6 +80,12 @@ pub fn run() -> Result<()> {
     let mut api = api::Api::new(&server, &token)?;
     api.set_offline(cli.offline);
     if cli.project.is_none()
+        && !matches!(
+            &cli.command,
+            Command::Feedback {
+                action: feedback_args::FeedbackAction::Show { .. }
+            }
+        )
         && checkout_identity::current().is_none()
         && let project_folder::Scope::Named(slug) = project_folder::registered(&api, &config.tenant)
     {

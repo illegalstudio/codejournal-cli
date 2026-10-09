@@ -94,6 +94,8 @@ Default discovery in text and JSON returns current docs, active plans, open/in-p
 
 Lists and normal briefs return summaries without record bodies. Request `--verbose` for content and full metadata, or deliberately read a chosen ID. Visibility and detail are independent: `--all` still uses summaries. `--global`, `--local` and `--all-projects` change scope without widening lifecycle visibility. `cj brief --all` opts into inactive records; `--verbose` supplies full JSON content. Hooks and cached briefs preserve complete rules, active coordination and recent work while following the same defaults. Exports and backups preserve all data.
 
+Use `cj feedback show ID` to retrieve just one complete report, including resolved feedback and reports from archived projects. It accepts a full ID or a unique prefix of at least eight hexadecimal characters and supports `--json`; no checkout or list download is needed.
+
 ## Incremental maintenance
 
 When the brief says maintenance is due or reviews are pending, run `cj garden` and work through its small batch. The default is five pending findings, prioritized by severity. A scan and safe automatic repairs do not count as reviewing the content. Read the target entry, doc or plan and check the cited implementation before deciding.
