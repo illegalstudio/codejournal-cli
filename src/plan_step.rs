@@ -1,4 +1,4 @@
-use crate::{api::Api, attribution, output};
+use crate::{api::Api, attribution};
 use anyhow::{Context, Result};
 use serde_json::json;
 
@@ -25,7 +25,7 @@ pub fn run(
         "step_done": done, "based_on": revision, "note": note,
         "agent": attribution::agent(None), "host": attribution::host()}),
     )?;
-    output::emit(
+    crate::plan_show::size::emit(
         &result,
         &format!("Updated checklist item {number} of {noun} {id}."),
         json_mode,

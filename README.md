@@ -173,6 +173,8 @@ cj garden --dry-run
 
 Use `--limit N` for 1 to 25 findings. `--after` continues the stored queue without rescanning; `--all` requests the complete pending output. `--dry-run --all` previews everything without writes. A review needs an evidence note and supports `verified`, `corrected`, `superseded`, `obsolete`, `dismissed` or `deferred`; deferral also requires `--until` with a future timestamp. Correct the underlying content with its normal command first. Reviewed evidence stays hidden until the relevant knowledge or files change, and pending counts remain in the brief. Older servers provide a bounded report and explicitly identify unavailable persistent reviews.
 
+Garden only suggests duplicate entries when titles have the same normalized content terms, allowing reordered words and inflections. A shared sentence template with a different package, host, version or other title term is insufficient. Review candidates before superseding any entry.
+
 ### Archive a finished project
 
 ```bash
@@ -213,6 +215,29 @@ The brief and session hooks keep complete project rules, active coordination and
 
 Search results include a short matching excerpt. Use `cj search "liveness" --literal` when you need a case-insensitive phrase without stemming, including identifiers such as `worker::probe` or paths. `%` and `_` remain literal. This mode requires a query and cannot combine with `--any` or `--prefix`.
 
+Use `cj search "repl" --whole-word` to match `REPL` without matching `replacement`, `replies` or `replay`. It matches a literal word or phrase without stemming; adjacent letters, digits and underscores prevent a match. It can combine with `--literal`, but not `--any` or `--prefix`, and requires an updated server. Literal substring matching remains available through `--literal` alone.
+
+Normal full-text searches require every term by default. When a multi-term query finds nothing, text output and JSON `notices` suggest `--any` to match at least one term while preserving the other filters.
+
+Empty knowledge queries also suggest a document search using `cj doc list --grep QUERY`. The suggested command keeps the selected project local, or retains an explicit `--all-projects` scope. It searches current documents without downloading their bodies automatically.
+
+### Amend a work log
+
+```bash
+cj log show LOG_ID
+cj log update LOG_ID --base 1 --body-file revised-log.md --status done
+```
+
+Use the current `revision` reported by `log show` for `--base`. Body and status edits require it; a stale base fails and preserves the existing record. Status accepts `done`, `in_progress` or `blocked`. An explicit empty body clears it. ID, creation time, title, attribution and plan link are retained; omitted fields, including refs, are retained. `--ref` replaces refs and `--clear-refs` clears them. Existing refs-only commands still work without `--base`; supplying it also protects ref changes.
+
+Amendments require the updated server. Offline amendments queue their original base and content; a conflict remains pending for you to review and is never rebased automatically. Work logs stored in activity archives, and logs belonging to archived projects, remain read-only.
+
+### Plan and document size
+
+Content reads and mutation confirmations show body size in Unicode characters, the 100,000-character limit and the remaining space. JSON exposes `body_size` with `characters`, `limit`, `remaining` and `warning_at`. At 90,000 characters, current content includes a warning to compact its current state before appending more progress. Existing numbered revisions remain accessible through `show --revision N` or `show --history`.
+
+Cached and pending reads measure the displayed content, including local edits. Historical reads show their size without suggesting that you edit the old snapshot. `show --body` keeps its plain Markdown output.
+
 ### Move work history
 
 ```bash
@@ -252,6 +277,10 @@ Timeouts accept integer seconds or the suffixes `s`, `m`, `h` and `d`, from one 
 Watches begin as `starting`; an authenticated runner changes them to `running` and renews its lease every 30 seconds. If renewal stops, the server reports `lost` after the 120-second lease expires and its scheduled check runs. This means the command outcome is unknown. A late result can supply the actual outcome. `cj sync` also identifies older watches on this host whose local runner is absent, without restarting their commands.
 
 Use `cj watch list` for active watches, `cj watch list --all` for recent history, and `cj watch cancel ID` with a full UUID or unique prefix of at least eight hexadecimal characters. Cancellation works beyond the recent-history limit and without a local PID file. It signals only a verified matching runner. Cancelling a queued start retains its creation and cancellation requests for synchronization and prevents command execution.
+
+Use `cj watch output ID --lines 40` to read the latest captured stdout and stderr. The default is 40 lines, with a maximum of 200 lines, 16 KB read from a local file and 10,000 output characters. On the original host and credentials it reads a verified local runner's output; otherwise it uses the stored server tail when available. Completed watches retain only their final server tail.
+
+Text and JSON identify the output source, verified runner PID, local file update time and truncation. The lease reports runner contact, not command progress; a quiet command may still be working. `--offline` requires a previously cached lookup for the same ID or prefix and credentials. JSON `cached` describes watch metadata, while `output.source=local` can still contain a current local snapshot. Inspecting output never restarts a command.
 
 If startup fails, the error identifies a private `WATCH_ID.runner.log` file beside the local watch state. Inspect that file for authentication, transport or process errors, then use `cj sync` after correcting the cause. Changing the remote command, directory or timeout invalidates the original execution authorization. Mismatch diagnostics identify fields and argument indexes without printing values.
 

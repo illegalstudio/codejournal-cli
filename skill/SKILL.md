@@ -29,11 +29,16 @@ Search before rediscovering a behavior or debugging a known failure:
 cj search "keyword"
 cj search "keyword" --all-projects
 cj search "liveness" --literal
+cj search "repl" --whole-word
 cj show ENTRY_ID
 cj topics
 ```
 
 `cj browse` is interactive and should be suggested to the user, not run by an agent. `cj open` opens the hosted dashboard for this project.
+
+Full-text search requires every term by default; use `--any` to match at least one. Empty multi-term results explain this in text and JSON `notices`. Use `--whole-word` for a literal word or phrase with boundaries (letters, digits and underscores count as word characters), such as `repl` without `replacement`. It requires an updated server and conflicts with `--any` and `--prefix`.
+
+When an entry search is empty, use its suggested `cj doc list --grep QUERY` command to find current docs. The suggestion preserves the selected project or explicit all-projects scope; a relevant doc can exist even if no knowledge entry matches.
 
 Search results include a short matching excerpt in text and JSON. If stemming returns unrelated words, use `--literal` for a case-insensitive phrase in titles, bodies or refs, preserving punctuation. It requires a query and cannot combine with `--any` or `--prefix`.
 
@@ -72,6 +77,8 @@ Move an existing work log with `cj log move ID --to SLUG`, preserving its ID, ti
 
 Read a previous work log with `cj log show LOG_ID`, or add `--body` for its body alone. `cj show` reads knowledge entries. For automatic commit linking, run the commit and the log in separate tool calls with enabled, trusted commit-tracking hooks so the post-tool hook can record the commit first. In one shell invocation, supply `--ref commit:HEAD` (resolved immediately to a full SHA) or an explicit SHA. If HEAD changed without being captured, retry with an explicit commit ref or `--no-auto-commits` to omit commits. Repeating the log command alone cannot recover missing hook data. A queued log reserves its commit refs too, avoiding duplicate automatic links. Correct an existing log with `cj log update LOG_ID --ref commit:SHA`; this replaces all refs, so include paths or URLs you want to retain. `--clear-refs` removes them. Archived logs are read-only.
 
+Amend a work log using `cj log update ID --base REVISION --body-file FILE --status done` after reading its current `revision` through `cj log show ID`. Body/status edits require the base; omitted refs and other content stay intact. An explicit empty body clears it. Ref-only changes retain the existing command, with an optional `--base` for protection. Amendments require the updated server. Offline requests keep their original base and conflicts remain pending; read the current log and review the difference instead of silently changing that base. Existing timestamps and attribution are preserved. Archived activity and archived projects remain read-only.
+
 ## Track tasks and plans
 
 Start a matching open task before doing it, then close it with a useful note:
@@ -93,6 +100,8 @@ Checklist items are numbered from one in Markdown order, excluding fenced exampl
 
 Plan statuses are `draft`, `active`, `done`, and `abandoned`; doc statuses are `draft`, `current`, and `outdated`. Help lists accepted statuses and feedback categories, and invalid values fail before an API request. Plan/doc show returns current content and lightweight revision counts by default, including JSON. Use `--revision N` for one specific version, `--history` for a paged index without old bodies, or `--all-revisions` to explicitly fetch all content within the server response budget. `--current-only` remains compatible. Updating a plan or doc with `--ref` replaces its entire ref list; omit the flag to retain existing refs.
 
+Plan/doc content reads and mutation confirmations show `body_size` in JSON and human-readable character counts. The cap is 100,000 Unicode characters; at 90,000, warnings suggest compacting current state while retaining historical numbered revisions. Measure the current or locally projected content, not the serialized JSON byte size. `show --body` remains plain Markdown; historical reads show size without urging edits to that old snapshot.
+
 ## Active discovery and detail
 
 Default discovery in text and JSON returns current docs, active plans, open/in-progress tasks, open feedback, active knowledge and watches, and unread notifications. Recent work logs remain useful context, including completed work. Draft or terminal records require an explicit lifecycle flag. Use `cj doc list --status outdated`, `cj plan list --status draft`, `cj task list --status done`, or list `--all` for every status. Knowledge search accepts `--all-statuses` (alias `--all`), and notifications accept `--read` or `--all`.
@@ -104,6 +113,8 @@ Use `cj feedback show ID` to retrieve just one complete report, including resolv
 ## Incremental maintenance
 
 When the brief says maintenance is due or reviews are pending, run `cj garden` and work through its small batch. The default is five pending findings, prioritized by severity. A scan and safe automatic repairs do not count as reviewing the content. Read the target entry, doc or plan and check the cited implementation before deciding.
+
+Duplicate candidates require the same normalized title terms, including subject names and identifiers. Reordered words and inflections can match; shared title templates with different subjects do not suffice. This conservative detector does not find every paraphrase.
 
 Fix inaccurate content with its normal update, supersede or obsolete command, then record the finding's outcome with evidence:
 
@@ -122,6 +133,8 @@ Reviewed evidence stays suppressed across sessions, unrelated commits and commit
 ## Notifications and offline work
 
 Online commands and hooks automatically resume credential-scoped writes and hook events in a detached worker. Transient failures back off and honor server retry delays; the next online command/hook restarts recovery after a machine restart. `cj status` shows separate write/event counts, age, last success, next retry and blockers. New writes join older pending requests in order. Explicit `--offline` does not wake a worker; `CODE_JOURNAL_AUTO_SYNC=off` prevents automatic startup. Existing workers continue independently. Unbound older requests require explicit `cj sync` under their original account. Permanent rejections, required upgrades and expired retry windows stay pending and need attention. Background delivery never runs watched commands; their explicit recovery protocol below remains required.
+
+Use `cj watch output ID [--lines N]` for a bounded snapshot of stdout/stderr (40 lines by default, at most 200). It reads verified local output on the original host and credential scope, or a stored server tail. Output source, verified runner PID and local file update time are explicit. Lease renewal is contact, not command progress. Offline reads require a cached detail lookup for the same ID or prefix; cached metadata may accompany fresh local output. Do not discover private state paths to inspect progress.
 
 Use `cj notify --kind needs_input --title "..."` when the user may not be watching and their input is required. Use `cj watch start --title "..." -- COMMAND` when asked to report when a long command ends. `cj status` shows pending writes by server; `cj sync` replays only the configured server's writes. Other servers' queues remain intact. Use `cj outbox list` without authentication to inspect request IDs, servers, methods and paths; `--body` includes redacted bodies and `--server URL` filters them. `cj outbox drop REQUEST_ID` permanently discards one pending write. It never removes hook events. Transport errors, 5xx responses, deferred writes and invalid JSON success responses keep the same durable ID for replay, including project-bootstrap retries. Rejected writes explicitly say they were not queued. Offline doc moves require cached source details and destination project details; fetch them online first. Use `--to @global`, not `global`, for tenant-global docs. The session-start hook surfaces unavailable authentication before the first write. The session hook records activity and notifications without prompt text or file contents.
 

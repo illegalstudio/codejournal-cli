@@ -15,11 +15,7 @@ pub fn run(
 ) -> Result<()> {
     match action {
         LogAction::Add(args) => add(api, tenant, project, args, json_mode),
-        LogAction::Update {
-            id,
-            refs,
-            clear_refs: _,
-        } => crate::log_update::run(api, tenant, &id, refs, json_mode),
+        LogAction::Update(args) => crate::log_update::run(api, tenant, args, json_mode),
         LogAction::List(args) => log_list::run(api, tenant, project, args, json_mode),
         LogAction::Show { id, body } => log_show::run(api, tenant, &id, body, json_mode),
         LogAction::Move {

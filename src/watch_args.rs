@@ -25,6 +25,12 @@ pub enum WatchAction {
     Cancel {
         id: String,
     },
+    /// Read a bounded output snapshot from a local runner or a completed watch.
+    Output {
+        id: String,
+        #[arg(long, default_value_t = 40, value_parser = clap::value_parser!(u16).range(1..=200))]
+        lines: u16,
+    },
     #[command(hide = true)]
     Run {
         id: String,

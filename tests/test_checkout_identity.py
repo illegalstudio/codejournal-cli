@@ -68,6 +68,7 @@ class CheckoutIdentityTest(unittest.TestCase):
         self.git(self.source, "init", "-b", "main")
         self.git(self.source, "config", "user.email", "test@example.test")
         self.git(self.source, "config", "user.name", "Test")
+        self.git(self.source, "config", "commit.gpgsign", "false")
         (self.source / "README.md").write_text("Synthetic checkout\n")
         self.git(self.source, "add", "README.md")
         self.git(self.source, "commit", "-m", "initial")

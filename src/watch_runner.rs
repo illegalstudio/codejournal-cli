@@ -7,7 +7,6 @@ use anyhow::Result;
 use fs2::FileExt;
 use serde_json::json;
 use std::fs::{self, OpenOptions};
-use std::io::{Read, Seek, SeekFrom};
 
 pub fn run(api: &Api, tenant: &str, path: &str, id: &str) -> Result<()> {
     let lock = OpenOptions::new()
@@ -85,7 +84,10 @@ fn run_authorized(
         &output_path,
         claimed["watch"].clone(),
     );
-    let tail = tail(&output_path).unwrap_or_default();
+    let tail = crate::watches::tail::read(&output_path, 40)
+        .ok()
+        .and_then(|snapshot| snapshot["tail"].as_str().map(str::to_owned))
+        .unwrap_or_default();
     let _ = fs::remove_file(output_path);
     let (status, exit_code) = match outcome {
         Ok(result) => result,
@@ -106,22 +108,4 @@ fn run_authorized(
         let _ = notification_delivery::deliver(&result["notification"], where_text);
     }
     Ok(())
-}
-
-fn tail(path: &std::path::Path) -> Result<String> {
-    let mut file = fs::File::open(path)?;
-    let length = file.metadata()?.len();
-    file.seek(SeekFrom::Start(length.saturating_sub(16000)))?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)?;
-    let text = String::from_utf8_lossy(&bytes);
-    let lines: Vec<&str> = text.lines().rev().take(40).collect();
-    Ok(lines
-        .into_iter()
-        .rev()
-        .collect::<Vec<_>>()
-        .join("\n")
-        .chars()
-        .take(10000)
-        .collect())
 }

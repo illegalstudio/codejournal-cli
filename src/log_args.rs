@@ -44,14 +44,8 @@ pub struct LogListArgs {
 pub enum LogAction {
     Add(LogAddArgs),
     List(LogListArgs),
-    /// Replace a work log's refs to correct commit attribution.
-    Update {
-        id: String,
-        #[arg(long = "ref", required_unless_present = "clear_refs", conflicts_with = "clear_refs", help = crate::refs::UPDATE_HELP)]
-        refs: Vec<String>,
-        #[arg(long)]
-        clear_refs: bool,
-    },
+    /// Amend a work log with revision protection, or replace its refs.
+    Update(LogUpdateArgs),
     /// Read one work log by its full ID or unique prefix.
     Show {
         id: String,
@@ -66,4 +60,27 @@ pub enum LogAction {
         #[arg(long, help = "Preview without changing or queueing the log")]
         dry_run: bool,
     },
+}
+
+#[derive(Args)]
+#[command(group(clap::ArgGroup::new("changes").required(true).multiple(true).args(["refs", "clear_refs", "body", "body_file", "status"])))]
+pub struct LogUpdateArgs {
+    pub id: String,
+    #[arg(long = "ref", conflicts_with = "clear_refs", help = crate::refs::UPDATE_HELP)]
+    pub refs: Vec<String>,
+    #[arg(long)]
+    pub clear_refs: bool,
+    #[arg(
+        long,
+        requires = "base",
+        conflicts_with = "body_file",
+        allow_hyphen_values = true
+    )]
+    pub body: Option<String>,
+    #[arg(long, requires = "base")]
+    pub body_file: Option<String>,
+    #[arg(long, requires = "base", value_parser = ["done", "in_progress", "blocked"])]
+    pub status: Option<String>,
+    #[arg(long, value_parser = clap::value_parser!(u32).range(1..=2147483646), help = "Expected revision from cj log show; required for body/status edits")]
+    pub base: Option<u32>,
 }

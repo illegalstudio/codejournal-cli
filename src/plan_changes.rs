@@ -1,5 +1,5 @@
 use crate::api::Api;
-use crate::{attribution, output};
+use crate::attribution;
 use anyhow::{Result, bail};
 use serde_json::json;
 
@@ -32,7 +32,7 @@ pub fn status(
         }),
     )?;
     let item = &result[noun(kind)];
-    output::emit(
+    crate::plan_show::size::emit(
         &result,
         &format!(
             "{} {} is now at revision {} ({status}).",
@@ -108,7 +108,7 @@ pub fn move_to(
     } else {
         String::new()
     };
-    output::emit(
+    crate::plan_show::size::emit(
         &result,
         &format!("Moved {} {} to {target}.{logs}", noun(kind), short(id)),
         json_mode,
@@ -124,7 +124,7 @@ pub fn schedule(
     json_mode: bool,
 ) -> Result<()> {
     let result = api.patch(&path(tenant, kind, id), &json!({"not_before": date}))?;
-    output::emit(
+    crate::plan_show::size::emit(
         &result,
         &format!("Scheduled {} {} for {}.", noun(kind), short(id), date),
         json_mode,

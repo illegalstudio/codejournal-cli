@@ -16,6 +16,11 @@ pub fn run(api: &Api, tenant: &str, id: &str, body_only: bool, json_mode: bool) 
         format!("created:   {}", text(&log["created_at"])),
         format!("agent:     {}", text(&log["agent"])),
     ];
+    if let Some(revision) = log["revision"].as_u64() {
+        lines.push(format!(
+            "revision:  {revision} (use --base {revision} for amendments)"
+        ));
+    }
     if let Some(plan) = log["plan_id"].as_str() {
         lines.push(format!("plan:      {}", plan.replace('-', "")));
     }

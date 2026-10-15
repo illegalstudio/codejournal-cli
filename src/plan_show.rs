@@ -1,7 +1,9 @@
 use crate::api::Api;
-use crate::{output, plan_history};
+use crate::plan_history;
 use anyhow::{Context, Result};
 use serde_json::Value;
+
+pub(crate) mod size;
 
 fn noun(kind: &str) -> &str {
     if kind == "docs" { "doc" } else { "plan" }
@@ -74,5 +76,5 @@ pub fn show(
     if history || all_revisions {
         plan_history::append(&mut lines, &result, noun(kind), id, all_revisions);
     }
-    output::emit(&result, &lines.join("\n"), json_mode)
+    size::emit(&result, &lines.join("\n"), json_mode)
 }

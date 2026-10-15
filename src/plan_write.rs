@@ -1,5 +1,5 @@
 use crate::api::Api;
-use crate::{attribution, commands, input, output, refs};
+use crate::{attribution, commands, input, refs};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
@@ -57,7 +57,7 @@ pub fn create(
                 .downcast_ref::<crate::request_outbox::QueuedWrite>()
                 .map(|queued| queued.0.as_str())
                 .unwrap_or("");
-            return output::emit(
+            return crate::plan_show::size::emit(
                 &json!({"queued": true, "synced": false, "id": request_id,
                 "request_id": request_id, "resource_id": resource_id, "resource_type": kind,
                 noun(kind): crate::api::sanitized(payload)}),
@@ -71,7 +71,7 @@ pub fn create(
     };
     pending::remember(api, tenant, &result)?;
     let item = &result[noun(kind)];
-    output::emit(
+    crate::plan_show::size::emit(
         &json!({noun(kind): item, "queued": false, "warnings": []}),
         &format!(
             "Created {} {} ({}): {}",
@@ -130,5 +130,5 @@ pub fn update(
     if result["conflict"].as_bool().unwrap_or(false) {
         text.push_str(" Warning: the base revision changed; review history.");
     }
-    output::emit(&result, &text, json_mode)
+    crate::plan_show::size::emit(&result, &text, json_mode)
 }

@@ -140,6 +140,7 @@ class BranchFeedbackTest(unittest.TestCase):
         self.git("init", "-b", "main")
         self.git("config", "user.email", "test@example.test")
         self.git("config", "user.name", "Test")
+        self.git("config", "commit.gpgsign", "false")
         (self.repo / "README.md").write_text("initial\n")
         self.git("add", "README.md")
         self.git("commit", "-m", "initial")

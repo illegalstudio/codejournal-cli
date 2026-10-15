@@ -1,10 +1,11 @@
 use crate::api::Api;
 use crate::search_args::{RecentArgs, SearchArgs};
-use crate::{output, project_bootstrap, staleness};
+use crate::{project_bootstrap, staleness};
 use anyhow::Result;
-use serde_json::json;
 
+mod empty;
 mod format;
+mod response;
 
 fn root(tenant: &str) -> String {
     format!("/api/v1/tenants/{tenant}/entries")
@@ -32,6 +33,9 @@ pub fn run(
     }
     if args.literal {
         params.push(("literal", "1".to_owned()));
+    }
+    if args.whole_word {
+        params.push(("whole_word", "1".to_owned()));
     }
     for (key, value) in [
         ("q", args.query),
@@ -86,6 +90,13 @@ fn fetch(
 ) -> Result<()> {
     let query = reqwest::Url::parse_with_params("http://local/", &params)?;
     let mut response = api.get(&format!("{}?{}", root(tenant), query.query().unwrap_or("")))?;
+    anyhow::ensure!(
+        !params
+            .iter()
+            .any(|(key, value)| *key == "whole_word" && value == "1")
+            || response["search_mode"] == "whole_word",
+        "this server does not support whole-word search; update the server and retry"
+    );
     if !all_projects {
         if let Some((_, slug)) = params.iter().find(|(key, _)| *key == "project") {
             staleness::enrich(
@@ -113,32 +124,5 @@ fn fetch(
     {
         fields.retain(|key, _| matches!(key.as_str(), "id" | "slug" | "name"));
     }
-    let entries = response["entries"].as_array().cloned().unwrap_or_default();
-    let lines: Vec<_> = entries
-        .iter()
-        .map(|entry| {
-            let mut line = format::line(entry, all_projects);
-            if params
-                .iter()
-                .any(|(key, value)| *key == "summary" && value == "0")
-            {
-                for detail in entry["body"].as_str().unwrap_or("").lines() {
-                    line.push_str(&format!("\n      {detail}"));
-                }
-            }
-            line
-        })
-        .collect();
-    let payload = json!({
-        "project": response["project"], "entries": entries, "cached": response["cached"] == true, "notices": [],
-    });
-    output::emit(
-        &payload,
-        &if lines.is_empty() {
-            "No matching entries.".to_owned()
-        } else {
-            lines.join("\n")
-        },
-        json_mode,
-    )
+    response::emit(response, &params, all_projects, json_mode)
 }

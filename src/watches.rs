@@ -5,12 +5,14 @@ use anyhow::Result;
 
 pub(crate) mod authorization;
 mod cancel;
+mod command_output;
 pub(crate) mod execution;
 pub(crate) mod launch;
 pub(crate) mod lease;
 pub(crate) mod process;
 pub(crate) mod recovery;
 mod start;
+pub(crate) mod tail;
 
 pub fn endpoint(tenant: &str, project_name: &str) -> String {
     format!("/api/v1/tenants/{tenant}/projects/{project_name}")
@@ -26,7 +28,7 @@ pub fn run(
 ) -> Result<()> {
     let global = matches!(
         &action,
-        WatchAction::List { .. } | WatchAction::Cancel { .. }
+        WatchAction::List { .. } | WatchAction::Cancel { .. } | WatchAction::Output { .. }
     );
     let project = if global {
         None
@@ -70,6 +72,9 @@ pub fn run(
             output::emit(&result, &watch_format::list(&result), json_output)
         }
         WatchAction::Cancel { id } => cancel::run(api, tenant, &path, &id, json_output),
+        WatchAction::Output { id, lines } => {
+            command_output::run(api, tenant, &path, &id, usize::from(lines), json_output)
+        }
         WatchAction::Run { id } => watch_runner::run(api, tenant, &path, &id),
     }
 }

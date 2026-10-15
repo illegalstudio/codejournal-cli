@@ -90,7 +90,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_data(b"<html>Private synthetic proxy error</html>", 503, "text/html")
                 return
             prefix = parsed.path.rsplit("/", 1)[-1]
-            matches = [watch for ident, watch in self.watches.items() if ident.startswith(prefix)
+            matches = [watch for ident, watch in self.watches.items() if ident.replace("-", "").startswith(prefix.replace("-", ""))
                        and ("host" not in query or watch.get("host") == query["host"][0])]
             if len(matches) != 1:
                 self.respond({"message": "Watch missing or ambiguous"}, 404 if not matches else 422)

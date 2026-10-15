@@ -9,12 +9,14 @@ pub struct SearchArgs {
     pub topic: Option<String>,
     #[arg(long)]
     pub path: Option<String>,
-    #[arg(long)]
+    #[arg(long, help = "Match any search term instead of requiring every term")]
     pub any: bool,
-    #[arg(long)]
+    #[arg(long, help = "Match full-text word prefixes")]
     pub prefix: bool,
     #[arg(long, requires = "query", conflicts_with_all = ["any", "prefix"], help = "Match the literal phrase, ignoring case and without stemming")]
     pub literal: bool,
+    #[arg(long, requires = "query", conflicts_with_all = ["any", "prefix"], help = "Match a literal word or phrase with whole-word boundaries, ignoring case")]
+    pub whole_word: bool,
     #[arg(long, alias = "all")]
     pub all_statuses: bool,
     #[arg(short, long, help = "Include entry bodies and full record metadata")]
