@@ -4,6 +4,8 @@ use serde_json::Value;
 use std::io::Read;
 use std::path::PathBuf;
 
+pub(crate) mod delegation_timestamps;
+
 pub fn run(event: &str, kind: Option<&str>) -> Result<()> {
     if std::env::var("CODE_JOURNAL_HOOKS").as_deref() == Ok("off") {
         return Ok(());
@@ -45,14 +47,19 @@ fn delegation(kind: &str, payload: &Value) -> Result<()> {
         std::env::set_current_dir(cwd).ok()?;
         project::slug(None).ok()
     });
-    let event = serde_json::json!({"type": "delegation", "kind": kind,
+    let timestamp = payload
+        .get("at")
+        .filter(|value| value.is_string() || value.is_number())
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!(chrono::Utc::now().to_rfc3339()));
+    let mut event = serde_json::json!({"type": "delegation", "kind": kind,
         "session": id, "agent": "delegation", "project": project,
         "project_explicit": payload["project"].as_str().is_some(),
         "host": payload["machine"].as_str(), "cwd": cwd,
-        "ts": payload["at"].as_str().map(str::to_owned)
-            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+        "ts": timestamp,
         "delegation_id": id, "delegation": snapshot, "sender": payload["sender"],
         "detail": payload["detail"], "delegation_host": payload["host"]});
+    delegation_timestamps::normalize(&mut event)?;
     outbox::enqueue(event)?;
     outbox::spawn_flush()
 }

@@ -30,6 +30,7 @@ pub fn run(api: &Api, tenant: &str) -> Result<usize> {
         let mut events = Vec::new();
         for (_, original) in &batch {
             let mut event = original.clone();
+            crate::hook::delegation_timestamps::normalize(&mut event)?;
             if let Some(fields) = event.as_object_mut() {
                 fields.remove("origin");
             }
