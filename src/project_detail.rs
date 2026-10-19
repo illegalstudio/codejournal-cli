@@ -111,7 +111,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn detail_includes_python_project_fields() {
+    fn detail_includes_project_metadata() {
         let project = json!({
             "slug": "team-app", "name": "App", "remote_url": null, "id": "p1",
             "created_at": "2026-01-01", "rules_updated_at": null,

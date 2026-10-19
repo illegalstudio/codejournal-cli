@@ -31,11 +31,6 @@ pub fn run() -> Result<()> {
         return hook_setup::run(action, cli.json);
     }
     if let Command::Setup(args) = &cli.command {
-        if args.database.is_some() || args.sync_url.is_some() || args.auth_token.is_some() {
-            anyhow::bail!(
-                "Turso setup options are no longer used; run `cj login` for the hosted journal"
-            );
-        }
         return match &args.action {
             Some(action) => setup_agents::run(action),
             None => login::run(cli.server.as_deref()),

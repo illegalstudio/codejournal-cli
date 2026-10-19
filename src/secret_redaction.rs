@@ -93,7 +93,7 @@ mod tests {
     }
 
     #[test]
-    fn matches_python_secret_families() {
+    fn masks_supported_credential_families() {
         let samples = [
             ("github token", format!("github_pat_{}", "a".repeat(22))),
             ("aws access key", format!("AKIA{}", "ABCDEFGHIJKLMNOP")),

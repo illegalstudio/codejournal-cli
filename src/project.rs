@@ -150,7 +150,7 @@ mod tests {
     }
 
     #[test]
-    fn remote_identity_matches_python_normalization() {
+    fn remote_identity_canonicalizes_supported_git_urls() {
         for (remote, expected) in [
             (
                 "git@github.com:illegalstudio/codejournal.git",
@@ -175,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn identity_slugs_match_python_for_short_and_dotted_paths() {
+    fn identity_slugs_handle_short_and_dotted_paths() {
         assert_eq!(slug_from_identity("example.com/repo"), "repo");
         assert_eq!(slug_from_identity("gitlab.com/group/sub/repo"), "sub-repo");
         assert_eq!(

@@ -129,12 +129,7 @@ pub fn write(path: &Path, settings: &Value) -> Result<Option<String>> {
 }
 
 fn is_ours(item: &Value) -> bool {
-    item["command"].as_str().is_some_and(|command| {
-        crate::hook_command::owned(command)
-            || ["claude", "codex"].into_iter().any(|agent| {
-                hook_events::ALL
-                    .into_iter()
-                    .any(|event| command.contains(&format!("code-journal-hook {agent} {event}")))
-            })
-    })
+    item["command"]
+        .as_str()
+        .is_some_and(crate::hook_command::owned)
 }

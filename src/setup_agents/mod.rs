@@ -15,12 +15,6 @@ const SKILL: &str = include_str!("../../skill/SKILL.md");
 pub struct SetupArgs {
     #[command(subcommand)]
     pub action: Option<SetupAction>,
-    #[arg(long)]
-    pub database: Option<String>,
-    #[arg(long)]
-    pub sync_url: Option<String>,
-    #[arg(long)]
-    pub auth_token: Option<String>,
 }
 
 #[derive(Subcommand)]
