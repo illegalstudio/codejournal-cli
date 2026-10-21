@@ -70,7 +70,17 @@ pub fn run(
         api.patch(&format!("{path}/{actual}"), &json!({"status": "cancelled"}))?;
         bail!("the server does not support managed watch IDs; no command was executed");
     }
-    let mut started = launch::run(api, tenant, project, &id)?;
+    let mut started = match launch::run(api, tenant, project, &id) {
+        Ok(started) => started,
+        Err(error) => {
+            if json_output
+                && let Some(failure) = error.downcast_ref::<launch::diagnostics::StartupFailure>()
+            {
+                output::json(&failure.0)?;
+            }
+            return Err(error);
+        }
+    };
     let delivery = notification_delivery::available()?;
     started["delivery"] = delivery.clone();
     if json_output {

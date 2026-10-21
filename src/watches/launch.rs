@@ -7,6 +7,8 @@ use std::fs::{self, OpenOptions};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+pub(crate) mod diagnostics;
+
 pub fn run(api: &Api, tenant: &str, project: &str, id: &str) -> Result<Value> {
     let lock = OpenOptions::new()
         .write(true)
@@ -84,8 +86,5 @@ pub fn run(api: &Api, tenant: &str, project: &str, id: &str) -> Result<Value> {
         .map(|error| format!(": {error}"))
         .unwrap_or_default();
     let _ = fs::remove_file(failure);
-    bail!(
-        "watch did not start{diagnostic}; inspect {}. Any unused local authorization is retained for cj sync",
-        log.display()
-    )
+    Err(diagnostics::failure(api, tenant, &path, id, &log, &diagnostic)?.into())
 }

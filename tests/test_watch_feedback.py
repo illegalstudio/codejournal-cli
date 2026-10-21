@@ -39,6 +39,10 @@ class WatchFeedbackTest(WatchCase):
         result = subprocess.run([self.binary, "--project", "p", "--json", "watch", "start", "--title", "Approved", "--", "true"],
                                 env=self.env, cwd=ROOT, capture_output=True, text=True, timeout=15)
         self.assertNotEqual(result.returncode, 0)
+        diagnostic = json.loads(result.stdout)
+        self.assertFalse(diagnostic['startup_confirmed'])
+        self.assertIsNone(diagnostic['started'])
+        self.assertEqual(diagnostic['local_authorization'], 'consumed_or_unavailable')
         watch = next(iter(Handler.watches.values()))
         state = pathlib.Path(self.temp.name) / "state" / "codejournal" / "watches"
         deadline = time.monotonic() + 3
