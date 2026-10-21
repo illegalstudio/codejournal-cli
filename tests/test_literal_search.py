@@ -45,3 +45,18 @@ class LiteralSearchTest(AuditCase):
             result = self.cli(*args)
             self.assertNotEqual(result.returncode, 0)
         self.assertEqual(Handler.calls, [])
+
+    def test_noisy_substring_results_suggest_whole_word_search_in_text_and_json(self):
+        def noisy(handler):
+            handler.reply(200, {'entries': [{'id': RESOURCE, 'title': 'Surrounding checks', 'kind': 'howto',
+                                             'status': 'active', 'match_excerpt': 'surrounding behavior'}]})
+        with patch.object(Handler, 'do_GET', noisy):
+            result = self.cli('--json', 'search', 'rounding', '--literal', '--all-projects')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('--whole-word', json.loads(result.stdout)['notices'][0])
+            self.assertIn('--whole-word', self.cli('search', 'rounding', '--literal', '--all-projects').stdout)
+        def exact(handler):
+            handler.reply(200, {'entries': [{'id': RESOURCE, 'title': 'Rounding checks', 'status': 'active'}]})
+        with patch.object(Handler, 'do_GET', exact):
+            result = self.cli('--json', 'search', 'rounding', '--literal', '--all-projects')
+            self.assertEqual(json.loads(result.stdout)['notices'], [])
