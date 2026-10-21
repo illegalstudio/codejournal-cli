@@ -37,7 +37,7 @@ fn batches(
     let paths = git_paths::observe(entries, root);
     if paths.len() > MAX_PATHS
         || paths.iter().any(|row| {
-            ["branches", "commits"].iter().any(|key| {
+            ["branches", "commits", "worktrees"].iter().any(|key| {
                 row[key]
                     .as_array()
                     .is_some_and(|items| items.len() > MAX_CANDIDATES)

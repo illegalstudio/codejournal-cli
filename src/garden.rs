@@ -1,12 +1,13 @@
 use crate::{api::Api, output, project_bootstrap};
 use anyhow::{Result, bail};
-use serde_json::{Value, json};
+use serde_json::json;
 
 pub(crate) mod args;
 mod code_hash;
 mod directory_files;
 mod format;
 mod legacy;
+mod queue;
 mod review;
 mod scan;
 mod scan_batches;
@@ -18,13 +19,13 @@ pub fn run(
     mut args: args::GardenArgs,
     json_mode: bool,
 ) -> Result<()> {
-    if api.offline() && !args.dry_run {
+    if api.offline() && !args.dry_run && !args.pending {
         bail!("Garden needs an online connection; use --dry-run for a cached preview");
     }
     let slug = project_bootstrap::resolved_slug(api, tenant, project)?;
     let base = format!("/api/v1/tenants/{tenant}/projects/{slug}");
     if let Some(args::GardenAction::Review(action)) = args.action.take() {
-        if args.dry_run || args.all || args.after.is_some() || args.limit != 5 {
+        if args.dry_run || args.all || args.after.is_some() || args.pending || args.limit != 5 {
             bail!("List options cannot be combined with garden review");
         }
         return review::run(api, &base, action, json_mode);
@@ -37,7 +38,7 @@ pub fn run(
     let mut result = match api.get(&path) {
         Ok(value) if value["findings"].is_array() && value["counts"].is_object() => value,
         Ok(_) => {
-            if args.after.is_some() {
+            if args.after.is_some() || args.pending {
                 bail!("This server does not support persistent garden reviews");
             }
             return legacy::run(
@@ -61,7 +62,7 @@ pub fn run(
                     .contains(&response.status)
                 }) =>
         {
-            if args.after.is_some() {
+            if args.after.is_some() || args.pending {
                 bail!("This server does not support persistent garden reviews");
             }
             return legacy::run(
@@ -81,7 +82,10 @@ pub fn run(
     let mut partial = false;
     let mut snapshots =
         json!({"code_scan_partial": false, "snapshot_failure_count": 0, "scan_failures": []});
-    if !api.offline() && args.after.is_none() {
+    if !api.offline() && args.after.is_none() && !args.pending {
+        eprintln!(
+            "Garden: scanning project references; use cj garden --pending for the stored queue without a scan."
+        );
         if !args.dry_run {
             applied =
                 api.post(&format!("{base}/garden/maintenance"), &json!({}))?["applied"].clone();
@@ -97,13 +101,13 @@ pub fn run(
             snapshots[key] = scan[key].clone();
         }
         result = if args.dry_run {
-            preview(scan, args.limit as usize, args.all)
+            queue::preview(scan, args.limit as usize, args.all)
         } else {
             api.get(&path)?
         };
     }
     if args.all && !args.dry_run {
-        complete(api, &base, &mut result)?;
+        queue::complete(api, &base, &mut result)?;
     }
     result["project"] = json!(slug);
     result["dry_run"] = json!(args.dry_run);
@@ -125,36 +129,9 @@ pub fn run(
                 || result["counts"]["pending"].as_u64().unwrap_or(0)
                     <= result["findings"].as_array().map_or(0, Vec::len) as u64)
     );
+    anyhow::ensure!(
+        result["findings"].is_array() && result["counts"].is_object(),
+        "the server returned an invalid garden report; retry cj garden --pending --json"
+    );
     output::emit(&result, &format::render(&result), json_mode)
-}
-
-fn preview(mut result: Value, limit: usize, all: bool) -> Value {
-    let mut rows = result["findings"].as_array().cloned().unwrap_or_default();
-    if !all {
-        rows.truncate(limit);
-    }
-    result["next"] = Value::Null;
-    result["findings"] = json!(rows);
-    if let Some(value) = result.as_object_mut() {
-        value.remove("reviewed");
-        value.remove("deferred");
-    }
-    result
-}
-
-fn complete(api: &Api, base: &str, result: &mut Value) -> Result<()> {
-    let mut rows = result["findings"].as_array().cloned().unwrap_or_default();
-    let mut next = result["next"].as_str().map(str::to_owned);
-    let mut seen = std::collections::HashSet::new();
-    while let Some(after) = next {
-        if !seen.insert(after.clone()) {
-            bail!("Invalid garden continuation");
-        }
-        let page = api.get(&format!("{base}/garden/review?limit=25&after={after}"))?;
-        rows.extend(page["findings"].as_array().into_iter().flatten().cloned());
-        next = page["next"].as_str().map(str::to_owned);
-    }
-    result["findings"] = json!(rows);
-    result["next"] = Value::Null;
-    Ok(())
 }

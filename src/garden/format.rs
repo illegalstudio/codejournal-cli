@@ -82,6 +82,7 @@ pub fn render(data: &Value) -> String {
         lines.push("Complete preview: cj garden --dry-run --all. Run cj garden to persist a resumable queue.".into());
     }
     lines.push("After verifying or fixing one finding: cj garden review ID --outcome verified --note \"evidence\". Use corrected, superseded, obsolete, dismissed or deferred when appropriate.".into());
+    lines.push("To defer: cj garden review ID --outcome deferred --until 2027-01-01T00:00:00Z --note \"reason\" (use a future date). Fast queue read without a scan: cj garden --pending.".into());
     if data["partial"] == true {
         lines.push("Topic analysis is partial; other findings remain reviewable. Explicit topic merges remain available with cj topics merge.".into());
     }

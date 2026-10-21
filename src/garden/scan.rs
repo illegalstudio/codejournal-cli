@@ -14,6 +14,11 @@ pub fn run(api: &Api, base: &str, preview: bool) -> Result<Value> {
     let mut failures = Vec::new();
     let mut result = loop {
         let data = api.get(&format!("{base}/garden?page={page}&review=1"))?;
+        eprintln!(
+            "Garden: scanning page {page} ({} entries, {} docs).",
+            data["entries"].as_array().map_or(0, Vec::len),
+            data["docs"].as_array().map_or(0, Vec::len)
+        );
         let next = data["next_page"].as_u64();
         if next.is_some_and(|next| next <= page) {
             bail!("invalid garden pagination");

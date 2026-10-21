@@ -3,6 +3,8 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+mod worktrees;
+
 pub fn observe(entries: &[Value], root: &Path) -> Vec<Value> {
     let mut paths: BTreeMap<String, (BTreeSet<String>, BTreeSet<String>)> = BTreeMap::new();
     for entry in entries {
@@ -32,6 +34,7 @@ pub fn observe(entries: &[Value], root: &Path) -> Vec<Value> {
         return Vec::new();
     }
     let default = default_branch();
+    let worktrees = worktrees::active(root);
     paths
         .iter()
         .filter_map(|(path, (branches, commits))| {
@@ -53,7 +56,7 @@ pub fn observe(entries: &[Value], root: &Path) -> Vec<Value> {
                     || object_has_path(&format!("origin/{branch}"), checkout)
             });
             Some(
-                json!({"path": path, "present": present, "branches": branches,
+                json!({"path": path, "present": present, "branches": branches, "worktrees": worktrees::containing(&worktrees, checkout),
             "commits": commits, "default": default}),
             )
         })

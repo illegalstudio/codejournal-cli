@@ -13,6 +13,9 @@ pub struct GardenArgs {
     /// Continue an existing scan after this finding UUID.
     #[arg(long, conflicts_with = "dry_run", value_parser = continuation)]
     pub after: Option<String>,
+    /// Read the stored review queue without rescanning code or applying maintenance.
+    #[arg(long, conflicts_with = "dry_run")]
+    pub pending: bool,
     #[command(subcommand)]
     pub action: Option<GardenAction>,
 }
@@ -32,7 +35,7 @@ pub struct ReviewArgs {
     /// Evidence for the decision, or what changed and where.
     #[arg(long, value_parser = note)]
     pub note: String,
-    /// Future timestamp for a deferred review, for example 2026-10-14T00:00:00Z.
+    /// Required with --outcome deferred: a future timestamp, for example 2027-01-01T00:00:00Z.
     #[arg(long, required_if_eq("outcome", "deferred"))]
     pub until: Option<String>,
     #[arg(long)]
