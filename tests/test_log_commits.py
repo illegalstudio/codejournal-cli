@@ -43,21 +43,21 @@ class LogCommitsTest(unittest.TestCase):
         logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
         self.assertEqual(logs[-1]["refs"], [])
 
-    def test_same_shell_requires_explicit_head_before_hook(self):
+    def test_uncaptured_head_is_explicitly_omitted_without_blocking_logs(self):
         import json
         import subprocess
         case = self.fixture
         sha, output = self.commit()
         status = subprocess.run([case.binary, "--json", "status"], cwd=case.repo,
             env=case.env, capture_output=True, text=True, check=True)
-        self.assertIn("changed HEAD", json.loads(status.stdout)["notices"][0])
+        self.assertIn("HEAD changed", json.loads(status.stdout)["notices"][0])
         for _ in range(2):
             failed = subprocess.run([case.binary, "log", "add", "--title", "Done", "--body", "Done"],
                 cwd=case.repo, env=case.env, capture_output=True, text=True)
-            self.assertNotEqual(failed.returncode, 0)
-            self.assertIn("--ref commit:HEAD", failed.stderr)
-            self.assertIn("Repeating the command alone cannot recover missing hook data", failed.stderr)
-        self.assertFalse(any(path.endswith("/logs") for path, _ in sessions.Handler.calls))
+            self.assertEqual(failed.returncode, 0)
+            self.assertIn("--ref commit:HEAD", failed.stdout)
+            self.assertIn("No commits were inferred", failed.stdout)
+        self.assertTrue(all(body["refs"] == [] for path, body in sessions.Handler.calls if path.endswith("/logs")))
         case.cli("log", "add", "--title", "Done", "--body", "Done", "--ref", "commit:HEAD")
         logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
         self.assertEqual(logs[-1]["refs"], [{"kind": "commit", "value": sha}])

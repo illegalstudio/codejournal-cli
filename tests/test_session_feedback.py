@@ -31,9 +31,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             response = {"project": {"slug": Handler.canonical or body["slug"]}}
         elif self.path.endswith("/brief"):
             response = {"project": {"slug": "p"}, "counts": {}, "rules": "Test rule"}
+        elif self.path.endswith("/logs"):
+            response = {"log": dict(body, id="cccccccc-cccc-4ccc-8ccc-cccccccccccc", revision=1)}
         else:
             response = {"ok": True}
         data = json.dumps(response).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_PATCH(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        self.calls.append((self.path, body))
+        data = json.dumps({"log": {"id": self.path.split('/')[-2], "revision": body.get("based_on", 0) + 1}}).encode()
         self.send_response(200)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()

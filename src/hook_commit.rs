@@ -18,24 +18,14 @@ pub fn record(payload: &Value, cwd: &Path, state: &mut session_state::SessionSta
         .or_else(|| response.as_str())
         .or_else(|| payload["tool_output"].as_str())
         .unwrap_or("");
-    let success = response["exit_code"]
-        .as_i64()
-        .or_else(|| response["exitCode"].as_i64())
-        .or_else(|| response["code"].as_i64())
-        == Some(0);
-    let commit = session_git::commit_from_output(&target, output).or_else(|| {
-        if success {
-            session_git::head(&target)
-        } else {
-            None
-        }
-    });
+    let commit = session_git::commit_from_output(&target, output);
     if let Some(sha) = commit {
         if let Some(checkout) = session_git::checkout(&target) {
             state.commit_checkouts.insert(sha.clone(), checkout);
         }
         if !state.commits.contains(&sha) {
-            state.commits.push(sha);
+            state.commits.push(sha.clone());
+            state.turn_commits.push(sha);
         }
     }
 }

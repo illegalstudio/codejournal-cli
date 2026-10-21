@@ -14,6 +14,8 @@ pub struct SessionState {
     pub project: Option<String>,
     pub repo_common: Option<String>,
     pub commits: Vec<String>,
+    pub turn_commits: Vec<String>,
+    pub log_ids: Vec<String>,
     pub commit_checkouts: HashMap<String, String>,
     pub logged: Vec<String>,
     pub agent: String,

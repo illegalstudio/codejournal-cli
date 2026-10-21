@@ -5,6 +5,7 @@ use serde_json::json;
 pub fn run(api: &Api, tenant: &str, args: LogUpdateArgs, json_mode: bool) -> Result<()> {
     let references = refs::parse_all(&args.refs)?;
     let has_body = args.body.is_some() || args.body_file.is_some();
+    let content_change = has_body || args.status.is_some();
     let mut payload = json!({});
     if args.clear_refs || !args.refs.is_empty() {
         payload["refs"] = json!(references);
@@ -34,6 +35,9 @@ pub fn run(api: &Api, tenant: &str, args: LogUpdateArgs, json_mode: bool) -> Res
             result["log"]["revision"].as_u64() == Some(u64::from(base) + 1),
             "the server did not confirm the protected log amendment; inspect the current log before retrying"
         );
+        if content_change {
+            crate::log_commits::amendment(id)?;
+        }
     }
     let text = if args.base.is_some() {
         format!(

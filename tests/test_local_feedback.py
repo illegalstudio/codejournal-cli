@@ -80,7 +80,7 @@ class LocalFeedbackTest(unittest.TestCase):
         output = self.git("commit", "-m", "Updated")
         sha = self.git("rev-parse", "HEAD")
         failed = self.cli("--offline", "log", "add", "--title", "Done", "--body", "Done", check=False)
-        self.assertNotEqual(failed.returncode, 0)
+        self.assertEqual(failed.returncode, 0)
         self.assertIn("--ref commit:HEAD", failed.stderr)
         self.cli("--offline", "log", "add", "--title", "Done", "--body", "Done", "--ref", "commit:HEAD")
         self.cli("hook", "PostToolUse", payload=dict(payload, tool_input={"command": "git commit -m Updated; cj log add"},
@@ -89,8 +89,9 @@ class LocalFeedbackTest(unittest.TestCase):
         self.cli("--offline", "log", "add", "--title", "Next", "--body", "Next")
         requests = [json.loads(path.read_text()) for path in sorted((self.base / "state").rglob("requests/*.json"))]
         requests = [request for request in requests if request["path"].endswith("/logs")]
-        self.assertEqual(requests[0]["body"]["refs"], [{"kind": "commit", "value": sha}])
-        self.assertEqual(requests[1]["body"]["refs"], [])
+        self.assertEqual(requests[0]["body"]["refs"], [])
+        self.assertEqual(requests[1]["body"]["refs"], [{"kind": "commit", "value": sha}])
+        self.assertEqual(requests[2]["body"]["refs"], [])
 
     def test_session_start_warns_before_first_write_when_token_is_unavailable(self):
         self.env.pop("CJ_TOKEN")

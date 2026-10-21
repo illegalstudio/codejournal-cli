@@ -75,10 +75,12 @@ pub fn stop(payload: &Value, cwd: &Path, state: &mut session_state::SessionState
     } else {
         &state.turn_started_at
     };
-    let moved = state
-        .turn_head
-        .as_ref()
-        .is_some_and(|old| session_git::head(cwd).is_some_and(|head| &head != old));
+    let checkout = session_git::checkout(cwd);
+    let moved = state.turn_commits.iter().any(|sha| {
+        !state.logged.contains(sha)
+            && state.commit_checkouts.get(sha) == checkout.as_ref()
+            && session_git::reachable(cwd, sha)
+    });
     let logged = state.last_log_at.as_ref().is_some_and(|at| at >= turn);
     if (state.turn_files.is_empty() && !moved)
         || logged

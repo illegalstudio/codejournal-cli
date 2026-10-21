@@ -35,6 +35,7 @@ fn add(
 ) -> Result<()> {
     let body = input::body(args.body, args.body_file)?;
     let linked = log_commits::pending(&args.refs, args.no_auto_commits)?;
+    let notice = log_commits::notice(&args.refs, args.no_auto_commits)?;
     let mut all_refs = args.refs;
     all_refs.extend(linked.iter().map(|sha| format!("commit:{sha}")));
     let parsed = refs::parse_all(&all_refs)?;
@@ -61,10 +62,13 @@ fn add(
             .downcast_ref::<crate::request_outbox::QueuedWrite>()
             .is_some()
     }) {
-        log_commits::record(&recorded)?;
+        if let Some(notice) = &notice {
+            eprintln!("Commit tracking: {notice}");
+        }
+        log_commits::record(&recorded, None)?;
     }
     let result = result?;
-    log_commits::record(&recorded)?;
+    log_commits::record(&recorded, result["log"]["id"].as_str())?;
     let log = &result["log"];
     let id = log["id"].as_str().unwrap_or("").replace('-', "");
     let mut text = format!(
@@ -80,5 +84,12 @@ fn add(
             linked.join(", ")
         ));
     }
-    output::emit(&json!({"log": log, "queued": false}), &text, json_mode)
+    if let Some(notice) = &notice {
+        text.push_str(&format!("\n{notice}"));
+    }
+    output::emit(
+        &json!({"log": log, "queued": false, "notices": notice.iter().collect::<Vec<_>>()}),
+        &text,
+        json_mode,
+    )
 }

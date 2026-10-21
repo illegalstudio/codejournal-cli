@@ -59,6 +59,7 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
             state.turn_started_at = now.clone();
             state.turn_head = session_git::head(cwd);
             state.turn_files.clear();
+            state.turn_commits.clear();
             state.reminded_turn = None;
             let source = payload["source"].as_str().unwrap_or("startup");
             queue(&base, "start", "source", json!(source))?;
@@ -68,6 +69,7 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
             state.turn_started_at = now.clone();
             state.turn_head = session_git::head(cwd);
             state.turn_files.clear();
+            state.turn_commits.clear();
             state.reminded_turn = None;
             state.waiting = false;
             queue(&base, "prompt", "", Value::Null)?;
