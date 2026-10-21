@@ -102,7 +102,9 @@ fn delegation_link(payload: &Value) -> Option<String> {
     let command = payload["tool_input"]["command"]
         .as_str()
         .or_else(|| payload["tool_input"]["cmd"].as_str())?;
-    if !command.contains("delegate") || !command.contains(" start") {
+    if (!command.contains("delegate") && !command.contains("delegation"))
+        || !command.contains(" start")
+    {
         return None;
     }
     let output = payload["tool_response"]["stdout"]

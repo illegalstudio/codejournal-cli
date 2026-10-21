@@ -1,3 +1,4 @@
+mod delegation;
 mod files;
 mod install;
 mod instructions;

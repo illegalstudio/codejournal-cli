@@ -24,6 +24,7 @@ fs2 = "0.4"
 keyring = { package = "keyring-core", version = "1" }
 libc = "0.2"
 regex = "1"
+rusqlite = { version = "0.37", features = ["bundled"] }
 sha2 = "0.10"
 shell-words = "1"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }

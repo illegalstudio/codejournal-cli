@@ -28,6 +28,7 @@ mod cli_parse;
 mod codex_rules;
 mod commands;
 mod config;
+mod delegation;
 mod desktop_delivery;
 mod digest;
 mod digest_format;

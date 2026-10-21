@@ -13,6 +13,8 @@ Code Journal records belong to physical projects: a Git repository, or a plain f
 
 ## Start
 
+For a user-requested delegation to another provider, use the installed `code-journal-delegation` skill or read `cj delegation guide`. The broker, supervisor, six provider adapters and MCP tools ship in `cj`; do not invoke external broker scripts. A guest identified by `CJ_DELEGATION_ID` follows `code-journal-guest` or `cj delegation guide --guest`. `cj setup agents --refresh` refreshes these embedded skills alongside this one.
+
 The CLI repository and installation guide are at https://github.com/illegalstudio/codejournal-cli. Check the installed release with `cj --version`. Every API request identifies that release; the server can require a newer version.
 
 Install with `brew install illegalstudio/tap/codejournal-cli` or `mise use -g github:illegalstudio/codejournal-cli@latest`. Direct downloads and checksum instructions are at https://github.com/illegalstudio/codejournal-cli/releases.
@@ -75,7 +77,7 @@ The client links session commits where possible. Use `--no-auto-commits` when th
 
 Move an existing work log with `cj log move ID --to SLUG`, preserving its ID, timestamp, content, attribution, refs and plan link. Preview with `--dry-run` while online; previews never queue. `cj plan move ID --to SLUG --with-logs` transfers the plan and all linked live logs atomically, including logs left in earlier projects. Without that option, only the plan moves. Stored activity archives remain read-only, and every affected project must be writable.
 
-Read a previous work log with `cj log show LOG_ID`, or add `--body` for its body alone. `cj show` reads knowledge entries. For automatic commit linking, run the commit and the log in separate tool calls with enabled, trusted commit-tracking hooks so the post-tool hook can record the commit first. In one shell invocation, supply `--ref commit:HEAD` (resolved immediately to a full SHA) or an explicit SHA. If HEAD changed without being captured, retry with an explicit commit ref or `--no-auto-commits` to omit commits. Repeating the log command alone cannot recover missing hook data. A queued log reserves its commit refs too, avoiding duplicate automatic links. Correct an existing log with `cj log update LOG_ID --ref commit:SHA`; this replaces all refs, so include paths or URLs you want to retain. `--clear-refs` removes them. Archived logs are read-only.
+Read a previous work log with `cj log show LOG_ID`, or add `--body` for its body alone. `cj show` reads knowledge entries. For automatic commit linking, run the commit and the log in separate tool calls with enabled, trusted commit-tracking hooks so the post-tool hook can record the commit first. In one shell invocation, supply `--ref commit:HEAD` (resolved immediately to a full SHA) or an explicit SHA. An uncaptured HEAD change produces a notice without blocking log creation or inferring ownership. If it belongs to this session, use an explicit commit ref. Captured commit output is required for automatic attribution; a dry run or successful command alone does not establish ownership. A queued log reserves its commit refs too, avoiding duplicate automatic links. Correct an existing log with `cj log update LOG_ID --ref commit:SHA`; this replaces all refs, so include paths or URLs you want to retain. `--clear-refs` removes them. Archived logs are read-only.
 
 Amend a work log using `cj log update ID --base REVISION --body-file FILE --status done` after reading its current `revision` through `cj log show ID`. Body/status edits require the base; omitted refs and other content stay intact. An explicit empty body clears it. Ref-only changes retain the existing command, with an optional `--base` for protection. Amendments require the updated server. Offline requests keep their original base and conflicts remain pending; read the current log and review the difference instead of silently changing that base. Existing timestamps and attribution are preserved. Archived activity and archived projects remain read-only.
 
@@ -96,11 +98,15 @@ cj plan step ID 2 --undone
 
 Use `cj task add --to PROJECT` to forward work to another project. Keep longer plans and subsystem documentation in Code Journal and in repository files when the repository requires them.
 
-Checklist items are numbered from one in Markdown order, excluding fenced examples. Step updates send an atomic change with the current base revision; a concurrent edit returns a conflict instead of replacing the body. Read the plan again and retry after reviewing it.
+Task descriptions can be edited with `cj task edit ID --body TEXT` or `--body-file FILE`, requiring `--base BODY_VERSION` from `cj task show ID`. Conflicts preserve the current body and task identity. Confirmed content amendments of a log created in this session satisfy its Stop reminder; unrelated log and refs-only edits do not.
+
+Checklist items are numbered from one in Markdown order, excluding fenced examples. Both `- [ ]` and `1. [ ]` (including `1) [ ]`) are supported online and offline. Step updates send an atomic change with the current base revision; a concurrent edit returns a conflict instead of replacing the body. Read the plan again and retry after reviewing it.
 
 Plan statuses are `draft`, `active`, `done`, and `abandoned`; doc statuses are `draft`, `current`, and `outdated`. Help lists accepted statuses and feedback categories, and invalid values fail before an API request. Plan/doc show returns current content and lightweight revision counts by default, including JSON. Use `--revision N` for one specific version, `--history` for a paged index without old bodies, or `--all-revisions` to explicitly fetch all content within the server response budget. `--current-only` remains compatible. Updating a plan or doc with `--ref` replaces its entire ref list; omit the flag to retain existing refs.
 
 Plan/doc content reads and mutation confirmations show `body_size` in JSON and human-readable character counts. The cap is 100,000 Unicode characters; at 90,000, warnings suggest compacting current state while retaining historical numbered revisions. Measure the current or locally projected content, not the serialized JSON byte size. `show --body` remains plain Markdown; historical reads show size without urging edits to that old snapshot.
+
+For a large doc or plan use `show ID --section "Heading" --max-lines 80`, or `--max-lines N` alone. Selection excludes history, defaults to 200 lines, caps content at 16000 characters, and exposes line ranges, full size and truncation in `body_selection`. It requires an updated server. Body updates trim outer whitespace and remove duplicate leading title headings; compare confirmed canonical content.
 
 ## Active discovery and detail
 
@@ -112,7 +118,7 @@ Use `cj feedback show ID` to retrieve just one complete report, including resolv
 
 ## Incremental maintenance
 
-When the brief says maintenance is due or reviews are pending, run `cj garden` and work through its small batch. The default is five pending findings, prioritized by severity. A scan and safe automatic repairs do not count as reviewing the content. Read the target entry, doc or plan and check the cited implementation before deciding.
+When the brief says maintenance is due or reviews are pending, run `cj garden` and work through its small batch. For a quick read without a scan or repairs, use `cj garden --pending`; full scans emit page progress on stderr and preserve structured JSON on stdout. The default is five pending findings, prioritized by severity. A scan and safe automatic repairs do not count as reviewing the content. Read the target entry, doc or plan and check the cited implementation before deciding.
 
 Duplicate candidates require the same normalized title terms, including subject names and identifiers. Reordered words and inflections can match; shared title templates with different subjects do not suffice. This conservative detector does not find every paraphrase.
 
@@ -133,6 +139,8 @@ Reviewed evidence stays suppressed across sessions, unrelated commits and commit
 ## Notifications and offline work
 
 Online commands and hooks automatically resume credential-scoped writes and hook events in a detached worker. Transient failures back off and honor server retry delays; the next online command/hook restarts recovery after a machine restart. `cj status` shows separate write/event counts, age, last success, next retry and blockers. New writes join older pending requests in order. Explicit `--offline` does not wake a worker; `CODE_JOURNAL_AUTO_SYNC=off` prevents automatic startup. Existing workers continue independently. Unbound older requests require explicit `cj sync` under their original account. Permanent rejections, required upgrades and expired retry windows stay pending and need attention. Background delivery never runs watched commands; their explicit recovery protocol below remains required.
+
+Unbound hook events are distinct from older requests: neither background delivery nor `cj sync` sends them. Status separates current-account, other-account, unbound and unknown hook scopes. Inspect them without authentication with `cj outbox hooks list`; `--body` adds redacted payloads. Verify the original account before explicitly binding one event with `cj outbox hooks bind ID --to-current-account`, then run `cj sync`. Binding never reassigns already-bound events. `cj outbox hooks drop ID` permanently discards only that hook, without authentication. Both mutations require a full ID or unique prefix of at least eight hexadecimal characters and respect the delivery lock. Preserve events when their original account is uncertain.
 
 Use `cj watch output ID [--lines N]` for a bounded snapshot of stdout/stderr (40 lines by default, at most 200). It reads verified local output on the original host and credential scope, or a stored server tail. Output source, verified runner PID and local file update time are explicit. Lease renewal is contact, not command progress. Offline reads require a cached detail lookup for the same ID or prefix; cached metadata may accompany fresh local output. Do not discover private state paths to inspect progress.
 

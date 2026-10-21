@@ -22,7 +22,7 @@
   The open-source <code>cj</code> client connects developers and AI coding agents to Code Journal.
   Capture discoveries, maintain plans and tasks, and carry useful context from one session to the next.
   The hosted service owns journal storage and business rules; this client handles terminal commands,
-  local Git observations, agent hooks, and offline delivery.
+  local Git observations, agent hooks, durable delegations, and offline delivery.
 </p>
 
 <p align="center">
@@ -122,6 +122,28 @@ cj setup agents --agent opencode --uninstall
 
 `cj hooks install` and `cj hooks uninstall` also accept `--agent opencode` to manage only the plugin. Refresh updates CJ-owned files; customized files are preserved and reported. Keep `cj` authenticated and on your PATH. The integration was validated with OpenCode 1.18.31. OpenCode's `--pure` mode disables external plugins; `CODE_JOURNAL_HOOKS=off` disables CJ hook activity. Native [skill permissions](https://opencode.ai/docs/skills/) and existing tool permissions still apply.
 
+## Delegate to another agent
+
+The delegation broker, supervisor, provider adapters and MCP server are built into `cj`. Install and authenticate the provider CLI you want to use: Claude Code (`claude`), Codex (`codex`), Cursor (`agent` or `cursor-agent`), Grok (`grok`), Kimi Code (`kimi`) or Pi (`pi`). Delegation uses that provider's account and subscription. It does not require Python or any separate broker installation.
+
+```sh
+cj delegation start codex --cwd "$PWD" --mode read-only --prompt 'Review the login flow and report findings'
+cj delegation wait ID --timeout 30
+cj delegation answer ID --reply-to SEQ --body 'Use the documented behavior'
+cj delegation result ID --timeout 30
+cj delegation status ID
+```
+
+The default is read-only. Durable starts preserve messages and checkpoints across CLI exits. A guest completes only by publishing an explicit result; stdout alone is diagnostic. `recover ID` keeps the session history and fences older attempts; `cancel ID` stops the confirmed owned run. Live guests block duplicate recovery.
+
+Temporary local database contention is retried without rerunning the task; a busy supervisor keeps its guest alive. If a previous version left a session stalled, `recover ID` restarts that session after its recorded processes have exited.
+
+`--mode write` requires a clean Git checkout and retains its writer lock through host review, a host commit and `cj delegation integrate ID`. The guest must publish a diff checkpoint and receive host approval before finishing. It cannot commit or push. Use `cj delegation models TARGET` to inspect model options, and `run TARGET --dry-run --prompt TEXT` to inspect arguments without launching a guest.
+
+`cj setup agents --refresh` installs the embedded `code-journal-delegation` and `code-journal-guest` instructions for configured agents. They are also available through `cj delegation guide` and `guide --guest`. Local delegation works without a journal login; hosted lifecycle events use the account captured at creation and queue when unavailable. Explicit `--offline` keeps delivery local.
+
+To import existing local delegation history, finish any active legacy workers, stop their idle broker and run `cj delegation migrate --from /path/to/delegations.sqlite3`. The importer preserves IDs and history and never changes the original database. It requires an empty native store unless you add `--merge`: this leaves existing native sessions unchanged and translates imported event cursors, replies and acknowledgements together. Conflicting session IDs are rejected. `cj delegation --help` lists messaging, MCP and cleanup commands.
+
 ## Update
 
 Use the same package manager that installed the CLI:
@@ -171,7 +193,7 @@ cj garden --all
 cj garden --dry-run
 ```
 
-Use `--limit N` for 1 to 25 findings. `--after` continues the stored queue without rescanning; `--all` requests the complete pending output. `--dry-run --all` previews everything without writes. A review needs an evidence note and supports `verified`, `corrected`, `superseded`, `obsolete`, `dismissed` or `deferred`; deferral also requires `--until` with a future timestamp. Correct the underlying content with its normal command first. Reviewed evidence stays hidden until the relevant knowledge or files change, and pending counts remain in the brief. Older servers provide a bounded report and explicitly identify unavailable persistent reviews.
+Use `cj garden --pending` for the stored queue without a new scan or maintenance. Full scans print page progress on stderr while JSON stays on stdout. Use `--limit N` for 1 to 25 findings. `--after` continues the stored queue without rescanning; `--all` requests the complete pending output. `--dry-run --all` previews everything without writes. A review needs an evidence note and supports `verified`, `corrected`, `superseded`, `obsolete`, `dismissed` or `deferred`; deferral also requires `--until` with a future timestamp. Correct the underlying content with its normal command first. Reviewed evidence stays hidden until the relevant knowledge or files change, and pending counts remain in the brief. Older servers provide a bounded report and explicitly identify unavailable persistent reviews.
 
 Garden only suggests duplicate entries when titles have the same normalized content terms, allowing reordered words and inflections. A shared sentence template with a different package, host, version or other title term is insufficient. Review candidates before superseding any entry.
 
@@ -217,9 +239,13 @@ Search results include a short matching excerpt. Use `cj search "liveness" --lit
 
 Use `cj search "repl" --whole-word` to match `REPL` without matching `replacement`, `replies` or `replay`. It matches a literal word or phrase without stemming; adjacent letters, digits and underscores prevent a match. It can combine with `--literal`, but not `--any` or `--prefix`, and requires an updated server. Literal substring matching remains available through `--literal` alone.
 
+Full-text and literal search results rank exact query-term coverage ahead of stemming-only matches, then prefer title coverage. For broad `--any` queries this keeps subsystem-specific results ahead of records matching only a common term. Noisy single-word results suggest `--whole-word` and `--topic`.
+
 Normal full-text searches require every term by default. When a multi-term query finds nothing, text output and JSON `notices` suggest `--any` to match at least one term while preserving the other filters.
 
 Empty knowledge queries also suggest a document search using `cj doc list --grep QUERY`. The suggested command keeps the selected project local, or retains an explicit `--all-projects` scope. It searches current documents without downloading their bodies automatically.
+
+Task descriptions can be edited without replacing the task. Read `cj task show ID` for its `body_version`, then use `cj task edit ID --body-file details.md --base BODY_VERSION` (or `--body TEXT`). A stale body version fails without changing the task or its history. An explicit empty body clears the description.
 
 ### Amend a work log
 
@@ -231,6 +257,8 @@ cj log update LOG_ID --base 1 --body-file revised-log.md --status done
 Use the current `revision` reported by `log show` for `--base`. Body and status edits require it; a stale base fails and preserves the existing record. Status accepts `done`, `in_progress` or `blocked`. An explicit empty body clears it. ID, creation time, title, attribution and plan link are retained; omitted fields, including refs, are retained. `--ref` replaces refs and `--clear-refs` clears them. Existing refs-only commands still work without `--base`; supplying it also protects ref changes.
 
 Amendments require the updated server. Offline amendments queue their original base and content; a conflict remains pending for you to review and is never rebased automatically. Work logs stored in activity archives, and logs belonging to archived projects, remain read-only.
+
+A confirmed content amendment of a log created in the same session satisfies its Stop reminder. Updating an unrelated log or only its refs does not. Commit tracking attributes captured commits only; an unknown HEAD change is reported as a notice and does not prevent recording the work. Use an explicit commit ref when the uncaptured commit belongs to this session.
 
 ### Plan and document size
 
@@ -299,17 +327,23 @@ A queued `request_id` identifies the synchronization request. Plan and document 
 ```bash
 cj status
 cj outbox list
+cj outbox hooks list
 cj sync
 cj outbox receipt REQUEST_ID
 ```
 
 `cj sync` can recover older dependencies through stored request receipts. It keeps requests pending when recovery cannot be verified. `cj status` reports a changed HEAD that commit hooks have not captured; use explicit `--ref commit:SHA` references for recovery.
 
+Hook events saved without configuration or credential access remain unbound. `cj status` explains these separately from another account's events, and `cj sync` preserves them. Inspect their project and date with `cj outbox hooks list` (add `--body` for redacted event bodies). After verifying the original account, use `cj outbox hooks bind EVENT_ID --to-current-account`, then `cj sync`. Binding preserves the event ID and payload and refuses already-bound events. To permanently discard a single hook instead, use `cj outbox hooks drop EVENT_ID`. Listing and dropping hooks require no login; both mutations accept a unique ID prefix of at least eight hexadecimal characters and refuse to race an active delivery.
+
 Checkout activity skips identical confirmed state for 15 minutes and sends real changes immediately. When earlier snapshots are waiting for delivery, later changes queue in order. Failed or uncertain requests retain their original IDs until acknowledged. Ordinary queued writes have a safe retry window of 90 days; older files remain pending so you can check existing records before resubmitting them. The server can release older saved responses to free space while retaining protection against duplicate writes. If a retry reports that its response was released, the request stays queued for verification; use `cj outbox receipt REQUEST_ID` for supported resource IDs before deciding how to reconcile it.
+
+Use `--section "Heading"` to read one Markdown section and its subsections, or `--max-lines N` to bound the body to 1-500 lines. Selection excludes history, defaults to 200 lines and caps content at 16,000 characters. JSON reports source line ranges, full body size and truncation; selected text never claims to be the whole document. These options require the updated server. Plan/doc writes trim outer whitespace and remove duplicate leading title headings; compare the returned canonical body when verifying an update.
 
 `cj plan show ID` and `cj doc show ID` return only the current version by default, including `--json`. Output reports the available revision count and current revision number without downloading old bodies. `--current-only` remains an explicit spelling of this default.
 
 ```bash
+cj doc show DOC_ID --section "Current state" --max-lines 80
 cj doc show DOC_ID                 # Current version and revision count
 cj doc show DOC_ID --json          # Same lightweight content as JSON
 cj doc show DOC_ID --revision 59   # Only revision 59, without history

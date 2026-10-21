@@ -23,6 +23,9 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Delegate bounded work through the built-in local broker.
+    #[command(alias = "delegate")]
+    Delegation(crate::delegation::args::DelegationArgs),
     Login,
     /// Update the installed binary and refresh configured agent skills.
     Update(crate::distribution::UpdateArgs),

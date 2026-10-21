@@ -17,8 +17,14 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
         state.root = git::root().map(|path| path.display().to_string());
         state.repo_common = session_git::common_dir(cwd);
         state.cwd = cwd.display().to_string();
-        if std::env::var("ME_DELEGATION_ROLE").as_deref() == Ok("guest") {
-            if let Ok(id) = std::env::var("ME_DELEGATION_ID") {
+        if std::env::var("CJ_DELEGATION_ROLE")
+            .or_else(|_| std::env::var("ME_DELEGATION_ROLE"))
+            .as_deref()
+            == Ok("guest")
+        {
+            if let Ok(id) =
+                std::env::var("CJ_DELEGATION_ID").or_else(|_| std::env::var("ME_DELEGATION_ID"))
+            {
                 state.delegation_id = Some(id);
             }
         }

@@ -30,8 +30,11 @@ pub fn apply(
     dry_run: bool,
     status: bool,
 ) -> Result<Value> {
+    super::delegation::apply(name, uninstall, true, status)?;
     if name == "opencode" {
-        return super::opencode::apply(binary, uninstall, dry_run, status);
+        let mut result = super::opencode::apply(binary, uninstall, dry_run, status)?;
+        result["delegation"] = super::delegation::apply(name, uninstall, dry_run, status)?;
+        return Ok(result);
     }
     let path = paths::skill(name)?;
     let before = match fs::read_to_string(&path) {
@@ -87,5 +90,6 @@ pub fn apply(
         });
         result["rules"] = json!(rules);
     }
+    result["delegation"] = super::delegation::apply(name, uninstall, dry_run, status)?;
     Ok(result)
 }

@@ -17,6 +17,9 @@ pub fn run() -> Result<()> {
     if let Some(cwd) = &cli.cwd {
         std::env::set_current_dir(cwd)?;
     }
+    if let Command::Delegation(args) = cli.command {
+        return delegation::run(args, cli.project, cli.server, cli.offline);
+    }
     if let Command::RequestSync { origin } = &cli.command {
         return request_sync::worker::run(cli.server.as_deref(), origin);
     }
