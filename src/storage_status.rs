@@ -3,27 +3,35 @@ use crate::{config::Config, outbox, outbox_flush, output, request_outbox};
 use anyhow::Result;
 use serde_json::json;
 
-pub fn status(json_mode: bool, offline: bool) -> Result<()> {
-    let startup_error = if offline {
+pub fn status(json_mode: bool, offline: bool, server_override: Option<&str>) -> Result<()> {
+    let path = crate::config::path()?;
+    let config = Config::load().ok();
+    let server = server_override.or_else(|| config.as_ref().map(|value| value.server.as_str()));
+    let tenant = config.as_ref().map(|value| value.tenant.as_str());
+    let startup_error = if offline
+        || !crate::request_sync::enabled()
+        || (outbox::pending()? == 0 && request_outbox::pending()? == 0)
+    {
         None
     } else {
-        crate::request_sync::wake_configured()
+        config
+            .as_ref()
+            .map(|config| {
+                let server = server.unwrap_or(&config.server);
+                let api = Api::new(server, &config.token_for(server)?)?;
+                crate::request_sync::wake(&api, &config.tenant)
+            })
+            .transpose()
             .err()
             .map(|error| error.to_string())
     };
-    let path = crate::config::path()?;
-    let config = Config::load().ok();
-    let server = config.as_ref().map(|value| value.server.as_str());
-    let tenant = config.as_ref().map(|value| value.tenant.as_str());
     let requests = request_outbox::entries()?;
     let mut by_server = std::collections::BTreeMap::<String, usize>::new();
     for (_, request) in requests {
         *by_server.entry(request.server).or_default() += 1;
     }
-    let notice = crate::log_commits::pending(&[], false)
-        .err()
-        .map(|error| error.to_string());
-    let mut automatic = crate::request_sync::status::inspect(config.as_ref())?;
+    let notice = crate::log_commits::notice(&[], false)?;
+    let mut automatic = crate::request_sync::status::inspect(config.as_ref(), server)?;
     if let Some(error) = startup_error {
         automatic["last_error"] = json!(error);
         automatic["blocked"] = json!(true);
@@ -68,6 +76,9 @@ pub fn sync(api: &Api, json_mode: bool) -> Result<()> {
     let reconciliation = crate::watches::recovery::reconcile(api, &tenant);
     let reconciled = reconciliation.is_ok();
     let mut notices = Vec::new();
+    let origin = outbox::fingerprint(api.server(), &tenant, &api.token);
+    let hook_counts = outbox::diagnostics::inspect(Some(&origin))?;
+    notices.extend(outbox::diagnostics::notices(&hook_counts));
     let lost = reconciliation.unwrap_or_else(|error| {
         notices.push(format!("Watch reconciliation deferred: {error}"));
         0
@@ -91,7 +102,7 @@ pub fn sync(api: &Api, json_mode: bool) -> Result<()> {
         format!("Synchronized.\n{}", notices.join("\n"))
     };
     output::emit(
-        &json!({"synced": true, "flushed": flushed, "watches_started": resumed, "watches_lost": lost, "watches_reconciled": reconciled, "pending_outbox": outbox::pending()? + request_outbox::pending()?, "notices": notices}),
+        &json!({"synced": true, "flushed": flushed, "watches_started": resumed, "watches_lost": lost, "watches_reconciled": reconciled, "pending_outbox": outbox::pending()? + request_outbox::pending()?, "hook_events": hook_counts, "notices": notices}),
         &text,
         json_mode,
     )

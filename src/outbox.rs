@@ -2,12 +2,18 @@ use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
+
+pub(crate) mod commands;
+pub(crate) mod diagnostics;
+mod inventory;
+mod mutation;
+pub(crate) mod origin;
 
 pub fn directory() -> Result<PathBuf> {
     let root = ProjectDirs::from("com", "illegalstudio", "codejournal")
@@ -27,35 +33,35 @@ pub fn directory() -> Result<PathBuf> {
 
 pub fn enqueue(mut event: Value) -> Result<String> {
     let id = Uuid::new_v4().to_string();
-    event["id"] = Value::String(id.clone());
-    event["origin"] = serde_json::json!(current_origin());
+    origin::capture(&mut event);
     let epoch = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-    let target = directory()?.join(format!("{epoch:020}-{id}.json"));
-    let temp = target.with_extension("tmp");
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(&temp)?;
-    file.write_all(&serde_json::to_vec(&event)?)?;
-    file.sync_all()?;
-    fs::rename(temp, target)?;
+    enqueue_captured(event, &id, epoch)?;
     Ok(id)
+}
+
+pub(crate) fn enqueue_captured(mut event: Value, id: &str, epoch: u128) -> Result<()> {
+    Uuid::parse_str(id)?;
+    event["id"] = Value::String(id.to_owned());
+    let target = directory()?.join(format!("{epoch:020}-{id}.json"));
+    let mut file = tempfile::NamedTempFile::new_in(directory()?)?;
+    file.write_all(&serde_json::to_vec(&event)?)?;
+    file.as_file().sync_all()?;
+    if let Err(error) = file.persist_noclobber(&target) {
+        if error.error.kind() != std::io::ErrorKind::AlreadyExists {
+            return Err(error.error.into());
+        }
+        let existing: Value = serde_json::from_slice(&fs::read(&target)?)?;
+        anyhow::ensure!(
+            existing == event,
+            "outbox event identity already contains different data"
+        );
+    }
+    Ok(())
 }
 
 pub fn fingerprint(server: &str, tenant: &str, token: &str) -> String {
     let context = serde_json::json!([server.trim_end_matches('/'), tenant, token]);
     format!("{:x}", Sha256::digest(context.to_string().as_bytes()))
-}
-
-fn current_origin() -> Option<String> {
-    let config = crate::config::Config::load().ok()?;
-    let server = std::env::var("CJ_SERVER_URL").unwrap_or(config.server.clone());
-    let token = config.token_for(&server).ok()?;
-    Some(fingerprint(&server, &config.tenant, &token))
 }
 
 pub fn pending() -> Result<usize> {

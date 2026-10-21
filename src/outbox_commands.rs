@@ -7,6 +7,11 @@ use std::fs::{self, OpenOptions};
 
 #[derive(Subcommand)]
 pub enum OutboxAction {
+    /// Inspect or explicitly recover queued hook events.
+    Hooks {
+        #[command(subcommand)]
+        action: crate::outbox::commands::HookAction,
+    },
     /// Resolve a synchronized creation request to its entry, plan or document ID.
     Receipt { id: String },
     /// Inspect pending writes without authenticating. Bodies may contain private journal data.
@@ -20,8 +25,9 @@ pub enum OutboxAction {
     Drop { id: String },
 }
 
-pub fn run(action: OutboxAction, json_mode: bool) -> Result<()> {
+pub fn run(action: OutboxAction, json_mode: bool, server: Option<&str>) -> Result<()> {
     match action {
+        OutboxAction::Hooks { action } => crate::outbox::commands::run(action, json_mode, server),
         OutboxAction::Receipt { .. } => bail!("receipt lookup requires the authenticated API"),
         OutboxAction::List { server, body } => {
             let requests = request_outbox::entries()?.into_iter()

@@ -43,12 +43,12 @@ pub fn run() -> Result<()> {
         return login::run(cli.server.as_deref());
     }
     if matches!(cli.command, Command::Status) {
-        return storage_status::status(cli.json, cli.offline);
+        return storage_status::status(cli.json, cli.offline, cli.server.as_deref());
     }
     if matches!(&cli.command, Command::Outbox { action } if !matches!(action, outbox_commands::OutboxAction::Receipt { .. }))
         && let Command::Outbox { action } = cli.command
     {
-        return outbox_commands::run(action, cli.json);
+        return outbox_commands::run(action, cli.json, cli.server.as_deref());
     }
     plan_validation::preflight(&mut cli.command)?;
     watch_validation::preflight(&cli.command)?;

@@ -33,6 +33,7 @@ pub fn run(api: &Api, tenant: &str) -> Result<usize> {
             crate::hook::delegation_timestamps::normalize(&mut event)?;
             if let Some(fields) = event.as_object_mut() {
                 fields.remove("origin");
+                fields.remove("origin_unavailable_reason");
             }
             if event["project_explicit"] != true
                 && let Some(path) = event["checkout_path"]
