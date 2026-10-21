@@ -9,9 +9,15 @@ pub fn emit(result: &Value, text: &str, json_mode: bool) -> Result<()> {
     let mut result = result.clone();
     let mut text = text.to_owned();
     if let Some((noun, characters)) = ["plan", "doc"].into_iter().find_map(|noun| {
-        result[noun]["body"]
-            .as_str()
-            .map(|body| (noun, body.chars().count()))
+        result[noun]["body"].as_str().map(|body| {
+            (
+                noun,
+                result["body_selection"]["full_characters"]
+                    .as_u64()
+                    .and_then(|count| usize::try_from(count).ok())
+                    .unwrap_or_else(|| body.chars().count()),
+            )
+        })
     }) {
         let remaining = LIMIT.saturating_sub(characters);
         result["body_size"] = json!({"characters": characters, "limit": LIMIT,

@@ -1,5 +1,8 @@
 use clap::{Args, Subcommand};
 
+mod edit;
+pub use edit::TaskEditArgs;
+
 #[derive(Args)]
 pub struct TaskAddArgs {
     #[arg(long)]
@@ -40,23 +43,6 @@ pub struct TaskListArgs {
     pub forwarded: bool,
     #[arg(long)]
     pub priority: Option<String>,
-}
-
-#[derive(Args)]
-pub struct TaskEditArgs {
-    pub id: String,
-    #[arg(long)]
-    pub title: Option<String>,
-    #[arg(long)]
-    pub priority: Option<String>,
-    #[arg(long)]
-    pub not_before: Option<String>,
-    #[arg(long, conflicts_with = "no_plan")]
-    pub plan: Option<String>,
-    #[arg(long, conflicts_with = "plan")]
-    pub no_plan: bool,
-    #[arg(long)]
-    pub agent: Option<String>,
 }
 
 #[derive(Subcommand)]

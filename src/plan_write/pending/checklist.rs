@@ -2,7 +2,7 @@ use anyhow::{Context, Result, bail};
 
 pub fn step(body: &str, index: u64, done: bool) -> Result<String> {
     let fence_pattern = regex::Regex::new(r"^ {0,3}(`{3,}|~{3,})(.*)$")?;
-    let item_pattern = regex::Regex::new(r"^(\s*[-+*] \[)[ xX](\] .*)$")?;
+    let item_pattern = regex::Regex::new(r"^(\s*(?:[-+*]|[0-9]+[.)])\s+\[)[ xX](\] .*)$")?;
     let mut fence: Option<(u8, usize)> = None;
     let mut number = 0;
     let mut lines = body.split('\n').map(str::to_owned).collect::<Vec<_>>();
@@ -36,5 +36,7 @@ pub fn step(body: &str, index: u64, done: bool) -> Result<String> {
             }
         }
     }
-    bail!("Checklist item not found in local pending content")
+    bail!(
+        "Checklist item not found in local pending content: detected {number} items. Use - [ ] or 1. [ ] outside fenced examples."
+    )
 }

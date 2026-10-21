@@ -107,3 +107,13 @@ class PendingPlansTest(AuditCase):
         data = json.loads(shown_doc.stdout)
         self.assertEqual(data['doc']['scope'], 'global')
         self.assertIsNone(data['doc']['project_slug'])
+
+    def test_numbered_pending_steps_ignore_examples_and_preserve_markdown(self):
+        body = '1. [ ] First\n```md\n- [ ] Example\n```\n  2) [ ] Second'
+        created = self.cli('--offline', '--json', '--project', 'fixture', 'plan', 'create',
+                           '--title', 'Numbered work', '--body', body)
+        ident = json.loads(created.stdout)['resource_id']
+        updated = self.cli('--offline', 'plan', 'step', ident, '2', '--done')
+        self.assertEqual(updated.returncode, 0, updated.stderr)
+        shown = self.cli('--offline', '--json', 'plan', 'show', ident)
+        self.assertEqual(json.loads(shown.stdout)['plan']['body'], body.replace('2) [ ] Second', '2) [x] Second'))

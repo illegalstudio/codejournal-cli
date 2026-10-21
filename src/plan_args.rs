@@ -44,12 +44,12 @@ pub enum PlanAction {
             long,
             conflicts_with = "body_file",
             allow_hyphen_values = true,
-            help = "Markdown body (maximum 100000 characters)"
+            help = "Markdown body (maximum 100000 characters); outer whitespace is trimmed and duplicate leading title headings are removed. Compare the confirmed returned body."
         )]
         body: Option<String>,
         #[arg(
             long,
-            help = "Read Markdown from a file or - for stdin (maximum 100000 characters)"
+            help = "Read Markdown from a file or - for stdin (maximum 100000 characters); outer whitespace is trimmed"
         )]
         body_file: Option<String>,
         #[arg(long)]
@@ -78,6 +78,10 @@ pub enum PlanAction {
         current_only: bool,
         #[arg(long, conflicts_with_all = ["history", "all_revisions"], help = "Print only the current or selected revision body")]
         body: bool,
+        #[arg(long, conflicts_with_all = ["history", "all_revisions", "before_revision"], help = "Read only this Markdown heading and its subsections")]
+        section: Option<String>,
+        #[arg(long, conflicts_with_all = ["history", "all_revisions", "before_revision"], value_parser = clap::value_parser!(u32).range(1..=500), help = "Bound the selected body to this many lines")]
+        max_lines: Option<u32>,
     },
     Update {
         id: String,
@@ -87,12 +91,12 @@ pub enum PlanAction {
             long,
             conflicts_with = "body_file",
             allow_hyphen_values = true,
-            help = "Markdown body (maximum 100000 characters)"
+            help = "Markdown body (maximum 100000 characters); outer whitespace is trimmed and duplicate leading title headings are removed. Compare the confirmed returned body."
         )]
         body: Option<String>,
         #[arg(
             long,
-            help = "Read Markdown from a file or - for stdin (maximum 100000 characters)"
+            help = "Read Markdown from a file or - for stdin (maximum 100000 characters); outer whitespace is trimmed"
         )]
         body_file: Option<String>,
         #[arg(long = "ref", help = crate::refs::UPDATE_HELP)]

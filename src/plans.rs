@@ -54,6 +54,8 @@ pub fn run(
             all_revisions,
             before_revision,
             body,
+            section,
+            max_lines,
             current_only: _,
         } => plan_show::show(
             api,
@@ -65,6 +67,8 @@ pub fn run(
             all_revisions,
             before_revision,
             body,
+            section,
+            max_lines,
             json_mode,
         ),
         PlanAction::Create {

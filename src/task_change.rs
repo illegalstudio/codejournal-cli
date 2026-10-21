@@ -1,8 +1,10 @@
 use crate::api::Api;
-use crate::task_args::TaskEditArgs;
 use crate::{attribution, input, output, project, refs};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
+
+mod edit;
+pub use edit::run as edit;
 
 fn path(tenant: &str, explicit_project: Option<&str>, id: &str) -> Result<String> {
     Ok(format!(
@@ -100,45 +102,6 @@ pub fn refs(
         json!({"action": if unlink { "unlink" } else { "link" },
         "refs": parsed, "agent": attribution::agent(agent.as_deref()), "host": attribution::host()}),
         format!("Task {}: {verb} {}.", short(id), raw_refs.join(", ")),
-        json_mode,
-    )
-}
-
-pub fn edit(
-    api: &Api,
-    tenant: &str,
-    project: Option<&str>,
-    args: TaskEditArgs,
-    json_mode: bool,
-) -> Result<()> {
-    if args.title.is_none()
-        && args.priority.is_none()
-        && args.not_before.is_none()
-        && args.plan.is_none()
-        && !args.no_plan
-    {
-        bail!("nothing to change; pass --title, --priority, --plan, --no-plan, or --not-before");
-    }
-    let id = args.id;
-    let mut data = json!({"action": "edit", "no_plan": args.no_plan,
-        "agent": attribution::agent(args.agent.as_deref()), "host": attribution::host()});
-    for (key, value) in [
-        ("title", args.title),
-        ("priority", args.priority),
-        ("not_before", args.not_before),
-        ("plan", args.plan),
-    ] {
-        if let Some(value) = value {
-            data[key] = Value::String(value);
-        }
-    }
-    mutate(
-        api,
-        tenant,
-        project,
-        &id,
-        data,
-        format!("Updated task {}.", short(&id)),
         json_mode,
     )
 }

@@ -18,6 +18,7 @@ pub fn show(api: &Api, tenant: &str, id: &str, json_mode: bool) -> Result<()> {
                 .unwrap_or_default()
         ),
         format!("priority:  {}", string(&task["priority"])),
+        format!("body base: {}", string(&task["body_version"])),
         format!(
             "created:   {} by {}",
             string(&task["created_at"]),

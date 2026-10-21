@@ -22,6 +22,8 @@ pub fn show(
     all_revisions: bool,
     before_revision: Option<u32>,
     body_only: bool,
+    section: Option<String>,
+    max_lines: Option<u32>,
     json_mode: bool,
 ) -> Result<()> {
     let mut params = Vec::new();
@@ -36,12 +38,23 @@ pub fn show(
     if let Some(before) = before_revision {
         params.push(("history_before", before.to_string()));
     }
+    let selected = section.is_some() || max_lines.is_some();
+    if let Some(section) = section {
+        params.push(("section", section));
+    }
+    if let Some(lines) = max_lines {
+        params.push(("max_lines", lines.to_string()));
+    }
     let url = reqwest::Url::parse_with_params("http://local/", &params)?;
     let query = url
         .query()
         .map(|query| format!("?{query}"))
         .unwrap_or_default();
     let result = api.get(&format!("/api/v1/tenants/{tenant}/{kind}/{id}{query}"))?;
+    anyhow::ensure!(
+        !selected || result["body_selection"].is_object(),
+        "this server does not support bounded section reads; update the server"
+    );
     let item = &result[noun(kind)];
     if body_only && !json_mode {
         crate::stdout::println!("{}", item["body"].as_str().context("missing body")?);
@@ -61,6 +74,14 @@ pub fn show(
         format!("revision:  {}", item["revision"]),
         format!("updated:   {}", text(&item["updated_at"])),
     ];
+    if selected {
+        lines.push(format!(
+            "Selection: lines {}-{}, truncated={}",
+            result["body_selection"]["start_line"],
+            result["body_selection"]["end_line"],
+            result["body_selection"]["truncated"]
+        ));
+    }
     if let Some(count) = result["revision_count"].as_u64() {
         lines.push(format!(
             "revisions: {count} (current {})",
