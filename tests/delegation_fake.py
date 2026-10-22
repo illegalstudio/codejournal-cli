@@ -26,6 +26,13 @@ snapshot = call("sync", delegation_id, "--role", "guest", "--full")
 publish("ready", "Protocol loaded")
 if behavior == "noresult":
     print("I am analyzing; this is diagnostic, not a result", flush=True)
+elif behavior == "streaming_review":
+    streaming = '--output-format' in sys.argv and sys.argv[sys.argv.index('--output-format')+1] == 'streaming-json'
+    for _ in range(10):
+        if streaming and '--include-partial-messages' in sys.argv:
+            print(json.dumps({'type':'tool_call', 'text':'Reading the next review input'}), flush=True)
+        time.sleep(.4)
+    publish("result", "Review completed with streamed activity")
 elif behavior in ("sleep", "no_diff"):
     time.sleep(8)
 elif behavior == "contention":

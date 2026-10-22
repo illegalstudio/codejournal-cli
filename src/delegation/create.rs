@@ -47,6 +47,7 @@ pub fn run(
     let mut session = json!({"target": args.target.name(), "mode": args.mode.name(),
         "model": args.model.clone().unwrap_or_default(), "cwd": cwd, "task": prompt});
     if args.dry_run {
+        session["id"] = json!("<dry-run>");
         return super::providers::dry_run(&session);
     }
     if launch {

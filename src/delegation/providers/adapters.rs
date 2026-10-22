@@ -82,9 +82,12 @@ pub fn build(session: &Value, prompt: &str, dry: bool) -> Result<Invocation> {
         "grok" => {
             command.arg("--cwd").arg(text(session, "cwd")).args([
                 "--output-format",
-                "plain",
+                if managed { "streaming-json" } else { "plain" },
                 "--always-approve",
             ]);
+            if managed {
+                command.arg("--include-partial-messages");
+            }
         }
         "kimi" => {
             command.args(["--output-format", "text"]);

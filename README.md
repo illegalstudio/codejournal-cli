@@ -138,6 +138,8 @@ The default is read-only. Durable starts preserve messages and checkpoints acros
 
 Temporary local database contention is retried without rerunning the task; a busy supervisor keeps its guest alive. If a previous version left a session stalled, `recover ID` restarts that session after its recorded processes have exited.
 
+Grok delegations stream tool activity and partial responses to keep long reviews observable. Provider output counts as activity; supervisor heartbeats alone do not. A silent guest still reaches its `--stall-timeout`, and completion still requires an explicit result.
+
 `--mode write` requires a clean Git checkout and retains its writer lock through host review, a host commit and `cj delegation integrate ID`. The guest must publish a diff checkpoint and receive host approval before finishing. It cannot commit or push. Use `cj delegation models TARGET` to inspect model options, and `run TARGET --dry-run --prompt TEXT` to inspect arguments without launching a guest.
 
 `cj setup agents --refresh` installs the embedded `code-journal-delegation` and `code-journal-guest` instructions for configured agents. They are also available through `cj delegation guide` and `guide --guest`. Local delegation works without a journal login; hosted lifecycle events use the account captured at creation and queue when unavailable. Explicit `--offline` keeps delivery local.

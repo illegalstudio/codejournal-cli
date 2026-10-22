@@ -33,6 +33,8 @@ cj delegation result ID --timeout 30
 
 Normal standard output is a diagnostic log. Completion requires a `result` event; `failed`, `cancelled` and `stalled` require inspecting the reason. Report completion and any material limitation to the user. Do not start duplicate attempts while a supervisor or guest is alive.
 
+Provider output counts as activity; Grok streams tool events and partial responses during managed runs. Supervisor heartbeats alone do not prove guest progress or reset inactivity. Choose `--stall-timeout` for the task's expected silent intervals; `0` explicitly disables that deadline. A busy local database preserves the guest while monitoring retries.
+
 `sync` retrieves unread events, `--after SEQ` selects a cursor, and `--full` explicitly reads history. Large histories have a continuation cursor. `list` shows active or unresolved delegations; use `list --all` for terminal records.
 
 ## Write delegations
