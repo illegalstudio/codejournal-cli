@@ -29,6 +29,8 @@ pub struct TaskAddArgs {
 
 #[derive(Args)]
 pub struct TaskListArgs {
+    #[arg(long, help = "Case-insensitive match on task title or body")]
+    pub grep: Option<String>,
     #[arg(long, default_value = "active", value_parser = ["active", "open", "in_progress", "closed", "done", "dismissed", "all"])]
     pub status: String,
     #[arg(long, conflicts_with = "status", help = "Include closed tasks")]

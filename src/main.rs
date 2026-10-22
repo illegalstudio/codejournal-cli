@@ -23,6 +23,7 @@ mod browse;
 mod browse_list;
 mod browse_picker;
 mod checkout_identity;
+mod checkouts;
 mod cli;
 mod cli_parse;
 mod codex_rules;

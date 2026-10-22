@@ -221,6 +221,7 @@ cj doc list
 cj doc list --status outdated
 cj doc list --all
 cj task list --status done
+cj task list --grep release
 cj feedback show FEEDBACK_ID
 cj feedback show FEEDBACK_ID --json
 cj plan list --all --verbose
@@ -232,6 +233,10 @@ cj brief --verbose --json
 ```
 
 `--all` includes inactive records; `--status` selects one state where supported. `--verbose` independently requests bodies and full metadata. Scope flags such as `--global` and `--all-projects` retain the active defaults. Read a chosen record by ID for its content; plan/doc history still requires `--revision`, `--history` or `--all-revisions`. Legacy `--status open` on docs explicitly selects draft, current and outdated records.
+
+`cj task list --grep TEXT` matches a literal substring of the title or body, ignoring case, while retaining the selected lifecycle and project filters. Checklist steps require a fresh online revision and a valid Markdown checkbox; a failed read does not silently use cached content for a write. Use `--offline` explicitly to work from cached or queued content.
+
+After moving a repository, use `cj checkouts remove /old/absolute/path --host HOST` to forget its exact registration and Live observation. The host defaults to this machine. This does not change files or resolve symlinks; `cj project path-remove` uses the same behavior. `cj refs move path:OLD path:NEW` accepts the same path prefix shown by stored references.
 
 The brief and session hooks keep complete project rules, active coordination and recent work. Default JSON omits record bodies and duplicate project rules. Cached reads follow the same visibility and detail policy; explicit all-record or verbose caches cannot replace default context. Exports and backups retain every record.
 

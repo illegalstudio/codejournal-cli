@@ -36,6 +36,9 @@ pub fn list(
     if let Some(priority) = args.priority {
         params.push(("priority", priority));
     }
+    if let Some(grep) = args.grep {
+        params.push(("grep", grep));
+    }
     if args.forwarded {
         params.push(("forwarded", "1".to_owned()));
     }

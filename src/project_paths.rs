@@ -114,7 +114,6 @@ pub fn remove(
     host: String,
     json_mode: bool,
 ) -> Result<()> {
-    let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     if !path.is_absolute() {
         bail!("checkout path must be absolute");
     }
@@ -124,7 +123,10 @@ pub fn remove(
     )?;
     output::emit(
         &result,
-        &format!("Removed checkout {} from {slug}.", path.display()),
+        &format!(
+            "Forgot checkout {} from {slug}; files were not changed.",
+            path.display()
+        ),
         json_mode,
     )
 }

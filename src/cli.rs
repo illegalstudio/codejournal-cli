@@ -93,10 +93,7 @@ pub enum Command {
         action: ProjectAction,
     },
     Projects(crate::project_args::ProjectListArgs),
-    Checkouts {
-        #[arg(long)]
-        all_projects: bool,
-    },
+    Checkouts(crate::checkouts::CheckoutArgs),
     Normalize {
         #[arg(long)]
         dry_run: bool,

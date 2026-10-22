@@ -93,9 +93,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
             project_commands::run(&api, &tenant, project, action, cli.json)
         }
         Command::Projects(args) => project_list::run(&api, &tenant, args, cli.json),
-        Command::Checkouts { all_projects } => {
-            project_paths::list(&api, &tenant, project, all_projects, cli.json)
-        }
+        Command::Checkouts(args) => checkouts::run(api, tenant, project, args, cli.json),
         Command::Normalize { dry_run } => normalize::run(&api, &tenant, dry_run, cli.json),
         Command::Refs { action } => refs_move::run(&api, &tenant, project, action, cli.json),
         Command::Plan { action } => plans::run(&api, &tenant, project, "plans", action, cli.json),
