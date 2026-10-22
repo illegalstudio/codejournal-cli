@@ -2,7 +2,6 @@ use crate::{api::Api, api_cache, request_outbox};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
-mod checklist;
 mod content;
 
 pub fn remember(api: &Api, tenant: &str, result: &Value) -> Result<()> {
@@ -94,7 +93,7 @@ pub fn read(api: &Api, path: &str) -> Result<Option<Value>> {
                     "queued checklist base differs from cached revision; synchronize and review the conflict"
                 );
             }
-            item["body"] = json!(checklist::step(
+            item["body"] = json!(crate::plan_checklist::step(
                 item["body"].as_str().context("missing local plan body")?,
                 payload["step_index"]
                     .as_u64()

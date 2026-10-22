@@ -37,6 +37,6 @@ pub fn step(body: &str, index: u64, done: bool) -> Result<String> {
         }
     }
     bail!(
-        "Checklist item not found in local pending content: detected {number} items. Use - [ ] or 1. [ ] outside fenced examples."
+        "Checklist item {index} not found: detected {number} items. Use - [ ] or 1. [ ] outside fenced examples. Nothing was sent or queued."
     )
 }

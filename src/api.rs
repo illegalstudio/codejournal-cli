@@ -70,7 +70,7 @@ impl Api {
 
     pub fn get_fresh(&self, path: &str) -> Result<Value> {
         if self.offline {
-            bail!("a fresh watch response is unavailable offline");
+            bail!("a fresh response is unavailable offline");
         }
         let path = project_bootstrap::read_path(self, path)?;
         self.send(self.client.get(format!("{}{}", self.server, path)))
