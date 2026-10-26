@@ -1,0 +1,123 @@
+name: Release CLI
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish this version and update the Homebrew tap
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.repository == 'illegalstudio/codejournal-cli'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Validate release version
+        id: version
+        run: |
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then [[ "$GITHUB_REF_NAME" == "v$version" ]]; fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - name: Test the standalone client
+        run: bash scripts/test.sh
+
+  build:
+    needs: check
+    uses: ./.github/workflows/build-release.yml
+    secrets: inherit
+
+  publish:
+    needs: [check, build]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: binary-*
+          path: dist
+          merge-multiple: true
+      - name: Resume an already published release without replacing its assets
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: python3 scripts/release/reuse.py "$VERSION" "$GITHUB_SHA" dist
+      - name: Generate checksums and package-manager metadata
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: python3 scripts/release/metadata.py "$VERSION" dist
+      - name: Sign artifact provenance with GitHub OIDC
+        if: steps.existing.outputs.reused != 'true'
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: dist/*
+      - name: Publish the verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: python3 scripts/release/publish.py "$VERSION" "$GITHUB_SHA" dist
+      - name: Mint Illegal Bot token for the Homebrew tap
+        id: tap-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          app-id: ${{ secrets.ILLEGAL_BOT_APP_ID }}
+          private-key: ${{ secrets.ILLEGAL_BOT_PRIVATE_KEY }}
+          owner: illegalstudio
+          repositories: homebrew-tap
+          permission-contents: write
+      - name: Publish Homebrew formula
+        env:
+          TAP_TOKEN: ${{ steps.tap-token.outputs.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: bash scripts/release/publish-tap.sh dist/codejournal-cli.rb "$VERSION"
+
+  install:
+    needs: publish
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install the published release
+        env:
+          CJ_INSTALL_DIR: ${{ runner.temp }}/cj-bin
+        run: |
+          sh install.sh
+          "$CJ_INSTALL_DIR/cj" --version
+      - name: Install through Homebrew
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: |
+          brew install illegalstudio/tap/codejournal-cli
+          brew test illegalstudio/tap/codejournal-cli
+          cj --version

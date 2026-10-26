@@ -1,0 +1,102 @@
+use crate::api::Api;
+use crate::{output, project};
+use anyhow::Result;
+use serde_json::Value;
+
+fn noun(kind: &str) -> &str {
+    if kind == "docs" { "doc" } else { "plan" }
+}
+fn text(value: &Value) -> &str {
+    value.as_str().unwrap_or("")
+}
+fn short(id: &str) -> String {
+    id.replace('-', "").chars().take(8).collect()
+}
+
+pub fn list(
+    api: &Api,
+    tenant: &str,
+    explicit_project: Option<&str>,
+    kind: &str,
+    status: Option<String>,
+    all: bool,
+    verbose: bool,
+    grep: Option<String>,
+    path: Option<String>,
+    all_projects: bool,
+    global: bool,
+    local: bool,
+    json_mode: bool,
+) -> Result<()> {
+    let base = if all_projects || global {
+        format!("/api/v1/tenants/{tenant}/{kind}")
+    } else {
+        format!(
+            "/api/v1/tenants/{tenant}/projects/{}/{kind}",
+            project::slug(explicit_project)?
+        )
+    };
+    let status = if all {
+        "all".to_owned()
+    } else {
+        status.unwrap_or_else(|| if kind == "docs" { "current" } else { "active" }.to_owned())
+    };
+    let mut params = vec![
+        ("status", status),
+        ("summary", if verbose { "0" } else { "1" }.to_owned()),
+    ];
+    if global {
+        params.push(("scope", "global".to_owned()));
+    } else if kind == "docs" && !all_projects && !local {
+        params.push(("include_global", "1".to_owned()));
+    }
+    if let Some(grep) = grep {
+        params.push(("grep", grep));
+    }
+    if let Some(path) = path {
+        params.push(("path", path));
+    }
+    let query = reqwest::Url::parse_with_params("http://local/", &params)?;
+    let mut result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
+    crate::output::discovery::list(&mut result, kind, &params[0].1, verbose);
+    let mut lines = Vec::new();
+    for item in result[kind].as_array().into_iter().flatten() {
+        let where_text = if all_projects || global || item["scope"] == "global" {
+            format!(
+                "{:<24} ",
+                if item["scope"] == "global" {
+                    "GLOBAL"
+                } else {
+                    text(&item["project_slug"])
+                }
+            )
+        } else {
+            String::new()
+        };
+        let when = text(&item["updated_at"]);
+        lines.push(format!(
+            "  {}  {:<9} {where_text}{}  (rev {}, updated {})",
+            short(text(&item["id"])),
+            text(&item["status"]),
+            text(&item["title"]),
+            item["revision"].as_u64().unwrap_or(0),
+            &when[..when.len().min(10)]
+        ));
+        if verbose {
+            lines.extend(
+                text(&item["body"])
+                    .lines()
+                    .map(|line| format!("      {line}")),
+            );
+        }
+    }
+    output::emit(
+        &result,
+        &if lines.is_empty() {
+            format!("  (no {}s)", noun(kind))
+        } else {
+            lines.join("\n")
+        },
+        json_mode,
+    )
+}

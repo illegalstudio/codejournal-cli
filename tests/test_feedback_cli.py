@@ -1,0 +1,127 @@
+import http.server
+import json
+import os
+import pathlib
+import subprocess
+import tempfile
+import threading
+import unittest
+from feedback_api_server import Handler
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+class FeedbackCliTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        binary = ROOT / "target" / "debug" / "cj"
+        subprocess.run(["cargo", "build", "--locked"], cwd=ROOT, check=True, capture_output=True)
+        cls.binary = str(binary)
+        cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        cls.worker = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.worker.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.worker.join(timeout=2)
+
+    def setUp(self):
+        Handler.calls.clear()
+        Handler.entry_response = None
+        self.temp = tempfile.TemporaryDirectory(prefix="cj-feedback-")
+        self.addCleanup(self.temp.cleanup)
+        self.repo = pathlib.Path(self.temp.name) / "repo"
+        self.repo.mkdir()
+        subprocess.run(["git", "init", "-b", "main", str(self.repo)], check=True, capture_output=True)
+        subprocess.run(["git", "remote", "add", "origin", "https://github.com/example/fixture.git"],
+                       cwd=self.repo, check=True, capture_output=True)
+        config = pathlib.Path(self.temp.name) / "codejournal"
+        config.mkdir()
+        (config / "config.json").write_text(json.dumps({
+            "server": f"http://127.0.0.1:{self.server.server_port}", "tenant": "demo"
+        }))
+        self.env = dict(os.environ, XDG_CONFIG_HOME=self.temp.name, CJ_TOKEN="test-token")
+
+    def command(self, *args, stdin=None):
+        return subprocess.run([self.binary, "--project", "p", *args], cwd=self.repo,
+                              env=self.env, input=stdin, text=True, capture_output=True,
+                              timeout=3, check=True)
+
+    def test_title_and_note_updates_do_not_read_idle_stdin(self):
+        for args in [("plan", "update", "aaaaaaaa", "--title", "New title"),
+                     ("plan", "update", "aaaaaaaa", "--note", "CI passed")]:
+            process = subprocess.Popen([self.binary, "--project", "p", *args], cwd=self.repo,
+                                       env=self.env, stdin=subprocess.PIPE,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                self.assertEqual(process.wait(timeout=2), 0)
+            finally:
+                process.stdin.close()
+                process.stdout.close()
+                process.stderr.close()
+                if process.poll() is None:
+                    process.kill()
+        self.assertEqual(Handler.calls[0][2]["title"], "New title")
+        self.assertEqual(Handler.calls[1][2]["note"], "CI passed")
+
+    def test_piped_body_and_positional_rules(self):
+        shown = subprocess.Popen([self.binary, "--project", "p", "plan", "show", "aaaaaaaa", "--body"],
+                                 cwd=self.repo, env=self.env, stdout=subprocess.PIPE)
+        updated = subprocess.run([self.binary, "--project", "p", "plan", "update", "aaaaaaaa",
+                                  "--body-file", "-"], cwd=self.repo, env=self.env, stdin=shown.stdout,
+                                 capture_output=True, timeout=3, check=True)
+        shown.stdout.close()
+        self.assertEqual(shown.wait(timeout=2), 0)
+        self.assertEqual(Handler.calls[-1][2]["body"], "## Steps\n- [ ] ship")
+        shown_doc = subprocess.Popen([self.binary, "--project", "p", "doc", "show", "aaaaaaaa", "--body"],
+                                     cwd=self.repo, env=self.env, stdout=subprocess.PIPE)
+        subprocess.run([self.binary, "--project", "p", "doc", "update", "aaaaaaaa", "--body-file", "-"],
+                       cwd=self.repo, env=self.env, stdin=shown_doc.stdout, capture_output=True,
+                       timeout=3, check=True)
+        shown_doc.stdout.close()
+        self.assertEqual(shown_doc.wait(timeout=2), 0)
+        self.assertEqual(Handler.calls[-1][2]["body"], "Documentation body")
+        self.command("rules", "set", "- Run make test.")
+        self.command("rules", "append", "- Keep commits small.")
+        self.assertEqual([call[2]["rules"] for call in Handler.calls[-2:]],
+                         ["- Run make test.", "- Keep commits small."])
+
+    def test_rules_show_set_and_clear_have_human_output(self):
+        self.assertEqual(self.command("rules").stdout.strip(), "- Run focused tests.")
+        self.assertIn("Project rules updated (1 line(s)).",
+                      self.command("rules", "set", "- Keep tests focused.").stdout)
+        self.assertIn("Project rules cleared.", self.command("rules", "clear").stdout)
+        self.assertEqual(Handler.calls[-1][2]["rules"], "")
+
+    def test_shorthand_refs_reach_api(self):
+        self.command("add", "--kind", "discovery", "--title", "A fact", "--body", "Body",
+                     "--ref", "PR#42", "--ref", "issue#7", "--ref", "path:/docs/")
+        self.assertEqual(Handler.calls[-1][2]["refs"], [
+            {"kind": "url", "value": "https://github.com/example/fixture/pull/42"},
+            {"kind": "issue", "value": "#7"}, {"kind": "path", "value": "docs"},
+        ])
+
+    def test_schedules_forwarding_and_framework_hints(self):
+        result = self.command("add", "--kind", "gotcha", "--title", "Laravel framework issue",
+                              "--body", "Seen locally")
+        self.assertNotIn("hint:", result.stdout)
+        Handler.entry_response = {"entry": {"id": "abcdef12-0000-4000-8000-000000000000"},
+                                  "mentions": [{"slug": "toolbox", "names": ["acme/toolbox"]}]}
+        suggested = self.command("add", "--kind", "gotcha", "--title", "Toolbox issue",
+                                 "--body", "acme/toolbox failed")
+        self.assertIn("cj task add --to toolbox --from-entry abcdef12", suggested.stdout)
+        Handler.entry_response = None
+        self.command("task", "add", "--title", "Forwarded work", "--to", "target", "--from-entry", "abcdef12",
+                     "--not-before", "tomorrow")
+        self.assertEqual(Handler.calls[-1][1], "/api/v1/tenants/demo/projects/target/tasks")
+        self.assertEqual(Handler.calls[-1][2]["source_project"], "p")
+        self.assertEqual(Handler.calls[-1][2]["not_before"], "tomorrow")
+        self.command("plan", "schedule", "aaaaaaaa", "7d")
+        self.assertEqual(Handler.calls[-1][2]["not_before"], "7d")
+
+
+if __name__ == "__main__":
+    unittest.main()
