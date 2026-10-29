@@ -9,7 +9,9 @@ fn ids(path: &str, body: Option<&Value>) -> Vec<(String, String)> {
     let parts = path.split('/').collect::<Vec<_>>();
     let mut found = parts
         .windows(2)
-        .filter(|pair| ["entries", "plans", "docs", "tasks", "logs"].contains(&pair[0]))
+        .filter(|pair| {
+            ["entries", "plans", "docs", "tasks", "logs", "reminders"].contains(&pair[0])
+        })
         .map(|pair| {
             (
                 pair[1].split('?').next().unwrap_or("").to_owned(),

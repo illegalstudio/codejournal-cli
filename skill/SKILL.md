@@ -110,6 +110,25 @@ Plan/doc content reads and mutation confirmations show `body_size` in JSON and h
 
 For a large doc or plan use `show ID --section "Heading" --max-lines 80`, or `--max-lines N` alone. Selection excludes history, defaults to 200 lines, caps content at 16000 characters, and exposes line ranges, full size and truncation in `body_selection`. It requires an updated server. Body updates trim outer whitespace and remove duplicate leading title headings; compare confirmed canonical content.
 
+## Reminders
+
+When the user asks to revisit something later, save a reminder instead of relying on conversation memory. Convert natural dates to an explicit calendar date/time and IANA timezone, preserve why the follow-up matters, and confirm the exact schedule. A date without a time means 09:00 in that timezone.
+
+```sh
+cj reminder add --title "Revisit the cache choice" --at 2026-11-28T09:00 --timezone Europe/Rome --body "Review the feedback before deciding."
+cj reminder add --global --title "Review project priorities" --at 2026-11-28 --timezone Europe/Rome
+cj reminder list --state due
+cj reminder show ID
+cj reminder reschedule ID --at 2026-12-12T09:00 --timezone Europe/Rome
+cj reminder close ID
+```
+
+Reminders retain their source project but default to announcements across authorized projects in the same workspace. Use `add --project-only` when explicitly requested. `list` covers the workspace; `list --project-only` limits it to the current project. Open reminders are the default; use `--state closed` or `--all` for history, and `--verbose` for full context. An optional `--reference-url` links a related task, plan, or other HTTP(S) page. The dashboard's Reminders page supports creation, rescheduling, closing and reopening.
+
+When a brief contains due reminders, the agent speaking directly to the user must mention them in its first useful response. Before announcing one, run `cj reminder claim ID --json`. Announce only if `claimed=true`, using the returned current reminder and its source project. Then run `cj reminder presented ID --delivery-token TOKEN` with that claim's `delivery_token`. This records delivery without resolving the reminder and suppresses repeated announcements for 24 hours across sessions. Claims expire after ten minutes if the agent stops. Claim and presentation require an online response and never queue. Cached briefs alone do not authorize an announcement. Delegated guests and background agents leave reminders for the agent talking to the user.
+
+Do not close a reminder because it appeared in a brief, was read on the site, or was announced. Keep it open until the user asks to close or reschedule it. If the user decides to do the work, create or start an appropriate task and close the reminder only as part of that explicit decision. A due reminder alone never authorizes starting its work. Creation, rescheduling and closure use the normal durable offline queue; queued writes are not confirmed changes. Rescheduling and closure preserve their original content revision and report a conflict if another session changed it.
+
 ## Active discovery and detail
 
 Default discovery in text and JSON returns current docs, active plans, open/in-progress tasks, open feedback, active knowledge and watches, and unread notifications. Recent work logs remain useful context, including completed work. Draft or terminal records require an explicit lifecycle flag. Use `cj doc list --status outdated`, `cj plan list --status draft`, `cj task list --status done`, or list `--all` for every status. Knowledge search accepts `--all-statuses` (alias `--all`), and notifications accept `--read` or `--all`.

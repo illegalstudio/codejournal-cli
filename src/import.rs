@@ -41,7 +41,7 @@ pub fn run(api: &Api, tenant: &str, file: PathBuf, json_mode: bool) -> Result<()
         batch_id(&text)
     );
     let empty = json!({"projects": 0, "entries": 0, "logs": 0, "plans": 0,
-        "notifications": 0, "tasks": 0, "feedback": 0, "skipped": 0});
+        "notifications": 0, "tasks": 0, "feedback": 0, "reminders": 0, "skipped": 0});
     let chunks = chunks::build(
         records
             .into_iter()
@@ -110,6 +110,7 @@ fn rank(kind: &str) -> u8 {
         "notification" => 4,
         "task" => 5,
         "feedback" => 6,
+        "reminder" => 7,
         _ => 255,
     }
 }

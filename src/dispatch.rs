@@ -88,6 +88,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
         }
         Command::Log { action } => logs::run(&api, &tenant, project, action, cli.json),
         Command::Task { action } => tasks::run(&api, &tenant, project, action, cli.json),
+        Command::Reminder { action } => reminders::run(api, tenant, project, action, cli.json),
         Command::Feedback { action } => feedback::run(&api, &tenant, project, action, cli.json),
         Command::Project { action } => {
             project_commands::run(&api, &tenant, project, action, cli.json)

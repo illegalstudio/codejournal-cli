@@ -53,6 +53,7 @@ pub fn render(
     } else {
         lines.push("  (none set: write them now with `cj rules set`)".into());
     }
+    crate::reminder_format::brief(data, &mut lines);
     brief_context_format::active(data, &mut lines);
     brief_context_format::projects_used_here(data, &mut lines);
     brief_context_format::focus(data, &mut lines, compact);

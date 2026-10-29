@@ -84,6 +84,11 @@ pub enum Command {
         #[command(subcommand)]
         action: TaskAction,
     },
+    /// Schedule and manage reminders across your workspace.
+    Reminder {
+        #[command(subcommand)]
+        action: crate::reminder_args::ReminderAction,
+    },
     Feedback {
         #[command(subcommand)]
         action: crate::feedback_args::FeedbackAction,

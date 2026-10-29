@@ -380,3 +380,19 @@ cj entry move ENTRY_ID --to destination-project --path-prefix apps/tool --replac
 ```
 
 The move retains the entry ID, creation time, author, topics and usage history, and records original refs and project provenance. It affects one selected entry; repeat it for other explicitly selected entries.
+
+## Reminders
+
+Ask your agent to remind you to revisit a decision or follow-up later. It saves the date, timezone and context in Code Journal. Once due, an agent can bring it up even while you work on a different project in the same workspace. You can also manage reminders on the dashboard's Reminders page.
+
+```sh
+cj reminder add --title "Revisit the cache choice" --at 2030-11-28T09:00 --timezone Europe/Rome --body "Review the feedback before deciding."
+cj reminder list --state due
+cj reminder show ID
+cj reminder reschedule ID --at 2030-12-12T09:00 --timezone Europe/Rome
+cj reminder close ID
+```
+
+Use `--global` to create a reminder without a project, or `add --project-only` to limit announcements to its source project. A date without a time means 09:00 in the selected timezone. `list` shows open summaries across the workspace; `--project-only` filters to the current project, `--verbose` includes context, and `--state closed` or `--all` shows history. `--reference-url` links related context.
+
+Reading or hearing a reminder keeps it open. Agents coordinate announcements so simultaneous sessions avoid repeating them, and normally wait 24 hours before mentioning an unresolved reminder again. Reminders reach agents through their next brief after the deadline. Creating, rescheduling and closing support the durable offline queue; coordinating an announcement requires an online connection.
