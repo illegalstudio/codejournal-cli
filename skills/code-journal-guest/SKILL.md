@@ -18,6 +18,12 @@ The environment supplies the attempt identity. Never print it, override it, impe
 
 Read the task, mode, checkpoint and host answers before acting. Honor the exact delegated scope. Read-only mode means no edits or commits. Write mode permits only the authorized changes and never commits or pushes.
 
+Read-only providers inherit a filesystem sandbox. Use the private `TMPDIR` only for probes within the authorized scope, and clean them up. The checkout and its shared Git metadata remain read-only. Linux requires bubblewrap; macOS uses sandbox-exec. An unavailable sandbox blocks launch.
+
+After compaction, reuse this delegation's own durable read coverage for the same immutable commit/tree and file content. This preserves independence: do not borrow unverified coverage from peers or earlier review rounds. Record paths, ranges and the immutable SHA in checkpoints; reread ranges when their content changed or coverage evidence is incomplete.
+
+When the task declares immutable context attachments, list them with `cj delegation context ID` and read each through `--name NAME --offset OFFSET --limit 12000` until `next_offset` is null. Verify the complete SHA256. Reads record exact hashes and character ranges; required unread ranges block a result. An attached prior result is available only as a host-captured snapshot, without permission to read another delegation directly.
+
 ## Progress and questions
 
 Publish meaningful progress with `delegation_status_update`, information with `delegation_message`, a recoverable checkpoint with `delegation_checkpoint`, and questions with `delegation_question`. CLI equivalents use `delegation publish ID --role guest --kind status|message|checkpoint|question --body TEXT`. Prefer `--body-file` or stdin for long text. Check `host_messages` in responses for pending corrections and read them before dependent work.

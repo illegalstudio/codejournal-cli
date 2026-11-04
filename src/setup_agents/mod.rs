@@ -3,7 +3,7 @@ mod files;
 mod install;
 mod instructions;
 pub(crate) mod opencode;
-mod paths;
+pub(crate) mod paths;
 
 use crate::output;
 use anyhow::{Result, bail};

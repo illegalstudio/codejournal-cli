@@ -11,7 +11,7 @@ pub fn snapshot(args: &args::ReadArgs, other: bool) -> Result<Value> {
     context::authorize(&store::get(&store::open()?, &args.context.id)?, &role)?;
     lifecycle::refresh(&args.context.id)?;
     store::read(|db| {
-        let session = store::get(db, &args.context.id)?;
+        let mut session = store::get(db, &args.context.id)?;
         context::authorize(&session, &role)?;
         let after = if args.full {
             args.after.unwrap_or(0)
@@ -36,6 +36,10 @@ pub fn snapshot(args: &args::ReadArgs, other: bool) -> Result<Value> {
             .and_then(|e| e["seq"].as_i64())
             .filter(|seq| *seq < latest);
         let host_messages = super::cursors::pending_host(db, &session)?;
+        if args.events_only {
+            session.as_object_mut().map(|map| map.remove("task"));
+            session["task_omitted"] = json!(true);
+        }
         Ok(
             json!({"session":store::public(session),"events":rows,"latest_seq":latest,"next_after":next,
             "last_checkpoint":events::last(db,&args.context.id,"checkpoint")?,

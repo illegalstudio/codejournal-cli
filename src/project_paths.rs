@@ -124,7 +124,12 @@ pub fn remove(
     output::emit(
         &result,
         &format!(
-            "Forgot checkout {} from {slug}; files were not changed.",
+            "{} checkout {} on {host} for {slug}.",
+            if result["removed"] == 0 {
+                "Already absent:"
+            } else {
+                "Forgot"
+            },
             path.display()
         ),
         json_mode,

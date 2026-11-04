@@ -2,11 +2,15 @@ use anyhow::Result;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-pub fn notify(cwd: &Path, agent: &str, reason: &str) -> Result<()> {
-    Command::new(std::env::current_exe()?)
+pub fn notify(cwd: &Path, agent: &str, reason: &str, approval_id: Option<&str>) -> Result<()> {
+    let mut command = Command::new(std::env::current_exe()?);
+    command.arg("notify");
+    if let Some(id) = approval_id {
+        command.args(["--hook-notification-id", id]);
+    }
+    command
         .current_dir(cwd)
         .args([
-            "notify",
             "--kind",
             "needs_input",
             "--agent",

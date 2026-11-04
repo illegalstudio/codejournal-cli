@@ -1,5 +1,7 @@
 use clap::Subcommand;
 
+mod body_help;
+
 #[derive(Subcommand)]
 pub enum PlanAction {
     List {
@@ -40,17 +42,9 @@ pub enum PlanAction {
         global: bool,
         #[arg(long)]
         title: String,
-        #[arg(
-            long,
-            conflicts_with = "body_file",
-            allow_hyphen_values = true,
-            help = "Markdown body (maximum 100000 characters); outer whitespace is trimmed and duplicate leading title headings are removed. Compare the confirmed returned body."
-        )]
+        #[arg(long, conflicts_with = "body_file", allow_hyphen_values = true, help = body_help::INLINE)]
         body: Option<String>,
-        #[arg(
-            long,
-            help = "Read Markdown from a file or - for stdin (maximum 100000 characters); outer whitespace is trimmed"
-        )]
+        #[arg(long, help = body_help::FILE)]
         body_file: Option<String>,
         #[arg(long)]
         status: Option<String>,
@@ -87,17 +81,9 @@ pub enum PlanAction {
         id: String,
         #[arg(long)]
         title: Option<String>,
-        #[arg(
-            long,
-            conflicts_with = "body_file",
-            allow_hyphen_values = true,
-            help = "Markdown body (maximum 100000 characters); outer whitespace is trimmed and duplicate leading title headings are removed. Compare the confirmed returned body."
-        )]
+        #[arg(long, conflicts_with = "body_file", allow_hyphen_values = true, help = body_help::INLINE)]
         body: Option<String>,
-        #[arg(
-            long,
-            help = "Read Markdown from a file or - for stdin (maximum 100000 characters); outer whitespace is trimmed"
-        )]
+        #[arg(long, help = body_help::FILE)]
         body_file: Option<String>,
         #[arg(long = "ref", help = crate::refs::UPDATE_HELP)]
         refs: Vec<String>,

@@ -48,6 +48,8 @@ pub fn action(action: &mut Action, full: bool) -> Result<()> {
         | Action::Purge { id, .. }
         | Action::McpConfig { id }
         | Action::Output { id, .. } => Some(id),
+        Action::Context { id, .. } => Some(id),
+        Action::Attention { id } => Some(id),
         _ => None,
     };
     if let Some(value) = value {

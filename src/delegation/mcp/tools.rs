@@ -50,7 +50,7 @@ pub fn definitions() -> Vec<Value> {
     ] {
         tools.push(json!({"name":name,"description":description,"inputSchema":{"type":"object","properties":{
             "delegation_id":{"type":"string"},"role":{"type":"string","enum":["host","guest"]},
-            "full":{"type":"boolean"},"after":{"type":"integer","minimum":0},
+            "full":{"type":"boolean"},"events_only":{"type":"boolean"},"after":{"type":"integer","minimum":0},
             "timeout":{"type":"number","minimum":0,"maximum":86400},"until":{"type":"string","enum":["event","question","result","terminal"]},"through":{"type":"integer","minimum":0},
             "body":{"type":"string","maxLength":100000},"reply_to":{"type":"integer","minimum":1},"idempotency_key":{"type":"string"}},
             "required":if body {vec!["body"]} else if name=="delegation_ack" {vec!["through"]} else {vec![]}}}));

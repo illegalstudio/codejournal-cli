@@ -54,6 +54,9 @@ pub fn run(args: super::args::PublishArgs) -> Result<Value> {
         }
         review::reply(db, &id, &role, &args.kind, args.body.reply_to)?;
         let pending = super::cursors::pending_host(db, &session)?;
+        if role == "guest" && args.kind == "result" {
+            super::attachments::ensure_read(db, &session)?;
+        }
         ensure!(
             role != "guest" || args.kind != "result" || pending["unread"] != true,
             "unread host messages through sequence {}; sync --role guest, address corrections and ack --through {} before publishing a result",

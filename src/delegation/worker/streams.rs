@@ -2,8 +2,8 @@ use super::super::store;
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use std::{
-    fs::{File, OpenOptions},
-    io::{Read, Seek, SeekFrom, Write},
+    fs::File,
+    io::{Read, Seek, SeekFrom},
     path::PathBuf,
     process::Child,
     sync::{
@@ -50,30 +50,19 @@ fn capture(
     id: &str,
     activity: Arc<AtomicU64>,
 ) -> Result<JoinHandle<()>> {
-    let mut options = OpenOptions::new();
-    options.create(true).truncate(true).write(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path)?;
+    let mut progress = super::progress::Progress::new(path.with_extension("progress.log"))?;
+    let mut file = super::rolling::RollingLog::new(path)?;
     let id = id.to_owned();
     Ok(std::thread::spawn(move || {
         let mut buffer = [0u8; 8192];
-        let mut written = 0;
         while let Ok(count) = input.read(&mut buffer) {
             if count == 0 {
                 break;
             }
-            let amount = count.min((2 * 1024 * 1024usize).saturating_sub(written));
-            if amount > 0 {
-                if file.write_all(&buffer[..amount]).is_err() {
-                    break;
-                }
-                let _ = file.flush();
-                written += amount;
+            if file.write(&buffer[..count]).is_err() {
+                break;
             }
+            let _ = progress.feed(&buffer[..count]);
             let now = super::super::now() as u64;
             if activity.swap(now, Ordering::Relaxed) != now {
                 let _ = store::transaction(|db| {
@@ -90,6 +79,7 @@ fn capture(
                 });
             }
         }
+        let _ = progress.finish();
     }))
 }
 

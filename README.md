@@ -136,9 +136,9 @@ cj delegation status ID
 
 Use a full session UUID or a unique prefix of at least eight hex characters. Add `--id-only` to start when only the ID is needed. Default output omits full task text and diagnostic tails; `--full` requests complete content. Bare waits remember delivered events separately from acknowledgement. `wait --until question|result|terminal` selects the wake condition; `result` waits through interim progress and returns a single top-level result. Timeouts can be up to 86400 seconds and never cancel the guest. Inspect `timed_out` and status before claiming completion.
 
-`cj delegation output ID --lines 40` shows a bounded, redacted diagnostic tail. `list` is machine-wide; pass `--cwd PATH` to scope it to a checkout. Long reviews may need a larger inactivity budget, for example `start ... --stall-timeout 3600`. Recovery can set a new budget with `recover ID --stall-timeout 3600` while retaining prior failure evidence.
+`cj delegation output ID --lines 40 --max-chars 8000` shows a bounded, redacted readable diagnostic tail. Captures keep recent output after reaching their rolling limit; `--raw` opts into raw provider text. Full and compact JSON share top-level `id`, `status` and `progress`; `sync --full --events-only` avoids repeating task bodies. `list` is machine-wide; pass `--cwd PATH` to scope it to a checkout. Long reviews may need a larger inactivity budget, for example `start ... --stall-timeout 3600`. Recovery can set a new budget with `recover ID --stall-timeout 3600` while retaining prior failure evidence.
 
-The default is read-only. Durable starts preserve messages and checkpoints across CLI exits. A guest completes only by publishing an explicit result; stdout alone is diagnostic. `recover ID` keeps the session history and fences older attempts; `cancel ID` stops the confirmed owned run. Live guests block duplicate recovery.
+The default is read-only, enforced for the provider and its shell commands by a filesystem sandbox. Linux requires `bubblewrap` (`bwrap`) and permission to create user namespaces; macOS uses `sandbox-exec`. Host policies such as Ubuntu AppArmor may require administrator configuration. Read-only execution is unavailable on platforms without a supported sandbox. Authorized scratch probes use the private `TMPDIR`. Durable starts preserve messages and checkpoints across CLI exits. A guest completes only by publishing an explicit result; stdout alone is diagnostic. `recover ID` keeps the session history and fences older attempts; `cancel ID` stops the confirmed owned run. Live guests block duplicate recovery. Completed, failed or cancelled sessions require a new `start`. Attach immutable review evidence with `--context-file PATH` or a prior terminal result with `--context-result ID`; the guest reads snapshot hashes and ranges through `delegation context`. Managed Claude, Grok and supported journal tool hooks surface pending host corrections at tool boundaries; other providers continue explicit polling.
 
 Temporary local database contention is retried without rerunning the task; a busy supervisor keeps its guest alive. If a previous version left a session stalled, `recover ID` restarts that session after its recorded processes have exited.
 
@@ -254,9 +254,15 @@ Full-text and literal search results rank exact query-term coverage ahead of ste
 
 Normal full-text searches require every term by default. When a multi-term query finds nothing, text output and JSON `notices` suggest `--any` to match at least one term while preserving the other filters.
 
+Use `cj search QUERY --relaxed` to explicitly retry an empty strict query with ranked any-term results. `cj search --ref owner/repo#12` finds exact qualified issue/PR references in entries and current docs. Empty searches include bounded related-doc excerpts. `cj topics find TERM` discovers reusable topic names, optionally across projects.
+
 Empty knowledge queries also suggest a document search using `cj doc list --grep QUERY`. The suggested command keeps the selected project local, or retains an explicit `--all-projects` scope. It searches current documents without downloading their bodies automatically.
 
 Task descriptions can be edited without replacing the task. Read `cj task show ID` for its `body_version`, then use `cj task edit ID --body-file details.md --base BODY_VERSION` (or `--body TEXT`). A stale body version fails without changing the task or its history. An explicit empty body clears the description.
+
+Task grep accepts `--whole-word` for short terms such as `INI`. Notifications accept `notifications list --grep TEXT`, filtering literal title/body text before the result limit. Exact tool completion retires correlated automatic approval notices; manual decisions remain unread until explicitly resolved.
+
+For reference-only fact corrections, read `entry.refs_version`, then use `cj entry refs ID --base HASH --ref path:correct/path`. This replaces the complete ref list while preserving fact identity and history. `--clear-refs` clears it. For corrected content under the same title, use `cj add --force`, then explicitly supersede the old entry.
 
 ### Amend a work log
 
@@ -268,6 +274,8 @@ cj log update LOG_ID --base 1 --body-file revised-log.md --status done
 Use the current `revision` reported by `log show` for `--base`. Body and status edits require it; a stale base fails and preserves the existing record. Status accepts `done`, `in_progress` or `blocked`. An explicit empty body clears it. ID, creation time, title, attribution and plan link are retained; omitted fields, including refs, are retained. `--ref` replaces refs and `--clear-refs` clears them. Existing refs-only commands still work without `--base`; supplying it also protects ref changes.
 
 Amendments require the updated server. Offline amendments queue their original base and content; a conflict remains pending for you to review and is never rebased automatically. Work logs stored in activity archives, and logs belonging to archived projects, remain read-only.
+
+Automatic commit attribution fills the available slots within the thirty-reference cap, oldest first. Excess captured commits remain pending for the next log; text and JSON `commit_tracking` report the split. Metadata-only update JSON includes `body_omitted` and `readback_command`.
 
 A confirmed content amendment of a log created in the same session satisfies its Stop reminder. Updating an unrelated log or only its refs does not. Commit tracking attributes captured commits only; an unknown HEAD change is reported as a notice and does not prevent recording the work. Use an explicit commit ref when the uncaptured commit belongs to this session.
 

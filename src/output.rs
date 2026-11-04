@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 pub(crate) mod discovery;
+mod references;
 
 thread_local! {
     static MASKED: RefCell<BTreeMap<String, usize>> = RefCell::new(BTreeMap::new());
@@ -36,6 +37,7 @@ pub fn masking_notice() -> Option<String> {
 
 pub fn json(value: &Value) -> Result<()> {
     let mut value = value.clone();
+    references::normalize(&mut value);
     secret_redaction::value(&mut value);
     crate::stdout::println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())

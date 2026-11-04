@@ -66,3 +66,25 @@ class LogCommitsTest(unittest.TestCase):
         case.cli("log", "add", "--title", "Next", "--body", "Next")
         logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
         self.assertEqual(logs[-1]["refs"], [])
+
+    def test_automatic_reference_overflow_keeps_the_remaining_commits_pending(self):
+        import json
+        case = self.fixture
+        case.hook("SessionStart", "session-one")
+        expected = []
+        for index in range(35):
+            (case.repo / "mine.txt").write_text(f"change {index}\n")
+            case.git("add", "mine.txt")
+            message = case.git("commit", "-m", f"change {index}")
+            expected.append(case.git("rev-parse", "HEAD"))
+            case.hook("PostToolUse", "session-one", "git commit -m change", message)
+        first = json.loads(case.cli("log", "add", "--title", "First group", "--body", "Done", "--ref", "path:mine.txt", "--json"))
+        self.assertEqual(first["commit_tracking"]["linked"], 29)
+        self.assertEqual(first["commit_tracking"]["remaining"], 6)
+        self.assertIn("remain pending", first["notices"][0])
+        second = json.loads(case.cli("log", "add", "--title", "Remaining group", "--body", "Done", "--json"))
+        self.assertEqual(second["commit_tracking"]["linked"], 6)
+        self.assertEqual(second["commit_tracking"]["remaining"], 0)
+        logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
+        actual = [ref["value"] for log in logs for ref in log["refs"] if ref["kind"] == "commit"]
+        self.assertEqual(actual, expected)

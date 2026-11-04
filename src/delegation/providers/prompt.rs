@@ -1,10 +1,11 @@
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 pub fn build(session: &Value) -> String {
     let mode = if super::super::text(session, "mode") == "write" {
         "Change only the paths and behavior authorized in the task. Ask the host before expanding scope. Do not commit or push. Produce the smallest reviewable diff first; publish a checkpoint with git status --short, git diff --stat, changed files and a summary. Then publish a question requesting host review and wait for its answer. Run only the specific tests the host approves, once. Report failures before expanding the test scope."
     } else {
-        "Do not modify files or create commits. Inspect and report only."
+        "The filesystem sandbox protects the checkout and its Git metadata. Do not modify project files or create commits. Use only the private directory in TMPDIR for any explicitly authorized scratch probes, and remove each probe when finished. Inspect and report only."
     };
     let protocol = if let Some(id) = session["id"].as_str() {
         format!(
@@ -14,8 +15,30 @@ pub fn build(session: &Value) -> String {
     } else {
         String::new()
     };
+    let task = super::super::text(session, "task");
+    let task = if task.len() > 60000 && session["id"].is_string() {
+        format!(
+            "The full task is stored in canonical delegation state ({} characters, SHA256 {:x}). Retrieve it with cj delegation sync {} --role guest --full before acting. This launch instruction does not replace the task.",
+            task.chars().count(),
+            Sha256::digest(task.as_bytes()),
+            super::super::text(session, "id")
+        )
+    } else {
+        task.to_owned()
+    };
+    let attachments = super::super::attachments::manifest(session).unwrap_or_default();
+    let attached = if attachments
+        .as_array()
+        .is_some_and(|items| !items.is_empty())
+    {
+        format!(
+            "\nRequired immutable context: {attachments}. Use cj delegation context {} --name NAME --offset OFFSET --limit 12000 to read every range. Verify each complete SHA256. Reads record exact hashes and ranges; an incomplete read blocks the result.",
+            super::super::text(session, "id")
+        )
+    } else {
+        String::new()
+    };
     format!(
-        "You are an external delegated coding agent. Complete only the bounded task below.\nDo not delegate to another AI agent or launch another agent CLI.\n{mode}\n{protocol}\n\n{}",
-        super::super::text(session, "task")
+        "You are an external delegated coding agent. Complete only the bounded task below.\nDo not delegate to another AI agent or launch another agent CLI.\n{mode}\n{protocol}{attached}\n\n{task}"
     )
 }

@@ -34,7 +34,7 @@ pub fn run(target: Target) -> Result<Value> {
         .args(args)
         .output()?;
     ensure!(
-        output.status.success(),
+        output.status.success() || matches!(target, Target::Kimi),
         "model discovery failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
@@ -42,6 +42,14 @@ pub fn run(target: Target) -> Result<Value> {
         "notice":if matches!(target,Target::Claude){"Claude exposes model forms in help, not an account catalog"}else{""}});
     if matches!(target, Target::Kimi) {
         value["configured_aliases"] = aliases()?;
+        value["default_available"] = json!(true);
+        value["catalog_available"] = json!(output.status.success());
+        if !output.status.success() {
+            value["output"] = json!("");
+            value["notice"] = json!(
+                "The optional provider catalog is unavailable. Configured aliases remain available; omit --model to use the installed Kimi CLI default."
+            );
+        }
     }
     Ok(value)
 }

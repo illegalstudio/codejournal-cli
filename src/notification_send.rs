@@ -23,16 +23,28 @@ pub fn run(
     } else {
         project_bootstrap::ensure(api, tenant, false)?
     };
-    let mut result = api.post(
-        &format!("/api/v1/tenants/{tenant}/notifications"),
-        &json!({
-            "project": slug, "kind": args.kind, "title": title, "body": body,
-            "agent": attribution::agent(args.agent.as_deref()), "host": attribution::host(),
-            "checkout_path": cwd, "checkout_kind": "main", "branch": branch,
-            "tmux": std::env::var("TMUX").ok(),
-        }),
-    )?;
+    let mut payload = json!({
+        "project": slug, "kind": args.kind, "title": title, "body": body,
+        "agent": attribution::agent(args.agent.as_deref()), "host": attribution::host(),
+        "checkout_path": cwd, "checkout_kind": "main", "branch": branch,
+        "tmux": std::env::var("TMUX").ok(),
+    });
+    if let Some(id) = args.hook_notification_id {
+        uuid::Uuid::parse_str(&id)?;
+        payload["id"] = json!(id);
+        payload["source"] = json!("hook_approval");
+    }
+    let mut result = api.post(&format!("/api/v1/tenants/{tenant}/notifications"), &payload)?;
     result["notification"]["project_slug"] = json!(slug);
+    if payload["source"] == "hook_approval" && !result["notification"]["read_at"].is_null() {
+        result["delivery"] =
+            json!({"channels":[],"suppressed":true,"reason":"approval_already_completed"});
+        return output::emit(
+            &result,
+            "The tool approval already completed; its automatic notice is resolved.",
+            json_mode,
+        );
+    }
     let (delivery, notes) = notification_delivery::deliver(&result["notification"], &slug)?;
     let channels = delivery["channels"]
         .as_array()

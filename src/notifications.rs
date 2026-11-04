@@ -21,6 +21,7 @@ pub fn run(
             read,
             all,
             kind,
+            grep,
             project_only,
             limit,
             verbose,
@@ -40,6 +41,9 @@ pub fn run(
             if let Some(kind) = kind {
                 params.push(("kind", kind));
             }
+            if let Some(grep) = &grep {
+                params.push(("grep", grep.clone()));
+            }
             if project_only {
                 params.push((
                     "project",
@@ -52,6 +56,10 @@ pub fn run(
                 endpoint(tenant),
                 url.query().unwrap_or("")
             ))?;
+            anyhow::ensure!(
+                grep.is_none() || result["grep_applied"] == true,
+                "this server does not support notification text filters; update the server"
+            );
             crate::output::discovery::list(&mut result, "notifications", state, verbose);
             let mut lines = vec![format!("{} unread (* marks unread)", result["unread"])];
             for row in result["notifications"].as_array().into_iter().flatten() {

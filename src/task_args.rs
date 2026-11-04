@@ -15,7 +15,10 @@ pub struct TaskAddArgs {
     pub priority: String,
     #[arg(long)]
     pub plan: Option<String>,
-    #[arg(long)]
+    #[arg(
+        long,
+        help = "Earliest start date: YYYY-MM-DD, today, tomorrow, or Nd; time-of-day values are not accepted"
+    )]
     pub not_before: Option<String>,
     #[arg(long = "ref", help = crate::refs::HELP)]
     pub refs: Vec<String>,
@@ -31,6 +34,12 @@ pub struct TaskAddArgs {
 pub struct TaskListArgs {
     #[arg(long, help = "Case-insensitive match on task title or body")]
     pub grep: Option<String>,
+    #[arg(
+        long,
+        requires = "grep",
+        help = "Match the literal grep word or phrase at whole-word boundaries"
+    )]
+    pub whole_word: bool,
     #[arg(long, default_value = "active", value_parser = ["active", "open", "in_progress", "closed", "done", "dismissed", "all"])]
     pub status: String,
     #[arg(long, conflicts_with = "status", help = "Include closed tasks")]

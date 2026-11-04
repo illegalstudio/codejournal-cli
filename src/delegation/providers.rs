@@ -1,6 +1,8 @@
 pub(super) mod adapters;
+mod grok_attention;
 mod mcp_environment;
 mod prompt;
+mod sandbox;
 use anyhow::{Result, ensure};
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::Command};
@@ -9,6 +11,7 @@ pub struct Invocation {
     pub command: Command,
     pub input: Option<String>,
     pub _config: Option<tempfile::NamedTempFile>,
+    pub _sandbox: Option<tempfile::TempDir>,
 }
 
 pub fn executable(target: &str) -> &'static str {
@@ -67,7 +70,15 @@ pub fn synchronous(args: super::args::StartArgs) -> Result<()> {
         args.mode != super::args::Mode::Write || args.dry_run,
         "write mode requires a durable delegation start"
     );
+    ensure!(
+        args.context_file.is_empty() && args.context_result.is_empty(),
+        "context attachments require a durable delegation start/create"
+    );
     let body = crate::input::body(args.prompt, args.prompt_file)?;
+    ensure!(
+        body.len() <= 60000,
+        "large prompts require a durable delegation start --prompt-file PATH; the full task remains available through sync --full"
+    );
     let cwd = std::env::current_dir()?.canonicalize()?;
     let session = json!({"target":args.target.name(),"mode":args.mode.name(),"cwd":cwd,"task":body,
         "model":args.model.unwrap_or_default()});

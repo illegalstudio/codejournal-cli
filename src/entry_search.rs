@@ -37,6 +37,17 @@ pub fn run(
     if args.whole_word {
         params.push(("whole_word", "1".to_owned()));
     }
+    if args.relaxed {
+        params.push(("relaxed", "1".to_owned()));
+    }
+    if let Some(reference) = &args.reference {
+        let parsed = crate::refs::parse_all(&[reference.clone()])?;
+        let item = parsed
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("missing reference"))?;
+        params.push(("ref_kind", item["kind"].as_str().unwrap_or("").to_owned()));
+        params.push(("ref_value", item["value"].as_str().unwrap_or("").to_owned()));
+    }
     for (key, value) in [
         ("q", args.query),
         ("kind", args.kind),
@@ -90,6 +101,15 @@ fn fetch(
 ) -> Result<()> {
     let query = reqwest::Url::parse_with_params("http://local/", &params)?;
     let mut response = api.get(&format!("{}?{}", root(tenant), query.query().unwrap_or("")))?;
+    anyhow::ensure!(
+        !params.iter().any(|(key, _)| *key == "ref_kind")
+            || response["reference_filter"].is_object(),
+        "this server does not support precise reference lookup; update the server"
+    );
+    anyhow::ensure!(
+        !params.iter().any(|(key, _)| *key == "relaxed") || response["relaxed"].is_boolean(),
+        "this server does not support relaxed search; update the server"
+    );
     anyhow::ensure!(
         !params
             .iter()

@@ -5,6 +5,10 @@ fn initialize() -> Result<()> {
     if keyring::get_default_store().is_some() {
         return Ok(());
     }
+    install()
+}
+
+fn install() -> Result<()> {
     #[cfg(target_os = "macos")]
     let store = apple_native_keyring_store::keychain::Store::new()?;
     #[cfg(target_os = "windows")]
@@ -26,13 +30,26 @@ fn initialize() -> Result<()> {
     ))
 }
 
-fn retry<T>(
+fn retry<T>(operation: impl FnMut() -> Result<T>, pause: impl FnMut(Duration)) -> Result<T> {
+    retry_reconnecting(operation, install, pause)
+}
+
+fn retry_reconnecting<T>(
     mut operation: impl FnMut() -> Result<T>,
+    mut reconnect: impl FnMut() -> Result<()>,
     mut pause: impl FnMut(Duration),
 ) -> Result<T> {
     for delay in [100, 250] {
         match operation() {
-            Err(Error::PlatformFailure(_)) => pause(Duration::from_millis(delay)),
+            Err(Error::PlatformFailure(error)) => {
+                if error
+                    .to_string()
+                    .contains("org.freedesktop.Secret.Error.NoSession")
+                {
+                    let _ = reconnect();
+                }
+                pause(Duration::from_millis(delay));
+            }
             result => return result,
         }
     }
@@ -102,5 +119,31 @@ mod tests {
         );
         assert!(matches!(result, Err(Error::NoEntry)));
         assert_eq!(attempts, 1);
+    }
+
+    #[test]
+    fn an_expired_secret_service_session_is_reopened_before_retrying() {
+        let stale = std::cell::Cell::new(true);
+        let reopened = std::cell::Cell::new(0);
+        let token = retry_reconnecting(
+            || {
+                if stale.get() {
+                    Err(Error::PlatformFailure(Box::new(io::Error::other(
+                        "org.freedesktop.Secret.Error.NoSession",
+                    ))))
+                } else {
+                    Ok("existing credential")
+                }
+            },
+            || {
+                stale.set(false);
+                reopened.set(reopened.get() + 1);
+                Ok(())
+            },
+            |_| {},
+        )
+        .unwrap();
+        assert_eq!(token, "existing credential");
+        assert_eq!(reopened.get(), 1);
     }
 }

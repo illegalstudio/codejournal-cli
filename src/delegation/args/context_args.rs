@@ -13,6 +13,9 @@ pub struct ReadArgs {
     pub context: ContextArgs,
     #[arg(long)]
     pub after: Option<i64>,
+    /// Omit the task text while retaining complete event payloads with --full.
+    #[arg(long)]
+    pub events_only: bool,
     #[arg(skip)]
     pub full: bool,
 }

@@ -46,10 +46,17 @@ pub struct StartArgs {
     pub mode: Mode,
     #[arg(long)]
     pub model: Option<String>,
+    /// Task text, at most 100000 characters. Use context attachments for longer evidence.
     #[arg(long, conflicts_with = "prompt_file", allow_hyphen_values = true)]
     pub prompt: Option<String>,
     #[arg(long, conflicts_with = "prompt")]
     pub prompt_file: Option<String>,
+    /// Snapshot a UTF-8 context file for bounded guest reads, repeatable.
+    #[arg(long)]
+    pub context_file: Vec<std::path::PathBuf>,
+    /// Attach a previous terminal delegation result without granting cross-session access.
+    #[arg(long)]
+    pub context_result: Vec<String>,
     #[arg(long, default_value = "600")]
     pub stall_timeout: f64,
     #[arg(long, default_value = "300")]

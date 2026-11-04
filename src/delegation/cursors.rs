@@ -38,7 +38,17 @@ pub fn pending_host(
     let latest: i64 = db.query_row("SELECT coalesce(max(seq),0) FROM events WHERE delegation_id=? AND sender='host' AND kind IN ('message','answer','question')",
         [super::text(session,"id")], |r| r.get(0))?;
     let unread = latest > session["guest_ack_seq"].as_i64().unwrap_or(0);
+    let (count, oldest): (i64, Option<f64>) = db.query_row("SELECT count(*),min(created_at) FROM events WHERE delegation_id=? AND sender='host' AND kind IN ('message','answer','question') AND seq>?",
+        params![super::text(session,"id"),session["guest_ack_seq"].as_i64().unwrap_or(0)], |row| Ok((row.get(0)?,row.get(1)?)))?;
+    let attention: Option<f64> = db.query_row(
+        "SELECT max(created_at) FROM events WHERE delegation_id=? AND kind='host_attention'",
+        [super::text(session, "id")],
+        |row| row.get(0),
+    )?;
     Ok(
-        json!({"unread":unread,"through":latest,"hint":if unread {"Read host corrections with sync --role guest, address them, then ack --through SEQ before publishing a result."} else {""}}),
+        json!({"unread":unread,"through":latest,"unread_count":count,"oldest_unread_at":oldest,
+            "oldest_unread_age_seconds":oldest.map(|at|(super::now()-at).max(0.0)),"last_tool_boundary_notice_at":attention,
+            "delivery_state":if unread {"pending_guest_acknowledgement"} else {"acknowledged"},
+            "hint":if unread {"Read host corrections with sync --role guest, address them, then ack --through SEQ before publishing a result."} else {""}}),
     )
 }

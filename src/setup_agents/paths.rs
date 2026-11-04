@@ -18,7 +18,7 @@ pub fn root(agent: &str) -> Result<PathBuf> {
         "codex" => (Some("CODEX_HOME"), ".codex"),
         "claude" => (Some("CLAUDE_CONFIG_DIR"), ".claude"),
         "cursor" => (None, ".cursor"),
-        "grok" => (None, ".grok"),
+        "grok" => (Some("GROK_HOME"), ".grok"),
         "kimi" => (Some("KIMI_CODE_HOME"), ".kimi-code"),
         "pi" => (Some("PI_CODING_AGENT_DIR"), ".pi/agent"),
         _ => bail!("unsupported agent: {agent}"),

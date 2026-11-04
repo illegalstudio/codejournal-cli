@@ -12,7 +12,7 @@ pub fn prepare(id: &str, recover: bool, timeout: Option<f64>) -> Result<Value> {
         let session = store::get(db, id)?;
         ensure!(
             !super::super::terminal(&session),
-            "cannot launch a terminal delegation"
+            "cannot recover a terminal delegation; start a new delegation with cj delegation start TARGET --prompt ..."
         );
         ensure!(
             !process::owns_processes(&session),
@@ -91,12 +91,30 @@ pub fn finish(id: &str, code: i32, reason: &str, stdout: &str, stderr: &str) -> 
     store::transaction(|db| {
         let session = store::get(db, id)?;
         context::authorize(&session, "guest")?;
+        let token = text(&session, "attempt_token");
+        let safe_stderr = crate::secret_redaction::text(&stderr.replace(token, "[redacted]")).0;
+        let safe_stdout = crate::secret_redaction::text(&stdout.replace(token, "[redacted]")).0;
+        let provider_error = safe_stderr
+            .lines()
+            .rev()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("")
+            .chars()
+            .take(1200)
+            .collect::<String>();
         let mut changes = json!({"exit_code":code, "supervisor_pid":null, "guest_pid":null,
             "supervisor_identity":null, "guest_identity":null, "updated_at":super::super::now()});
         if !super::super::terminal(&session) {
             changes["status"] = json!("stalled");
             changes["error"] = json!(if reason.is_empty() {
-                format!("guest process exited with code {code} without publishing a result")
+                format!(
+                    "guest process exited with code {code} without publishing a result{}",
+                    if provider_error.is_empty() {
+                        String::new()
+                    } else {
+                        format!("; provider error: {provider_error}")
+                    }
+                )
             } else {
                 reason.to_owned()
             });
@@ -107,7 +125,7 @@ pub fn finish(id: &str, code: i32, reason: &str, stdout: &str, stderr: &str) -> 
             id,
             "system",
             "process_exit",
-            json!({"exit_code":code,"reason":reason,"stdout_tail":stdout,"stderr_tail":stderr}),
+            json!({"exit_code":code,"reason":reason,"provider_error":provider_error,"stdout_tail":safe_stdout,"stderr_tail":safe_stderr}),
             None,
             None,
         )?;

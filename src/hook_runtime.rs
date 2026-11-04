@@ -4,6 +4,7 @@ use crate::{
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::path::Path;
+mod approval;
 
 pub fn tool(
     payload: &Value,
@@ -12,13 +13,18 @@ pub fn tool(
     base: &Value,
     now: &str,
 ) -> Result<()> {
+    let correlated = approval::completed(payload, state, base);
+    let base = &correlated;
     hook_commit::record(payload, cwd, state);
     if let Some(id) = delegation_link(payload) {
         queue(base, "delegation_link", "delegation_id", json!(id))?;
     }
     let files = hook_files::edited(payload, cwd, state.root.as_deref());
     if files.is_empty() {
-        if state.waiting || stale(state.last_event_at.as_deref(), 60) {
+        if state.waiting
+            || base["resolved_notification_id"].is_string()
+            || stale(state.last_event_at.as_deref(), 60)
+        {
             queue(base, "tool", "", Value::Null)?;
             state.last_event_at = Some(now.to_owned());
         }
@@ -80,7 +86,7 @@ pub fn waiting(
     )?;
     if stale(state.notified_at.as_deref(), 300) {
         state.notified_at = Some(now.to_owned());
-        crate::hook_notify::notify(cwd, &state.agent, &reason)?;
+        approval::notify(payload, event, cwd, state, &reason)?;
     }
     Ok(())
 }

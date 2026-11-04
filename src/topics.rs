@@ -3,6 +3,7 @@ use crate::knowledge_args::TopicsAction;
 use crate::{output, project, topic_analysis};
 use anyhow::Result;
 use serde_json::{Value, json};
+mod find;
 
 pub fn run(
     api: &Api,
@@ -14,6 +15,10 @@ pub fn run(
     let slug = project::slug(explicit_project)?;
     let path = format!("/api/v1/tenants/{tenant}/projects/{slug}/topics");
     match action {
+        Some(TopicsAction::Find {
+            query,
+            all_projects,
+        }) => find::run(api, tenant, &slug, &query, all_projects, json_mode),
         None => {
             let result = api.get(&path)?;
             let lines = result["topics"]

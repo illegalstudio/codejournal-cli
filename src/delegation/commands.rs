@@ -28,6 +28,8 @@ pub fn run(
                 | Action::Publish(_)
                 | Action::Mcp
                 | Action::Guide { guest: true }
+                | Action::Context { .. }
+                | Action::Attention { .. }
                 | Action::Worker { .. }
         )
     {
@@ -42,7 +44,7 @@ pub fn run(
                 ..
             })
     );
-    let diagnostics = matches!(&action, Action::Output { .. });
+    let diagnostics = matches!(&action, Action::Output { .. } | Action::Context { .. });
     let value: Value = match action {
         Action::Start(args) => super::create::run(args, project, server, true, offline)?,
         Action::Create(args) => super::create::run(args, project, server, false, offline)?,
@@ -59,7 +61,19 @@ pub fn run(
         Action::Recover { id, stall_timeout } => {
             super::worker::launch_with_timeout(&id, stall_timeout)?
         }
-        Action::Output { id, lines } => super::diagnostics::output(&id, lines)?,
+        Action::Context {
+            id,
+            name,
+            offset,
+            limit,
+        } => super::attachments::read(&id, name.as_deref(), offset, limit)?,
+        Action::Attention { id } => super::attention::response(&id)?,
+        Action::Output {
+            id,
+            lines,
+            max_chars,
+            raw,
+        } => super::diagnostics::output(&id, lines, max_chars, raw)?,
         Action::Integrate { id } => super::lifecycle::integrate(&id)?,
         Action::Cancel { id, reason } => super::lifecycle::cancel(&id, &reason)?,
         Action::List { active, all, limit } => {
@@ -85,6 +99,7 @@ pub fn run(
         crate::stdout::println!("{}", super::text(&value["session"], "id"));
         return Ok(());
     }
+    let value = super::render::envelope(value);
     crate::output::json(&if full || diagnostics {
         value
     } else {

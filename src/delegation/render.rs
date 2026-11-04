@@ -61,14 +61,20 @@ fn events(value: &mut Value, budget: &mut usize, bounded: bool) {
     }
 }
 
-pub fn compact(mut value: Value, result_only: bool) -> Value {
+pub fn envelope(mut value: Value) -> Value {
     if value["session"].is_object() {
-        session(&mut value["session"]);
         value["id"] = value["session"]["id"].clone();
         value["status"] = value["session"]["status"].clone();
         value["progress"] = json!({"last_guest_activity_at":value["session"]["last_activity"],
             "provider_output_at":value["session"]["provider_output_at"], "contact_at":value["session"]["guest_heartbeat"],
             "note":"Contact is not proof of progress; use delegation output ID for bounded diagnostics."});
+    }
+    value
+}
+
+pub fn compact(mut value: Value, result_only: bool) -> Value {
+    if value["session"].is_object() {
+        session(&mut value["session"]);
     }
     if let Some(items) = value.get_mut("sessions").and_then(Value::as_array_mut) {
         for item in items {

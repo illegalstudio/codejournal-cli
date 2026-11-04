@@ -7,7 +7,10 @@ pub struct TaskEditArgs {
     pub title: Option<String>,
     #[arg(long, value_parser = ["low", "normal", "high", "critical"])]
     pub priority: Option<String>,
-    #[arg(long)]
+    #[arg(
+        long,
+        help = "Earliest start date: YYYY-MM-DD, today, tomorrow, Nd, or none to clear; time-of-day values are not accepted"
+    )]
     pub not_before: Option<String>,
     #[arg(long, conflicts_with = "no_plan")]
     pub plan: Option<String>,

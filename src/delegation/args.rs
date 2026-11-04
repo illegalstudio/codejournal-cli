@@ -35,6 +35,26 @@ pub enum Action {
         id: String,
         #[arg(long, default_value = "40", value_parser = clap::value_parser!(u16).range(1..=200))]
         lines: u16,
+        /// Maximum characters per stream, including streams with a single long line.
+        #[arg(long, default_value = "8000", value_parser = clap::value_parser!(u32).range(256..=65536))]
+        max_chars: u32,
+        /// Show bounded raw provider output instead of readable event summaries.
+        #[arg(long)]
+        raw: bool,
+    },
+    /// Read immutable attached context. Guest reads record their exact hash and range.
+    Context {
+        id: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long, default_value = "0")]
+        offset: usize,
+        #[arg(long, default_value = "12000", value_parser = clap::value_parser!(u16).range(1..=16000))]
+        limit: u16,
+    },
+    #[command(hide = true)]
+    Attention {
+        id: String,
     },
     Ack {
         #[command(flatten)]
@@ -54,6 +74,7 @@ pub enum Action {
         #[arg(long, default_value = "50", value_parser = clap::value_parser!(u16).range(1..=500))]
         limit: u16,
     },
+    /// Recover a stalled, stopped attempt. Terminal sessions require a new delegation start.
     Recover {
         id: String,
         /// Replace the inactivity budget atomically with the new attempt (0 disables it).

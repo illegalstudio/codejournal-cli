@@ -5,6 +5,8 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 
+pub(crate) mod credential_scope;
+
 #[derive(Default, Deserialize, Serialize)]
 pub struct Config {
     pub server: String,
@@ -66,14 +68,7 @@ impl Config {
 
     /// Returns the stored token only for the server that issued it.
     pub fn token_for(&self, server: &str) -> Result<String> {
-        if server.trim_end_matches('/') != self.server.trim_end_matches('/')
-            && std::env::var_os("CJ_TOKEN").is_none()
-        {
-            bail!(
-                "the stored token belongs to {}; set CJ_TOKEN to use {server}",
-                self.server
-            );
-        }
+        credential_scope::check(server, &self.server)?;
         self.token()
     }
 

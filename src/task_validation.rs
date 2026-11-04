@@ -9,8 +9,14 @@ pub fn preflight(command: &Command) -> Result<()> {
         let body = args.body.is_some() || args.body_file.is_some() || args.append_body.is_some();
         ensure!(
             !body || args.base.is_some(),
-            "task body edits require --base BODY_VERSION; run cj task show {} --json and use task.body_version. Use --append-body TEXT to add context without replacing the body.",
-            args.id
+            "task body edits, including --append-body, require --base BODY_VERSION. Run cj task show {} --json, then cj task edit {} --base BODY_VERSION {} TEXT using the returned task.body_version; nothing was sent or queued.",
+            args.id,
+            args.id,
+            if args.append_body.is_some() {
+                "--append-body"
+            } else {
+                "--body"
+            }
         );
         crate::refs::parse_all(&args.refs)?;
     }

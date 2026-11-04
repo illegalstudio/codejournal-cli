@@ -1,5 +1,7 @@
 mod launch;
 mod monitor;
+mod progress;
+mod rolling;
 mod streams;
 use super::{context, lifecycle, providers, store, text};
 use anyhow::{Result, ensure};
@@ -17,7 +19,13 @@ pub fn run(id: &str) -> Result<()> {
         "supervisor launch is no longer authorized"
     );
     crate::watches::process::install_signals();
-    let mut invocation = providers::build(&session, false)?;
+    let mut invocation = match providers::build(&session, false) {
+        Ok(invocation) => invocation,
+        Err(error) => {
+            lifecycle::finish(id, 1, &format!("cannot prepare provider: {error}"), "", "")?;
+            return Err(error);
+        }
+    };
     invocation
         .command
         .env("CJ_DELEGATION_ID", id)
@@ -82,8 +90,9 @@ fn termination(status: std::process::ExitStatus, reason: String) -> String {
     }
     if status.code().is_some_and(|code| code >= 128) {
         return format!(
-            "provider exited with code {}; this may encode a signal, but its cause is unknown",
-            status.code().unwrap_or(-1)
+            "provider exited with code {}; this may encode signal {}, but its cause is unknown",
+            status.code().unwrap_or(-1),
+            status.code().unwrap_or(128) - 128
         );
     }
     String::new()

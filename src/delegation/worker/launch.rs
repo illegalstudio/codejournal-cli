@@ -85,6 +85,7 @@ fn launch_attempt(id: &str, recover: bool, timeout: Option<f64>) -> Result<Value
                     role: None,
                 },
                 after: None,
+                events_only: false,
                 full: false,
             };
             return reads::snapshot(&read, false);

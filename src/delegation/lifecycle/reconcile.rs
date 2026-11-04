@@ -4,6 +4,10 @@ use rusqlite::Connection;
 use serde_json::{Value, json};
 
 pub fn needed(session: &Value) -> bool {
+    // A PID namespace cannot inspect the supervisor's host process identifiers.
+    if std::env::var_os("CJ_DELEGATION_SANDBOX").is_some() {
+        return false;
+    }
     if !matches!(
         text(session, "status"),
         "starting" | "recovering" | "running" | "waiting_for_host" | "waiting_for_guest"

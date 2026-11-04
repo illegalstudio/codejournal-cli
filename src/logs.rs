@@ -34,7 +34,14 @@ fn add(
     json_mode: bool,
 ) -> Result<()> {
     let body = input::body(args.body, args.body_file)?;
-    let linked = log_commits::pending(&args.refs, args.no_auto_commits)?;
+    let explicit = refs::parse_all(&args.refs)?;
+    let pending = log_commits::pending(&args.refs, args.no_auto_commits)?;
+    let linked = pending
+        .iter()
+        .take(30usize.saturating_sub(explicit.len()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let remaining = pending.len() - linked.len();
     let notice = log_commits::notice(&args.refs, args.no_auto_commits)?;
     let mut all_refs = args.refs;
     all_refs.extend(linked.iter().map(|sha| format!("commit:{sha}")));
@@ -87,8 +94,18 @@ fn add(
     if let Some(notice) = &notice {
         text = format!("Commit tracking warning: {notice}\n{text}");
     }
+    let mut notices = notice.into_iter().collect::<Vec<_>>();
+    if remaining > 0 {
+        let warning = format!(
+            "Linked the oldest {} captured commits within the 30-reference limit; {remaining} remain pending for subsequent logs. No attribution evidence was dropped. Use --no-auto-commits with explicit --ref commit:SHA values to select a different group.",
+            linked.len()
+        );
+        text.push_str(&format!("\nCommit tracking: {warning}"));
+        notices.push(warning);
+    }
     output::emit(
-        &json!({"log": log, "queued": false, "notices": notice.iter().collect::<Vec<_>>()}),
+        &json!({"log": log, "queued": false, "notices": notices,
+            "commit_tracking":{"linked":linked.len(),"remaining":remaining,"selection":"oldest_captured_first"}}),
         &text,
         json_mode,
     )

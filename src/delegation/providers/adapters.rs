@@ -23,6 +23,9 @@ pub fn build(session: &Value, prompt: &str, dry: bool) -> Result<Invocation> {
                 "--dangerously-skip-permissions",
             ]);
             if managed {
+                command.arg("--settings").arg(
+                    super::super::attention::settings(&binary, text(session, "id")).to_string(),
+                );
                 command.args(["--verbose", "--include-partial-messages"]);
                 let path = if dry {
                     std::path::PathBuf::from("<private MCP configuration>")
@@ -127,10 +130,18 @@ pub fn build(session: &Value, prompt: &str, dry: bool) -> Result<Invocation> {
         }
     }
     command.current_dir(text(session, "cwd"));
+    let sandbox = super::sandbox::protect(&mut command, session, dry)?;
+    if target == "grok" && managed && !dry {
+        config = Some(super::grok_attention::prepare(
+            &binary,
+            text(session, "id"),
+        )?);
+    }
     Ok(Invocation {
         command,
         input,
         _config: config,
+        _sandbox: sandbox,
     })
 }
 

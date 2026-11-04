@@ -110,6 +110,8 @@ fn changes(rows: &[Value], root: &Path, entry: bool, failures: &mut Vec<Value>) 
             let timestamp = if entry { "created_at" } else { "updated_at" };
             let mut observation = json!({"id": row["id"],
             "changes": git_history::changes_since(row[timestamp].as_str(), &paths),
+            "touching_commits":git_history::touching_commits(row[timestamp].as_str(), &paths),
+            "checked_branch":crate::git::output(&["branch","--show-current"]),
             "code_hash": hash});
             if let Some(hash) = row["content_hash"].as_str() {
                 observation["content_hash"] = json!(hash);

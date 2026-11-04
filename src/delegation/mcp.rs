@@ -25,6 +25,7 @@ pub fn run(offline: bool) -> Result<()> {
             "ping"=>Ok(json!({})),
             "tools/list"=>Ok(json!({"tools":tools::definitions()})),
             "tools/call"=>call(super::text(&request["params"],"name"),&request["params"]["arguments"])
+                .map(super::render::envelope)
                 .map(|value| if request["params"]["arguments"]["full"] == true { value } else {
                     super::render::compact(value, request["params"]["name"] == "delegation_wait" && request["params"]["arguments"]["until"] == "result")
                 })
@@ -62,6 +63,7 @@ fn call(name: &str, value: &Value) -> Result<Value> {
                 context,
                 after: value["after"].as_i64(),
                 full: value["full"] == true,
+                events_only: value["events_only"] == true,
             },
             false,
         ),
@@ -71,6 +73,7 @@ fn call(name: &str, value: &Value) -> Result<Value> {
                     context,
                     after: value["after"].as_i64(),
                     full: value["full"] == true,
+                    events_only: value["events_only"] == true,
                 },
                 timeout: value["timeout"].as_f64().unwrap_or(30.0),
                 until: match value["until"].as_str().unwrap_or("event") {

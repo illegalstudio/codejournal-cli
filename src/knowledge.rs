@@ -2,6 +2,7 @@ use crate::api::Api;
 use crate::output;
 use anyhow::Result;
 use serde_json::Value;
+mod hint;
 
 fn root(tenant: &str) -> String {
     format!("/api/v1/tenants/{tenant}/entries")
@@ -16,7 +17,7 @@ pub fn show(api: &Api, tenant: &str, id: &str, no_track: bool, json_mode: bool) 
                 .to_string()
                 .contains("Entry ID is missing or ambiguous")
             {
-                error.context("cj show reads knowledge entries; use cj log show ID for a work log")
+                hint::missing(api, tenant, id, error)
             } else {
                 error
             }

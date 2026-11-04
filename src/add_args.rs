@@ -16,7 +16,10 @@ pub struct AddArgs {
     pub refs: Vec<String>,
     #[arg(long)]
     pub agent: Option<String>,
-    #[arg(long)]
+    #[arg(
+        long,
+        help = "Allow creation despite an existing active entry with the same title; to replace a fact, add with --force and then supersede the old entry with the returned new ID"
+    )]
     pub force: bool,
     #[arg(long = "global")]
     pub global_scope: bool,

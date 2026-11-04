@@ -3,6 +3,13 @@ use clap::Args;
 #[derive(Args)]
 pub struct SearchArgs {
     pub query: Option<String>,
+    #[arg(
+        long = "ref",
+        help = "Find exact issue, PR, URL, commit or path references in entries and current docs"
+    )]
+    pub reference: Option<String>,
+    #[arg(long, requires = "query", conflicts_with_all = ["any", "literal", "whole_word"], help = "Retry an empty all-term search with ranked any-term matching")]
+    pub relaxed: bool,
     #[arg(long)]
     pub kind: Option<String>,
     #[arg(long)]

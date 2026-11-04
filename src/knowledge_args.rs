@@ -19,6 +19,12 @@ pub struct AnswerArgs {
 
 #[derive(Subcommand)]
 pub enum TopicsAction {
+    /// Find reusable topic names without retrieving the full topic inventory.
+    Find {
+        query: String,
+        #[arg(long)]
+        all_projects: bool,
+    },
     Merge {
         sources: Vec<String>,
         #[arg(long)]
@@ -33,6 +39,16 @@ pub enum TopicsAction {
 
 #[derive(Subcommand)]
 pub enum EntryAction {
+    /// Correct reference metadata without replacing the knowledge entry.
+    Refs {
+        id: String,
+        #[arg(long, help = "Expected refs_version from cj entry show ID --json")]
+        base: String,
+        #[arg(long = "ref", conflicts_with = "clear_refs", required_unless_present = "clear_refs", help = crate::refs::UPDATE_HELP)]
+        refs: Vec<String>,
+        #[arg(long)]
+        clear_refs: bool,
+    },
     /// Read an entry (alias of cj show).
     Show {
         id: String,

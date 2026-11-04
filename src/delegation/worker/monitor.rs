@@ -44,7 +44,10 @@ fn tick(id: &str, started: Instant) -> Result<Option<String>> {
     let current = store::get(&store::open()?, id)?;
     context::authorize(&current, "guest")?;
     if super::super::terminal(&current) {
-        return Ok(Some(String::new()));
+        return Ok(Some(format!(
+            "provider stopped by supervisor after delegation {}",
+            text(&current, "status")
+        )));
     }
     let reason = check(id, &current, started)?;
     if !reason.is_empty() {

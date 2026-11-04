@@ -47,6 +47,32 @@ pub fn render(data: &Value) -> String {
                 value(&target["id"])
             ));
         }
+        for commit in row["details"]["touching_commits"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            lines.push(format!(
+                "    commit {}: {}",
+                value(&commit["sha"]),
+                commit["paths"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(value)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+            if commit["paths_omitted"].as_u64().unwrap_or_default() > 0 {
+                lines.push(format!(
+                    "      {} more paths omitted from this bounded evidence",
+                    commit["paths_omitted"]
+                ));
+            }
+        }
+        if row["details"]["outside_branch"] == true {
+            lines.push(format!("    Branch scope: {}; checked {}. Verify in the cited branch before judging missing paths.",row["details"]["branch_refs"].as_array().into_iter().flatten().map(value).collect::<Vec<_>>().join(", "),value(&row["details"]["checked_branch"])));
+        }
         if row["details"]["changes"].as_u64().unwrap_or(0) > 0 {
             lines.push(format!(
                 "    {} commits touched its refs; verify the content",

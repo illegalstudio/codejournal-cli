@@ -60,6 +60,8 @@ pub fn run(
     };
     let mut captured = context::capture(project, server);
     captured["offline"] = json!(offline);
+    captured["attachments"] =
+        super::attachments::capture(&args.context_file, &args.context_result)?;
     let id = uuid::Uuid::new_v4().to_string();
     store::transaction(|db| {
         if args.mode == super::args::Mode::Write {

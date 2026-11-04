@@ -5,7 +5,7 @@ description: Delegate a bounded task to an installed Claude Code, Codex, Cursor 
 
 # Code Journal delegation
 
-`cj delegation` contains the broker, supervisor, provider adapters and guest protocol. Only `cj` and the selected agent CLI are needed. No external scripts or configuration repository are required. Provider authentication and billing remain with that agent's installed CLI.
+`cj delegation` contains the broker, supervisor, provider adapters and guest protocol. The selected agent CLI and its authentication are required. Read-only execution uses bubblewrap on Linux and sandbox-exec on macOS; a missing filesystem sandbox blocks launch. No external scripts or configuration repository are required. Provider authentication and billing remain with that agent's installed CLI.
 
 Use the provider the user requested. When the provider is unspecified, clarify only if choosing one changes the requested subscription or workflow. Do not launch nested delegations. Keep the host responsible for scope, review, commits and pushes.
 
@@ -33,11 +33,17 @@ cj delegation result ID --timeout 60
 
 Normal standard output is a diagnostic log. Completion requires a `result` event; `failed`, `cancelled` and `stalled` require inspecting the reason. Report completion and any material limitation to the user. Do not start duplicate attempts while a supervisor or guest is alive.
 
-Provider output counts as activity; Claude and Grok stream tool events and partial responses during managed runs. Supervisor heartbeats alone do not prove guest progress or reset inactivity. Choose `--stall-timeout` for the task's expected silent intervals; `0` explicitly disables that deadline. A long review may need a larger budget than the default. Inspect `cj delegation output ID --lines 40` for bounded, redacted stdout/stderr. Silence does not identify a provider API wait or its cause. A busy local database preserves the guest while monitoring retries.
+Provider output counts as activity; Claude and Grok stream tool events and partial responses during managed runs. Supervisor heartbeats alone do not prove guest progress or reset inactivity. Choose `--stall-timeout` for the task's expected silent intervals; `0` explicitly disables that deadline. A long review may need a larger budget than the default. Inspect `cj delegation output ID --lines 40 --max-chars 8000` for bounded, redacted stdout/stderr. Silence does not identify a provider API wait or its cause. A busy local database preserves the guest while monitoring retries.
+
+Managed Claude and Grok receive pending host corrections through native tool-boundary hooks. Grok keeps its folder-trust policy and uses an owned per-launch hook that is removed at exit. This presentation is separate from explicit guest acknowledgement; unsupported hook surfaces continue protocol polling.
+
+Diagnostics retain a rolling recent tail after the 2 MiB limit and summarize provider events without numeric byte-array noise. `--raw` retrieves bounded raw text. Normal and `--full` JSON share top-level `id`, `status` and `progress`; use `sync ID --full --events-only` to omit the repeated task.
 
 IDs accept a full UUID or a unique prefix of at least eight hex characters. Start with `--id-only` when only the identifier is needed. Default responses omit the full task and diagnostic tails; `--full` retrieves complete content and up to 500 events per page, versus 25 normally. Follow `next_after` for remaining pages.
 
 Bare `wait` remembers delivered events separately from acknowledgement, so repeated waits do not spin on an unacknowledged event. `--after SEQ` explicitly replays from a cursor. `--until event|question|result|terminal` selects the wake condition; waits accept up to 86400 seconds. `result` waits through interim events and returns one top-level result or null on timeout. Inspect status and `timed_out` too. `sync` continues to retrieve unacknowledged events. `list` shows machine-wide active or unresolved delegations; explicit `--cwd PATH` scopes it to that checkout. Use `list --all` for terminal records.
+
+The task is limited to 100000 characters. Attach larger immutable evidence with repeated `--context-file PATH`, or a previous terminal result with `--context-result ID`. Each file is at most 1000000 bytes; at most 20 attachments and 4000000 bytes in total are accepted. The guest reads exact snapshot hashes and ranges through `delegation context`; incomplete required context blocks its result. Large launch tasks are retrieved from canonical state, avoiding provider argument-size limits.
 
 ## Write delegations
 
@@ -54,6 +60,8 @@ cj delegation sync ID --full
 cj delegation recover ID --stall-timeout 3600
 cj delegation cancel ID --reason 'Why this delegation is no longer needed'
 ```
+
+Recovery applies to stopped, nonterminal sessions such as stalled attempts. A completed, failed or cancelled session requires a new `start`; attach its result with `--context-result` when relevant.
 
 Recovery keeps the same task, identity and history, increments the attempt and fences old guest tokens. An optional stall budget applies atomically to the new attempt; prior failure and budget remain in history. A missing supervisor with a surviving guest becomes stalled; cancel the confirmed delegation before starting a replacement. Never kill unrelated agent processes. A recovered guest reads the checkpoint and answers before continuing.
 

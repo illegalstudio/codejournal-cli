@@ -48,6 +48,11 @@ pub enum NotificationAction {
         all: bool,
         #[arg(long)]
         kind: Option<String>,
+        #[arg(
+            long,
+            help = "Case-insensitive literal match on notification title or body"
+        )]
+        grep: Option<String>,
         #[arg(long)]
         project_only: bool,
         #[arg(long, default_value_t = 50)]
@@ -75,6 +80,8 @@ pub enum NotificationAction {
 
 #[derive(Args)]
 pub struct NotifyArgs {
+    #[arg(long, hide = true)]
+    pub hook_notification_id: Option<String>,
     #[arg(long, default_value = "needs_input")]
     pub kind: String,
     #[arg(long)]

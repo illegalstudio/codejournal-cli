@@ -83,7 +83,11 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
         "PreToolUse" => {
             if let Some(root) = &state.root {
                 let files = hook_files::edited(payload, cwd, Some(root));
-                hook_output::conflicts(&hook_files::conflicts(session, root, &files));
+                let mut warnings = hook_files::conflicts(session, root, &files);
+                if let Some(notice) = crate::delegation::attention::current_notice()? {
+                    warnings.push(notice);
+                }
+                hook_output::conflicts(&warnings);
             }
         }
         "PostToolUse" => hook_runtime::tool(payload, cwd, &mut state, &base, &now)?,

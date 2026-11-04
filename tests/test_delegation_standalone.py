@@ -8,6 +8,14 @@ class StandaloneDelegationTest(DelegationCase):
         self.assertEqual(result["configured_aliases"][0]["alias"],"configured-model")
         self.assertNotIn("must-not-be-exposed",json.dumps(result))
 
+    def test_kimi_models_preserves_native_aliases_when_the_optional_catalog_fails(self):
+        fake = self.bin / "kimi"
+        fake.write_text(fake.read_text().replace('if "CJ_DELEGATION_ID" not in os.environ:', 'if sys.argv[1:4] == ["provider", "catalog", "list"]:\n    print("Provider missing from catalog", file=sys.stderr)\n    raise SystemExit(1)\nif "CJ_DELEGATION_ID" not in os.environ:'))
+        result = self.call("models", "kimi")
+        self.assertTrue(result["default_available"])
+        self.assertFalse(result["catalog_available"])
+        self.assertEqual(result["configured_aliases"][0]["alias"], "configured-model")
+
     def test_binary_alone_runs_all_six_providers_without_python_or_ai_on_path(self):
         self.assertEqual(self.env["PATH"],str(self.bin))
         for target in ("claude","codex","cursor","grok","kimi","pi"):

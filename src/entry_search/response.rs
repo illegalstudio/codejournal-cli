@@ -10,7 +10,7 @@ pub fn emit(
     json_mode: bool,
 ) -> Result<()> {
     let entries = response["entries"].as_array().cloned().unwrap_or_default();
-    let lines: Vec<_> = entries
+    let mut lines: Vec<_> = entries
         .iter()
         .map(|entry| {
             let mut line = format::line(entry, all_projects);
@@ -26,6 +26,36 @@ pub fn emit(
         })
         .collect();
     let mut notices = super::empty::notices(params, entries.is_empty());
+    if response["relaxed"] == true {
+        notices.push("No entries matched all terms; this explicit relaxed search retried with ranked any-term matching.".to_owned());
+    }
+    if let Some(documents) = response["documents"]
+        .as_array()
+        .filter(|items| !items.is_empty())
+    {
+        lines.push(
+            if response["reference_filter"].is_object() {
+                "Documents with this exact reference:"
+            } else {
+                "Related current documents (partial term matches):"
+            }
+            .to_owned(),
+        );
+        for doc in documents {
+            lines.push(format!(
+                "  {}  {}\n      match: {}",
+                doc["id"]
+                    .as_str()
+                    .unwrap_or("")
+                    .replace('-', "")
+                    .chars()
+                    .take(8)
+                    .collect::<String>(),
+                doc["title"].as_str().unwrap_or(""),
+                doc["match_excerpt"].as_str().unwrap_or("")
+            ));
+        }
+    }
     if let Some((_, query)) = params.iter().find(|(key, _)| *key == "q")
         && !query.contains(char::is_whitespace)
         && !params
@@ -49,7 +79,9 @@ pub fn emit(
         }
     }
     let payload = json!({
-        "project": response["project"], "entries": entries, "cached": response["cached"] == true, "notices": notices,
+        "project": response["project"], "entries": entries, "documents": response["documents"],
+        "relaxed":response["relaxed"] == true,"reference_filter":response["reference_filter"],
+        "cached": response["cached"] == true, "notices": notices,
     });
     output::emit(
         &payload,

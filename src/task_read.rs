@@ -39,11 +39,18 @@ pub fn list(
     if let Some(grep) = args.grep {
         params.push(("grep", grep));
     }
+    if args.whole_word {
+        params.push(("whole_word", "1".to_owned()));
+    }
     if args.forwarded {
         params.push(("forwarded", "1".to_owned()));
     }
     let query = reqwest::Url::parse_with_params("http://local/", &params)?;
     let mut result = api.get(&format!("{base}?{}", query.query().unwrap_or("")))?;
+    anyhow::ensure!(
+        !args.whole_word || result["grep_mode"] == "whole_word",
+        "this server does not support whole-word task filters; update the server"
+    );
     crate::output::discovery::list(&mut result, "tasks", &params[0].1, args.verbose);
     let lines: Vec<_> = result["tasks"]
         .as_array()

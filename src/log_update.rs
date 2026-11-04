@@ -29,7 +29,7 @@ pub fn run(api: &Api, tenant: &str, args: LogUpdateArgs, json_mode: bool) -> Res
     } else {
         path
     };
-    let result = api.patch(&endpoint, &payload)?;
+    let mut result = api.patch(&endpoint, &payload)?;
     if let Some(base) = args.base {
         anyhow::ensure!(
             result["log"]["revision"].as_u64() == Some(u64::from(base) + 1),
@@ -47,5 +47,9 @@ pub fn run(api: &Api, tenant: &str, args: LogUpdateArgs, json_mode: bool) -> Res
     } else {
         format!("Updated refs of work log {id}.")
     };
+    result["body_omitted"] = json!(result["log"].get("body").is_none());
+    if result["body_omitted"] == true {
+        result["readback_command"] = json!(format!("cj log show {id} --json"));
+    }
     output::emit(&result, &text, json_mode)
 }

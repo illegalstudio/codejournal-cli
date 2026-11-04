@@ -5,7 +5,9 @@ use crate::{attribution, refs};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
+mod entry_flag;
 mod entry_move;
+mod entry_refs;
 
 fn path(tenant: &str, id: &str) -> String {
     format!("/api/v1/tenants/{tenant}/entries/{id}")
@@ -86,6 +88,12 @@ pub fn obsolete(api: &Api, tenant: &str, id: &str, json_mode: bool) -> Result<()
 
 pub fn entry(api: &Api, tenant: &str, action: EntryAction, json_mode: bool) -> Result<()> {
     match action {
+        EntryAction::Refs {
+            id,
+            base,
+            refs,
+            clear_refs: _,
+        } => entry_refs::run(api, tenant, &id, &base, refs, json_mode),
         EntryAction::Show { id, no_track } => {
             crate::knowledge::show(api, tenant, &id, no_track, json_mode)
         }
@@ -111,23 +119,7 @@ pub fn entry(api: &Api, tenant: &str, action: EntryAction, json_mode: bool) -> R
             note,
             agent,
             ..
-        } => {
-            if wrong && note.as_deref().is_none_or(str::is_empty) {
-                bail!(
-                    "say what is wrong with --note, then supersede or obsolete the entry if you can"
-                );
-            }
-            let kind = if wrong { "wrong" } else { "helpful" };
-            let result = api.post(
-                &format!("{}/flags", path(tenant, &id)),
-                &json!({"kind": kind, "note": note, "agent": agent}),
-            )?;
-            let mut human = format!("Flagged {} as {kind}.", short(&id));
-            if wrong {
-                human.push_str(" Supersede it with the correct fact (`cj add`, then `cj supersede`) or mark it obsolete.");
-            }
-            output::emit(&result, &human, json_mode)
-        }
+        } => entry_flag::run(api, tenant, &id, wrong, note, agent, json_mode),
         EntryAction::Scope { id, scope } => {
             if scope != "global" && scope != "project" {
                 bail!("scope must be global or project");
