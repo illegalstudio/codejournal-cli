@@ -1,4 +1,6 @@
 mod paths;
+#[cfg(target_os = "linux")]
+mod resolver;
 use anyhow::{Context, Result};
 use serde_json::Value;
 use std::{path::Path, process::Command};
@@ -85,6 +87,7 @@ fn wrapper(_scratch: &Path, writable: &[std::path::PathBuf]) -> Result<Command> 
         "--tmpfs",
         "/run",
     ]);
+    resolver::preserve(&mut command)?;
     for path in writable {
         command.arg("--bind").arg(path).arg(path);
     }
