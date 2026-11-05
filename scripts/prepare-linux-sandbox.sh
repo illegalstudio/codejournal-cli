@@ -18,6 +18,11 @@ include <tunables/global>
 profile bwrap /usr/bin/bwrap flags=(unconfined) {
   userns,
 }
+
+# Only synthetic helper caches on this disposable test runner.
+profile cj-test-bwrap /tmp/cj-standalone-delegation-*/state/codejournal/helpers/**/bwrap flags=(unconfined) {
+  userns,
+}
 PROFILE
   sudo apparmor_parser -r /etc/apparmor.d/bwrap
 fi

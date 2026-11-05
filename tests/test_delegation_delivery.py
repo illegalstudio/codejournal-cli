@@ -26,7 +26,7 @@ class DelegationDeliveryTest(DelegationCase):
         self.settled(session)
         events=self.queued()
         kinds=[event["kind"] for event in events]
-        for kind in ("created","started","question","answer","result","exited"):
+        for kind in ("created","sandbox","started","question","answer","result","exited"):
             self.assertIn(kind,kinds)
         self.assertTrue(all(event["origin"]==created["origin"] for event in events))
         result=next(event for event in events if event["kind"]=="result")

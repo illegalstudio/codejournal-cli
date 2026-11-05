@@ -1,4 +1,6 @@
 use std::process::Command;
+#[path = "build/sandbox.rs"]
+mod sandbox;
 
 fn git(args: &[&str]) -> Option<String> {
     let result = Command::new("git").args(args).output().ok()?;
@@ -9,6 +11,8 @@ fn git(args: &[&str]) -> Option<String> {
 }
 
 fn main() {
+    sandbox::generate().expect("valid bundled sandbox helper");
+    println!("cargo:rerun-if-changed=build");
     println!("cargo:rerun-if-env-changed=CJ_BUILD_REVISION");
     println!("cargo:rerun-if-env-changed=CJ_BUILD_DIRTY");
     println!("cargo:rerun-if-changed=src");

@@ -1,4 +1,5 @@
 pub mod args;
+mod bundled;
 mod commands;
 mod contention;
 mod context;
@@ -19,11 +20,13 @@ mod publish;
 mod reads;
 mod render;
 mod resolve;
+mod sandbox_entry;
 mod schema;
 mod store;
 mod waiting;
 mod worker;
 mod workspace;
+pub use sandbox_entry::run as sandbox_entry;
 
 use anyhow::Result;
 use serde_json::Value;

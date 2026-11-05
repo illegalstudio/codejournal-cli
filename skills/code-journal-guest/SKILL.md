@@ -18,7 +18,7 @@ The environment supplies the attempt identity. Never print it, override it, impe
 
 Read the task, mode, checkpoint and host answers before acting. Honor the exact delegated scope. Read-only mode means no edits or commits. Write mode permits only the authorized changes and never commits or pushes.
 
-Read-only providers inherit a filesystem sandbox. Use the private `TMPDIR` only for probes within the authorized scope, and clean them up. The checkout and its shared Git metadata remain read-only. Linux requires bubblewrap; macOS uses sandbox-exec. An unavailable sandbox blocks launch.
+Read-only is always a task instruction. Check the top-level `sandbox` report for actual OS enforcement: `enforced=true` protects the checkout and its Git metadata; `enforced=false` means the provider is running without that protection. CJ prefers a working system backend, then its bundled Linux Bubblewrap helper, and continues without sandbox when isolation cannot be used. Never treat this fallback as permission to edit, commit or expand scope. Use the provided `TMPDIR` for authorized probes and clean them up.
 
 After compaction, reuse this delegation's own durable read coverage for the same immutable commit/tree and file content. This preserves independence: do not borrow unverified coverage from peers or earlier review rounds. Record paths, ranges and the immutable SHA in checkpoints; reread ranges when their content changed or coverage evidence is incomplete.
 

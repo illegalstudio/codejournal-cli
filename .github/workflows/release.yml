@@ -21,7 +21,9 @@ jobs:
   check:
     if: github.repository == 'illegalstudio/codejournal-cli'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    env:
+      TMPDIR: /tmp
+    timeout-minutes: 35
     outputs:
       version: ${{ steps.version.outputs.value }}
     steps:
@@ -36,7 +38,15 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then [[ "$GITHUB_REF_NAME" == "v$version" ]]; fi
           echo "value=$version" >> "$GITHUB_OUTPUT"
       - name: Test the standalone client
-        run: bash scripts/test.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash scripts/prepare-linux-sandbox.sh
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup component add rustfmt
+          python3 scripts/sandbox/build.py
+          bash scripts/test.sh
 
   build:
     needs: check

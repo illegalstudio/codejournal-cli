@@ -1,11 +1,11 @@
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-pub fn build(session: &Value) -> String {
+pub fn build(session: &Value, sandbox: &Value) -> String {
     let mode = if super::super::text(session, "mode") == "write" {
         "Change only the paths and behavior authorized in the task. Ask the host before expanding scope. Do not commit or push. Produce the smallest reviewable diff first; publish a checkpoint with git status --short, git diff --stat, changed files and a summary. Then publish a question requesting host review and wait for its answer. Run only the specific tests the host approves, once. Report failures before expanding the test scope."
     } else {
-        "The filesystem sandbox protects the checkout and its Git metadata. Do not modify project files or create commits. Use only the private directory in TMPDIR for any explicitly authorized scratch probes, and remove each probe when finished. Inspect and report only."
+        "Do not modify project files or create commits. Use TMPDIR for explicitly authorized scratch probes, and remove each probe when finished. Inspect and report only."
     };
     let protocol = if let Some(id) = session["id"].as_str() {
         format!(
@@ -39,6 +39,6 @@ pub fn build(session: &Value) -> String {
         String::new()
     };
     format!(
-        "You are an external delegated coding agent. Complete only the bounded task below.\nDo not delegate to another AI agent or launch another agent CLI.\n{mode}\n{protocol}{attached}\n\n{task}"
+        "You are an external delegated coding agent. Complete only the bounded task below.\nDo not delegate to another AI agent or launch another agent CLI.\n{mode}\nActual filesystem isolation: {sandbox}. An enforced sandbox protects the checkout and Git metadata. When isolation is disabled, read-only is an instruction without OS filesystem enforcement.\n{protocol}{attached}\n\n{task}"
     )
 }

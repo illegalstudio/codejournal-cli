@@ -26,3 +26,7 @@ pub fn values() -> Value {
     }
     values
 }
+
+pub fn config(binary: &std::path::Path) -> Value {
+    json!({"mcpServers":{"delegation":{"command":binary,"args":["delegation","mcp"],"env":values()}}})
+}

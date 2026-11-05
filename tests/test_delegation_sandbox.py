@@ -54,7 +54,7 @@ class DelegationSandboxTest(DelegationCase):
         self.assertIn("write rejected", result.stdout)
         self.assertEqual((repo / "seed.txt").read_text(), "baseline\n")
 
-    def test_provider_state_may_not_overlap_the_repository(self):
+    def test_overlapping_provider_state_disables_isolation_and_continues(self):
         repo = self.repository()
         for target, variable in [("codex", "CODEX_HOME"), ("grok", "GROK_HOME"),
                                  ("kimi", "KIMI_CODE_HOME"), ("pi", "PI_CODING_AGENT_DIR")]:
@@ -62,15 +62,17 @@ class DelegationSandboxTest(DelegationCase):
                 env = self.env.copy()
                 env[variable] = str(repo / "provider-state")
                 result = self.invoke("run", target, "--prompt", "Inspect", cwd=repo, env=env, check=False)
-                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("overlaps", result.stderr)
+                self.assertIn("without filesystem sandbox", result.stderr)
                 self.assertFalse((repo / "provider-state").exists())
 
-    def test_failed_sandbox_preparation_clears_the_supervisor(self):
+    def test_failed_sandbox_preparation_continues_and_clears_the_supervisor(self):
         repo = self.repository()
         env = self.env.copy()
         env["CODEX_HOME"] = str(repo)
         ident = self.start(target="codex", cwd=repo, env=env)
         snapshot = self.settled(ident)
-        self.assertEqual(snapshot["session"]["status"], "stalled")
-        self.assertIn("overlaps", snapshot["session"]["error"])
+        self.assertEqual(snapshot["session"]["status"], "completed", json.dumps(snapshot))
+        self.assertFalse(snapshot["sandbox"]["enforced"])
+        self.assertIn("overlaps", snapshot["sandbox"]["reason"])

@@ -3,6 +3,9 @@ use crate::*;
 use anyhow::Result;
 
 pub fn run() -> Result<()> {
+    if delegation::sandbox_entry()? {
+        return Ok(());
+    }
     let mut cli = cli_parse::parse();
     if cli.project.is_some()
         && matches!(

@@ -1,0 +1,14 @@
+{
+  "builder_image": "alpine@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f",
+  "bubblewrap": {
+    "version": "0.13.1",
+    "archive": "bubblewrap-0.13.1.tar.xz",
+    "sha256": "0e85c8702248b8dd64144f594147553650cdd0e4c951690345faace79c217c4d"
+  },
+  "libcap": {
+    "version": "2.78",
+    "archive": "libcap-2.78.tar.xz",
+    "url": "https://kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-2.78.tar.xz",
+    "sha512": "a156a8708dd59f13400f701f4e1ddc81f915fe4e7b32f93a328f7d6f030b7a004fb985fa9ac60812dfffeb8ad860d2e1f59895485497350250efd9378682626b"
+  }
+}

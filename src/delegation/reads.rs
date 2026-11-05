@@ -36,6 +36,11 @@ pub fn snapshot(args: &args::ReadArgs, other: bool) -> Result<Value> {
             .and_then(|e| e["seq"].as_i64())
             .filter(|seq| *seq < latest);
         let host_messages = super::cursors::pending_host(db, &session)?;
+        let sandbox = events::last(db, &args.context.id, "sandbox")?
+            .filter(|event| event["payload"]["attempt"] == session["attempt"])
+            .map_or(json!({"status":"unknown","enforced":null}), |event| {
+                event["payload"].clone()
+            });
         if args.events_only {
             session.as_object_mut().map(|map| map.remove("task"));
             session["task_omitted"] = json!(true);
@@ -44,7 +49,7 @@ pub fn snapshot(args: &args::ReadArgs, other: bool) -> Result<Value> {
             json!({"session":store::public(session),"events":rows,"latest_seq":latest,"next_after":next,
             "last_checkpoint":events::last(db,&args.context.id,"checkpoint")?,
             "result_event":events::last(db,&args.context.id,"result")?,
-            "host_messages":host_messages}),
+            "host_messages":host_messages,"sandbox":sandbox}),
         )
     })
 }

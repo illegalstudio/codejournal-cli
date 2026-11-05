@@ -52,10 +52,20 @@ jobs:
           echo 'CC_x86_64_unknown_linux_musl=musl-gcc' >> "$GITHUB_ENV"
           echo 'CC_aarch64_unknown_linux_musl=musl-gcc' >> "$GITHUB_ENV"
       - name: Test and build the native client
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          if [[ '${{ runner.os }}' == Linux ]]; then python3 scripts/sandbox/build.py; fi
           cargo fmt --check
           cargo test --locked
           cargo build --locked --release --target '${{ matrix.target }}'
+      - name: Verify native Linux isolation and fallback
+        if: runner.os == 'Linux'
+        run: |
+          bash scripts/prepare-linux-sandbox.sh
+          export CJ_DELEGATION_TEST_BINARY="$PWD/target/${{ matrix.target }}/release/cj"
+          export TMPDIR=/tmp
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tests python3 -m unittest test_delegation_bundled test_delegation_fallback
       - name: Sign macOS binary when credentials are configured
         if: runner.os == 'macOS'
         env:

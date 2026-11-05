@@ -54,6 +54,10 @@ esac
             info.size = len(payload)
             info.mode = 0o755
             archive.addfile(info, io.BytesIO(payload))
+            source = b"synthetic bundled helper source"
+            extra = tarfile.TarInfo("third-party/sources/helper.tar.xz")
+            extra.size = len(source)
+            archive.addfile(extra, io.BytesIO(source))
         digest = hashlib.sha256((self.directory / "archive.tar.gz").read_bytes()).hexdigest()
         (self.directory / "SHA256SUMS").write_text(f"{digest}  codejournal-cli-v0.1.0-linux-x64.tar.gz\n")
 
@@ -68,6 +72,7 @@ esac
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(subprocess.check_output([str(self.output / "cj"), "--version"], text=True).strip(), "cj 0.1.0")
+        self.assertEqual({path.name for path in self.output.iterdir()}, {"cj"})
 
     def test_corruption_never_replaces_existing_binary(self):
         previous = self.output / "cj"

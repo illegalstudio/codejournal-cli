@@ -45,6 +45,7 @@ pub fn run(
             })
     );
     let diagnostics = matches!(&action, Action::Output { .. } | Action::Context { .. });
+    let launching = matches!(&action, Action::Start(_) | Action::Recover { .. });
     let value: Value = match action {
         Action::Start(args) => super::create::run(args, project, server, true, offline)?,
         Action::Create(args) => super::create::run(args, project, server, false, offline)?,
@@ -90,11 +91,14 @@ pub fn run(
         Action::McpConfig { id } => {
             context::host_only()?;
             store::get(&store::open()?, &id)?;
-            super::providers::adapters::mcp_config(&std::env::current_exe()?)
+            super::providers::mcp_config(&std::env::current_exe()?)
         }
         Action::Migrate { path, merge } => super::migrate::run(&path, merge)?,
         Action::Worker { id } => return super::worker::run(&id),
     };
+    if launching && value["dry_run"] != true {
+        super::providers::notice(&value["sandbox"]);
+    }
     if options.id_only {
         crate::stdout::println!("{}", super::text(&value["session"], "id"));
         return Ok(());

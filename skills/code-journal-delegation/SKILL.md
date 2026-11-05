@@ -5,7 +5,7 @@ description: Delegate a bounded task to an installed Claude Code, Codex, Cursor 
 
 # Code Journal delegation
 
-`cj delegation` contains the broker, supervisor, provider adapters and guest protocol. The selected agent CLI and its authentication are required. Read-only execution uses bubblewrap on Linux and sandbox-exec on macOS; a missing filesystem sandbox blocks launch. No external scripts or configuration repository are required. Provider authentication and billing remain with that agent's installed CLI.
+`cj delegation` contains the broker, supervisor, provider adapters and guest protocol. The selected agent CLI and its authentication are required. Read-only execution attempts Bubblewrap on Linux or sandbox-exec on macOS. Linux releases include a bundled Bubblewrap alternative. If isolation cannot be used, CJ continues without sandbox and exposes the reason through a warning and the top-level `sandbox` report. Read-only instructions still apply; `enforced=false` does not permit edits. No external scripts or configuration repository are required. Provider authentication and billing remain with that agent's installed CLI.
 
 Use the provider the user requested. When the provider is unspecified, clarify only if choosing one changes the requested subscription or workflow. Do not launch nested delegations. Keep the host responsible for scope, review, commits and pushes.
 
@@ -37,7 +37,7 @@ Provider output counts as activity; Claude and Grok stream tool events and parti
 
 Managed Claude and Grok receive pending host corrections through native tool-boundary hooks. Grok keeps its folder-trust policy and uses an owned per-launch hook that is removed at exit. This presentation is separate from explicit guest acknowledgement; unsupported hook surfaces continue protocol polling.
 
-Diagnostics retain a rolling recent tail after the 2 MiB limit and summarize provider events without numeric byte-array noise. `--raw` retrieves bounded raw text. Normal and `--full` JSON share top-level `id`, `status` and `progress`; use `sync ID --full --events-only` to omit the repeated task.
+Diagnostics retain a rolling recent tail after the 2 MiB limit and summarize provider events without numeric byte-array noise. `--raw` retrieves bounded raw text. Normal and `--full` JSON share top-level `id`, `status`, `progress` and `sandbox`; use `sync ID --full --events-only` to omit the repeated task.
 
 IDs accept a full UUID or a unique prefix of at least eight hex characters. Start with `--id-only` when only the identifier is needed. Default responses omit the full task and diagnostic tails; `--full` retrieves complete content and up to 500 events per page, versus 25 normally. Follow `next_after` for remaining pages.
 

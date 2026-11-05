@@ -1,19 +1,25 @@
+mod backend;
 mod paths;
+mod probe;
+mod protection;
+pub use protection::Protection;
 #[cfg(target_os = "linux")]
 mod resolver;
-use anyhow::{Context, Result};
-use serde_json::Value;
-use std::{path::Path, process::Command};
+use anyhow::Result;
+use serde_json::{Value, json};
+use std::path::Path;
 
-/// The provider and all of its shell descendants inherit the filesystem boundary.
-pub fn protect(
-    command: &mut Command,
-    session: &Value,
-    dry: bool,
-) -> Result<Option<tempfile::TempDir>> {
+pub fn prepare(session: &Value, dry: bool) -> Protection {
     if super::super::text(session, "mode") != "read-only" {
-        return Ok(None);
+        let mut result = Protection::disabled("");
+        result.report["status"] = json!("not_requested");
+        return result;
     }
+    prepare_available(session, dry, false)
+        .unwrap_or_else(|error| Protection::disabled(&format!("{error:#}")))
+}
+
+fn prepare_available(session: &Value, dry: bool, skip_system: bool) -> Result<Protection> {
     let scratch = if dry {
         None
     } else {
@@ -27,93 +33,79 @@ pub fn protect(
         .as_ref()
         .map_or(Path::new("<private scratch directory>"), |dir| dir.path());
     let writable = paths::writable(session, root, dry)?;
-    let mut sandbox = wrapper(root, &writable)?;
-    sandbox.arg(command.get_program()).args(command.get_args());
-    for (key, value) in command.get_envs() {
-        match value {
-            Some(value) => {
-                sandbox.env(key, value);
-            }
-            None => {
-                sandbox.env_remove(key);
-            }
+    let (mut wrapper, source) = match backend::select(root, &writable, session, dry, skip_system) {
+        Ok(value) => value,
+        Err(error) => {
+            let mut protection = Protection::disabled(&format!("{error:#}"));
+            protection.scratch = scratch;
+            return Ok(protection);
         }
-    }
-    if let Some(cwd) = command.get_current_dir() {
-        sandbox.current_dir(cwd);
-    }
-    for name in [
-        "DBUS_SESSION_BUS_ADDRESS",
-        "SSH_AUTH_SOCK",
-        "DISPLAY",
-        "WAYLAND_DISPLAY",
-    ] {
-        sandbox.env_remove(name);
-    }
-    sandbox
-        .env("CJ_DELEGATION_SANDBOX", "1")
-        .env("TMPDIR", root.join("tmp"))
-        .env("XDG_CACHE_HOME", root.join("cache"))
-        .env("XDG_RUNTIME_DIR", root.join("runtime"))
-        .env("PYTHONDONTWRITEBYTECODE", "1");
-    if !dry {
-        crate::config::credential_scope::forward(&mut sandbox);
-    }
-    *command = sandbox;
-    Ok(scratch)
+    };
+    wrapper.current_dir(super::super::text(session, "cwd"));
+    let marker = if dry {
+        None
+    } else {
+        Some(
+            tempfile::Builder::new()
+                .prefix("provider-start-")
+                .tempfile_in(root)?,
+        )
+    };
+    Ok(Protection {
+        report: json!({"status":if dry { "not_checked" } else { "active" },
+            "enforced":if dry { Value::Null } else { json!(true) },
+            "backend":backend::name(),"source":source,"reason":null}),
+        scratch,
+        marker,
+        wrapper: Some(wrapper),
+    })
 }
 
-#[cfg(target_os = "linux")]
-fn wrapper(_scratch: &Path, writable: &[std::path::PathBuf]) -> Result<Command> {
-    let executable = super::find("bwrap")
-        .or_else(|| {
-            Path::new("/usr/bin/bwrap")
-                .is_file()
-                .then(|| "/usr/bin/bwrap".into())
-        })
-        .context("read-only delegation requires bubblewrap (bwrap); no provider was launched")?;
-    let mut command = Command::new(executable);
-    command.args([
-        "--unshare-user",
-        "--unshare-pid",
-        "--die-with-parent",
-        "--ro-bind",
-        "/",
-        "/",
-        "--dev",
-        "/dev",
-        "--proc",
-        "/proc",
-        "--tmpfs",
-        "/run",
-    ]);
-    resolver::preserve(&mut command)?;
-    for path in writable {
-        command.arg("--bind").arg(path).arg(path);
+pub fn retry(session: &Value, report: &Value, reason: &str) -> Protection {
+    #[cfg(target_os = "linux")]
+    if report["source"] == "system" {
+        let mut protection = prepare_available(session, false, true)
+            .unwrap_or_else(|error| Protection::disabled(&format!("{error:#}")));
+        protection.report["previous_failure"] = json!(
+            crate::secret_redaction::text(reason)
+                .0
+                .chars()
+                .take(2048)
+                .collect::<String>()
+        );
+        if protection.report["status"] == "disabled" {
+            protection.report["reason"] = json!(format!(
+                "{reason}; {}",
+                super::super::text(&protection.report, "reason")
+            ));
+        }
+        return protection;
     }
-    command.arg("--");
-    Ok(command)
+    let _ = (session, report);
+    Protection::disabled(reason)
 }
 
-#[cfg(target_os = "macos")]
-fn wrapper(_scratch: &Path, writable: &[std::path::PathBuf]) -> Result<Command> {
-    let mut profile =
-        "(version 1)(allow default)(deny file-write*)(allow file-write* (literal \"/dev/null\"))"
-            .to_owned();
-    for path in writable {
-        profile.push_str(&format!(
-            "(allow file-write* (subpath {}))",
-            serde_json::to_string(&path.to_string_lossy())?
-        ));
+pub fn notice(report: &Value) {
+    if report["status"] == "disabled" {
+        eprintln!(
+            "Warning: proceeding without filesystem sandbox: {}. Read-only instructions still apply.",
+            super::super::text(report, "reason")
+        );
     }
-    let mut command = Command::new("/usr/bin/sandbox-exec");
-    command.args(["-p", &profile]);
-    Ok(command)
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
-fn wrapper(_scratch: &Path, _writable: &[std::path::PathBuf]) -> Result<Command> {
-    anyhow::bail!(
-        "read-only delegation has no filesystem sandbox on this platform; no provider was launched"
-    )
+pub fn summary(report: &Value) -> String {
+    match super::super::text(report, "status") {
+        "active" => format!(
+            "Filesystem sandbox active: {} ({})",
+            super::super::text(report, "backend"),
+            super::super::text(report, "source")
+        ),
+        "disabled" => format!(
+            "Proceeding without filesystem sandbox: {}. Read-only instructions still apply.",
+            super::super::text(report, "reason")
+        ),
+        "not_requested" => "Filesystem sandbox not requested for this write delegation".to_owned(),
+        _ => "Filesystem sandbox protection has not been checked".to_owned(),
+    }
 }

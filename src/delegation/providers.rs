@@ -1,8 +1,20 @@
 pub(super) mod adapters;
+mod codex;
 mod grok_attention;
+mod launch;
 mod mcp_environment;
 mod prompt;
 mod sandbox;
+mod synchronous;
+pub use launch::spawn;
+pub use mcp_environment::config as mcp_config;
+pub use synchronous::run as synchronous;
+pub fn notice(value: &Value) {
+    sandbox::notice(value);
+}
+pub fn isolation_summary(value: &Value) -> String {
+    sandbox::summary(value)
+}
 use anyhow::{Result, ensure};
 use serde_json::{Value, json};
 use std::{path::PathBuf, process::Command};
@@ -12,6 +24,8 @@ pub struct Invocation {
     pub input: Option<String>,
     pub _config: Option<tempfile::NamedTempFile>,
     pub _sandbox: Option<tempfile::TempDir>,
+    pub sandbox: Value,
+    pub marker: Option<tempfile::NamedTempFile>,
 }
 
 pub fn executable(target: &str) -> &'static str {
@@ -46,7 +60,17 @@ pub fn available(target: &str) -> Result<()> {
 }
 
 pub fn build(session: &Value, dry: bool) -> Result<Invocation> {
-    adapters::build(session, &prompt::build(session), dry)
+    build_with_protection(session, dry, sandbox::prepare(session, dry))
+}
+
+fn build_with_protection(
+    session: &Value,
+    dry: bool,
+    mut protection: sandbox::Protection,
+) -> Result<Invocation> {
+    protection.redact(session);
+    let prompt = prompt::build(session, &protection.report);
+    adapters::build(session, &prompt, dry, protection)
 }
 
 pub fn dry_run(session: &Value) -> Result<Value> {
@@ -54,56 +78,6 @@ pub fn dry_run(session: &Value) -> Result<Value> {
     Ok(
         json!({"dry_run":true,"executable":invocation.command.get_program().to_string_lossy(),
         "args":invocation.command.get_args().map(|s|s.to_string_lossy().into_owned()).collect::<Vec<_>>(),
-        "stdin":invocation.input,"cwd":session["cwd"]}),
+        "stdin":invocation.input,"cwd":session["cwd"],"sandbox":invocation.sandbox}),
     )
-}
-
-pub fn synchronous(args: super::args::StartArgs) -> Result<()> {
-    super::context::host_only()?;
-    ensure!(
-        std::env::var("CJ_DELEGATION_DEPTH")
-            .unwrap_or_default()
-            .is_empty(),
-        "nested delegation is disabled"
-    );
-    ensure!(
-        args.mode != super::args::Mode::Write || args.dry_run,
-        "write mode requires a durable delegation start"
-    );
-    ensure!(
-        args.context_file.is_empty() && args.context_result.is_empty(),
-        "context attachments require a durable delegation start/create"
-    );
-    let body = crate::input::body(args.prompt, args.prompt_file)?;
-    ensure!(
-        body.len() <= 60000,
-        "large prompts require a durable delegation start --prompt-file PATH; the full task remains available through sync --full"
-    );
-    let cwd = std::env::current_dir()?.canonicalize()?;
-    let session = json!({"target":args.target.name(),"mode":args.mode.name(),"cwd":cwd,"task":body,
-        "model":args.model.unwrap_or_default()});
-    if args.dry_run {
-        return crate::output::json(&dry_run(&session)?);
-    }
-    available(args.target.name())?;
-    let mut invocation = build(&session, false)?;
-    invocation.command.env("CJ_DELEGATION_DEPTH", "1");
-    if let Some(input) = invocation.input {
-        use std::io::Write;
-        invocation.command.stdin(std::process::Stdio::piped());
-        let mut child = invocation.command.spawn()?;
-        let stdin = child.stdin.take();
-        let writer = std::thread::spawn(move || {
-            if let Some(mut pipe) = stdin {
-                let _ = pipe.write_all(input.as_bytes());
-            }
-        });
-        let status = child.wait()?;
-        let _ = writer.join();
-        ensure!(status.success(), "delegated agent exited with {status}");
-    } else {
-        let status = invocation.command.status()?;
-        ensure!(status.success(), "delegated agent exited with {status}");
-    }
-    Ok(())
 }

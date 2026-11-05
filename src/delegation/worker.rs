@@ -19,37 +19,42 @@ pub fn run(id: &str) -> Result<()> {
         "supervisor launch is no longer authorized"
     );
     crate::watches::process::install_signals();
-    let mut invocation = match providers::build(&session, false) {
-        Ok(invocation) => invocation,
+    let client = std::env::current_exe()?;
+    let (invocation, mut child) = match providers::spawn(&session, |command, input| {
+        command
+            .env("CJ_DELEGATION_ID", id)
+            .env("CJ_DELEGATION_ROLE", "guest")
+            .env("CJ_DELEGATION_TOKEN", text(&session, "attempt_token"))
+            .env("CJ_DELEGATION_ATTEMPT", session["attempt"].to_string())
+            .env("CJ_DELEGATION_CLIENT", &client)
+            .env("CJ_DELEGATION_DEPTH", "1")
+            .stdin(if input { Stdio::piped() } else { Stdio::null() })
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        super::process::configure(command);
+    }) {
+        Ok(result) => result,
         Err(error) => {
-            lifecycle::finish(id, 1, &format!("cannot prepare provider: {error}"), "", "")?;
+            lifecycle::finish(id, 1, &format!("cannot launch provider: {error}"), "", "")?;
             return Err(error);
         }
     };
-    invocation
-        .command
-        .env("CJ_DELEGATION_ID", id)
-        .env("CJ_DELEGATION_ROLE", "guest")
-        .env("CJ_DELEGATION_TOKEN", text(&session, "attempt_token"))
-        .env("CJ_DELEGATION_ATTEMPT", session["attempt"].to_string())
-        .env("CJ_DELEGATION_CLIENT", std::env::current_exe()?)
-        .env("CJ_DELEGATION_DEPTH", "1")
-        .stdin(if invocation.input.is_some() {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    super::process::configure(&mut invocation.command);
-    let mut child = match invocation.command.spawn() {
-        Ok(child) => child,
-        Err(error) => {
-            lifecycle::finish(id, 1, &format!("cannot launch provider: {error}"), "", "")?;
-            return Err(error.into());
-        }
-    };
     let execution = (|| -> Result<()> {
+        store::transaction(|db| {
+            let current = store::get(db, id)?;
+            context::authorize(&current, "guest")?;
+            let mut report = invocation.sandbox.clone();
+            report["attempt"] = session["attempt"].clone();
+            store::event(db, id, "system", "sandbox", report, None, None)?;
+            super::delivery::stage(
+                db,
+                &current,
+                "sandbox",
+                "system",
+                &providers::isolation_summary(&invocation.sandbox),
+            )?;
+            Ok(())
+        })?;
         lifecycle::attach(id, child.id())?;
         if let Some(input) = invocation.input {
             let pipe = child.stdin.take();

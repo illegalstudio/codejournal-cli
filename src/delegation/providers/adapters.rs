@@ -1,10 +1,15 @@
 use super::super::text;
 use super::Invocation;
 use anyhow::Result;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::{io::Write, process::Command};
 
-pub fn build(session: &Value, prompt: &str, dry: bool) -> Result<Invocation> {
+pub fn build(
+    session: &Value,
+    prompt: &str,
+    dry: bool,
+    mut protection: super::sandbox::Protection,
+) -> Result<Invocation> {
     let target = text(session, "target");
     let mut command = Command::new(super::executable(target));
     let mut config = None;
@@ -32,7 +37,9 @@ pub fn build(session: &Value, prompt: &str, dry: bool) -> Result<Invocation> {
                 } else {
                     let mut file =
                         tempfile::NamedTempFile::new_in(super::super::store::directory()?)?;
-                    file.write_all(serde_json::to_string(&mcp_config(&binary))?.as_bytes())?;
+                    file.write_all(
+                        serde_json::to_string(&super::mcp_environment::config(&binary))?.as_bytes(),
+                    )?;
                     let path = file.path().to_path_buf();
                     config = Some(file);
                     path
@@ -44,29 +51,7 @@ pub fn build(session: &Value, prompt: &str, dry: bool) -> Result<Invocation> {
             }
         }
         "codex" => {
-            command
-                .args([
-                    "exec",
-                    "--color",
-                    "never",
-                    "--ephemeral",
-                    "--dangerously-bypass-approvals-and-sandbox",
-                ])
-                .arg("--cd")
-                .arg(text(session, "cwd"));
-            if managed {
-                command
-                    .arg("-c")
-                    .arg(format!(
-                        "mcp_servers.delegation.command={}",
-                        serde_json::to_string(&binary.to_string_lossy())?
-                    ))
-                    .args(["-c", "mcp_servers.delegation.args=[\"delegation\",\"mcp\"]"]);
-                command.arg("-c").arg(format!(
-                    "mcp_servers.delegation.env_vars={}",
-                    serde_json::to_string(super::mcp_environment::NAMES)?
-                ));
-            }
+            super::codex::configure(&mut command, session, &binary, managed)?;
             input = Some(prompt.to_owned());
         }
         "cursor" => {
@@ -130,7 +115,7 @@ pub fn build(session: &Value, prompt: &str, dry: bool) -> Result<Invocation> {
         }
     }
     command.current_dir(text(session, "cwd"));
-    let sandbox = super::sandbox::protect(&mut command, session, dry)?;
+    protection.apply(&mut command, &binary);
     if target == "grok" && managed && !dry {
         config = Some(super::grok_attention::prepare(
             &binary,
@@ -141,10 +126,8 @@ pub fn build(session: &Value, prompt: &str, dry: bool) -> Result<Invocation> {
         command,
         input,
         _config: config,
-        _sandbox: sandbox,
+        _sandbox: protection.scratch,
+        sandbox: protection.report,
+        marker: protection.marker,
     })
-}
-
-pub fn mcp_config(binary: &std::path::Path) -> Value {
-    json!({"mcpServers":{"delegation":{"command":binary,"args":["delegation","mcp"],"env":super::mcp_environment::values()}}})
 }
