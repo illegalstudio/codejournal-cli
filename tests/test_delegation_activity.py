@@ -5,7 +5,7 @@ class DelegationActivityTest(DelegationCase):
     def test_dry_runs_preview_streamed_delegations_and_plain_synchronous_runs(self):
         managed = self.call('start', 'grok', '--prompt', 'Synthetic review', '--dry-run')['args']
         direct = self.call('run', 'grok', '--prompt', 'Synthetic review', '--dry-run')['args']
-        self.assertEqual(managed[managed.index('--output-format') + 1], 'streaming-json')
+        self.assertEqual(managed[managed.index('--output-format') + 1], 'streaming-messages-json')
         self.assertIn('--include-partial-messages', managed)
         self.assertEqual(direct[direct.index('--output-format') + 1], 'plain')
         self.assertNotIn('--include-partial-messages', direct)

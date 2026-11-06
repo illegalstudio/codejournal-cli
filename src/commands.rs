@@ -41,12 +41,15 @@ pub fn add(
         }
     }
     let refs = refs::parse_all(&raw_refs)?;
-    let response = api.post(
+    let mut response = api.post(
         &format!("{}/entries", path(tenant, project)?),
         &json!({"kind": kind, "title": title, "body": body, "topics": topics, "refs": refs,
             "agent": attribution::agent(agent.as_deref()), "host": attribution::host(),
             "force": force, "scope": if global_scope { "global" } else { "project" }}),
     )?;
+    response["id"] = response["entry"]["id"].clone();
+    response["resource_id"] = response["entry"]["id"].clone();
+    response["queued"] = json!(false);
     let id = response["entry"]["id"]
         .as_str()
         .unwrap_or("")

@@ -2,7 +2,7 @@ use super::super::text;
 use super::Invocation;
 use anyhow::Result;
 use serde_json::Value;
-use std::{io::Write, process::Command};
+use std::io::Write;
 
 pub fn build(
     session: &Value,
@@ -11,7 +11,7 @@ pub fn build(
     mut protection: super::sandbox::Protection,
 ) -> Result<Invocation> {
     let target = text(session, "target");
-    let mut command = Command::new(super::executable(target));
+    let mut command = super::installed::command(super::executable(target), session, dry)?;
     let mut config = None;
     let mut input = None;
     let managed = session["id"].is_string();
@@ -71,7 +71,11 @@ pub fn build(
         "grok" => {
             command.arg("--cwd").arg(text(session, "cwd")).args([
                 "--output-format",
-                if managed { "streaming-json" } else { "plain" },
+                if managed {
+                    "streaming-messages-json"
+                } else {
+                    "plain"
+                },
                 "--always-approve",
             ]);
             if managed {

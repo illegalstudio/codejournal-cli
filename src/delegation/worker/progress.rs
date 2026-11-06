@@ -1,6 +1,8 @@
 use super::rolling::RollingLog;
 use anyhow::Result;
 use serde_json::Value;
+
+mod summary;
 use std::path::PathBuf;
 
 const LINE_LIMIT: usize = 256 * 1024;
@@ -40,7 +42,7 @@ impl Progress {
         }
         let mut selected = Vec::new();
         if let Ok(value) = serde_json::from_slice::<Value>(&self.pending) {
-            summarize(&value, &mut selected, 0);
+            summary::collect(&value, &mut selected, 0);
         } else if self.truncated {
             let text = String::from_utf8_lossy(&self.pending);
             let pattern =
@@ -70,69 +72,5 @@ impl Progress {
         self.pending.clear();
         self.truncated = false;
         Ok(())
-    }
-}
-
-fn summarize(value: &Value, selected: &mut Vec<String>, depth: usize) {
-    if depth > 10 || selected.len() >= 12 {
-        return;
-    }
-    match value {
-        Value::Object(map) => {
-            if map.get("type").and_then(Value::as_str).is_some_and(|kind| {
-                matches!(
-                    kind,
-                    "thinking_delta"
-                        | "signature_delta"
-                        | "input_json_delta"
-                        | "usage"
-                        | "usage_update"
-                )
-            }) || map
-                .get("delta")
-                .and_then(|delta| delta.get("type"))
-                .and_then(Value::as_str)
-                .is_some_and(|kind| {
-                    matches!(
-                        kind,
-                        "thinking_delta" | "signature_delta" | "input_json_delta"
-                    )
-                })
-            {
-                return;
-            }
-            for name in ["type", "name", "tool_name", "status", "text", "message"] {
-                if let Some(text) = map.get(name).and_then(Value::as_str) {
-                    selected.push(format!(
-                        "{name}={}",
-                        text.chars()
-                            .take(400)
-                            .collect::<String>()
-                            .replace('\n', " ")
-                    ));
-                    if selected.len() >= 12 {
-                        return;
-                    }
-                }
-            }
-            for (name, child) in map {
-                if !matches!(
-                    name.as_str(),
-                    "rawOutput" | "stdout" | "stderr" | "input" | "arguments" | "data" | "bytes"
-                ) {
-                    summarize(child, selected, depth + 1);
-                }
-            }
-        }
-        Value::Array(items)
-            if items
-                .first()
-                .is_some_and(|item| item.is_object() || item.is_array()) =>
-        {
-            for item in items.iter().take(16) {
-                summarize(item, selected, depth + 1);
-            }
-        }
-        _ => {}
     }
 }

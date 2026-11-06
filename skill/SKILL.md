@@ -62,6 +62,8 @@ cj add --kind gotcha --title "The migration needs a special role" \
 
 Repository refs use `path:relative/file`. For files outside the checkout use `file:/absolute/path` or `file:~/path` for this machine, and `host:HOST:/absolute/path` for a remote machine. These become `url:file://HOST/path` refs, retaining the host and encoded path without triggering repository staleness checks or reading remote files. Verify them manually on the named host. Do not cite credentials or personal files.
 
+For scripts, confirmed `cj add --json` writes expose the UUID at `resource_id`, `id` and `entry.id`, with `queued=false`. Prefer `resource_id`: queued writes leave it null while their legacy `id` remains the request ID. Resolve queued creation with `cj outbox receipt REQUEST_ID` after synchronization before using it in `supersede` or another resource command.
+
 Use `--global` only for facts that apply beyond this repository. To replace a fact while retaining its title, create the corrected entry with `cj add --force`, then supersede the old ID explicitly. For reference-only corrections, read `entry.refs_version` and use `cj entry refs ID --base HASH --ref path:correct/path`; this replaces the full reference list while preserving the fact. `--clear-refs` explicitly clears it. A failed `cj show` lookup can suggest the typed reader when the ID belongs to another record type. Correct stale knowledge with `cj supersede OLD --by NEW`, `cj obsolete ID`, or `cj entry flag ID --wrong --note "..."`. Answer open questions with `cj answer ID`.
 
 ## Log work
@@ -130,6 +132,8 @@ When a brief contains due reminders, the agent speaking directly to the user mus
 Do not close a reminder because it appeared in a brief, was read on the site, or was announced. Keep it open until the user asks to close or reschedule it. If the user decides to do the work, create or start an appropriate task and close the reminder only as part of that explicit decision. A due reminder alone never authorizes starting its work. Creation, rescheduling and closure use the normal durable offline queue; queued writes are not confirmed changes. Rescheduling and closure preserve their original content revision and report a conflict if another session changed it.
 
 ## Active discovery and detail
+
+Source-project briefs also retain up to ten forwarded tasks closed in the last 30 days, including the destination project. Reading them never consumes or acknowledges them. Use `forwarded_results_info` to inspect empty-window or plan suppression reasons, and `cj brief --all` for older closures within the same bound.
 
 Default discovery in text and JSON returns current docs, active plans, open/in-progress tasks, open feedback, active knowledge and watches, and unread notifications. Recent work logs remain useful context, including completed work. Draft or terminal records require an explicit lifecycle flag. Use `cj doc list --status outdated`, `cj plan list --status draft`, `cj task list --status done`, or list `--all` for every status. Knowledge search accepts `--all-statuses` (alias `--all`), and notifications accept `--read` or `--all`.
 

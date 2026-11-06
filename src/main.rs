@@ -18,6 +18,7 @@ mod brief_audit_tests;
 mod brief_context_format;
 mod brief_focus;
 mod brief_format;
+mod brief_forwarded;
 mod brief_manifests;
 mod browse;
 mod browse_list;

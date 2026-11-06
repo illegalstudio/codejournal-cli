@@ -18,7 +18,8 @@ class DiscoveryBriefTest(AuditCase):
             "recent": [{"title": "Current entry", "status": "active", "body": "DETAIL"},
                        {"title": "Obsolete entry", "status": "obsolete"}],
             "logs": [{"title": "Completed useful work", "status": "done", "body": "DETAIL"}],
-            "forwarded_results": [{"title": "Closed forwarding", "status": "done"}],
+            "forwarded_results": [{"id": "abc12345", "title": "Closed forwarding", "status": "done", "project_slug": "destination", "closed_at": "2026-11-06"}],
+            "forwarded_results_info": {"status": "available", "window_days": 30, "limit": 10},
             "focus": {"docs": [{"title": "Stale focused doc", "status": "outdated"}]}})
 
     def read(self, *flags):
@@ -31,6 +32,8 @@ class DiscoveryBriefTest(AuditCase):
             default, data = self.read()
             self.assertEqual(data["rules"], "Complete known rules")
             self.assertEqual(data["logs"][0]["status"], "done")
+            self.assertEqual(data["forwarded_results"][0]["project_slug"], "destination")
+            self.assertEqual(data["forwarded_results"][0]["closed_at"], "2026-11-06")
             for forbidden in ["DETAIL", "DUPLICATE", "Draft plan", "Outdated doc", "Closed task", "Obsolete entry", "Stale focused doc"]:
                 self.assertNotIn(forbidden, default.stdout)
             self.assertNotIn("entries", data)
@@ -43,6 +46,7 @@ class DiscoveryBriefTest(AuditCase):
         self.assertEqual(data["mode"], "offline")
         self.assertNotIn("Outdated doc", default_cached.stdout)
         self.assertNotIn("DETAIL", default_cached.stdout)
+        self.assertIn("Closed forwarding", default_cached.stdout)
         full_cached, _ = self.read("--offline", "--all", "--verbose")
         self.assertIn("Outdated doc", full_cached.stdout)
         self.assertIn("DETAIL", full_cached.stdout)
@@ -54,6 +58,17 @@ class DiscoveryBriefTest(AuditCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("Outdated doc", result.stdout)
 
+    def test_human_brief_explains_suppressed_forwarded_results(self):
+        def respond(handler):
+            handler.rfile.read(int(handler.headers['Content-Length']))
+            handler.reply(200, {'project': {'slug': 'fixture'}, 'rules': 'Known rules',
+                'forwarded_results': [], 'forwarded_results_info': {'status': 'unavailable',
+                    'reason': 'Free plan excludes cross-project task results.'}})
+        with patch.object(Handler, 'do_POST', respond):
+            result = self.cli('--project', 'fixture', 'brief')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Free plan excludes cross-project task results.', result.stdout)
+
     def test_hook_requests_active_summaries_and_never_reuses_legacy_text(self):
         cache = self.base / "state/codejournal/briefs" / (hashlib.sha256(str(self.repo).encode()).hexdigest() + ".txt")
         cache.parent.mkdir(parents=True)
@@ -63,6 +78,8 @@ class DiscoveryBriefTest(AuditCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Complete known rules", result.stdout)
         self.assertIn("Completed useful work", result.stdout)
+        self.assertIn("destination: Closed forwarding", result.stdout)
+        self.assertIn("last 30 days", result.stdout)
         self.assertNotIn("Draft plan", result.stdout)
         self.assertNotIn("Outdated doc", result.stdout)
         self.assertEqual(Handler.calls[-1][2]["visibility"], "active")

@@ -22,8 +22,9 @@ pub fn apply(data: &mut Value, active: bool, summary: bool) {
         }
     }
     if active {
-        if data.get("forwarded_results").is_some() {
-            data["forwarded_results"] = json!([]);
+        if let Some(rows) = data["forwarded_results"].as_array_mut() {
+            rows.retain(|row| matches!(row["status"].as_str(), Some("done" | "dismissed")));
+            rows.truncate(10);
         }
         if let Some(rows) = data["delegations"].as_array_mut() {
             rows.retain(|row| {
@@ -88,6 +89,7 @@ pub fn apply(data: &mut Value, active: bool, summary: bool) {
                         "not_before",
                         "updated_at",
                         "created_at",
+                        "closed_at",
                         "agent",
                         "refs",
                         "topics",
@@ -133,7 +135,7 @@ mod tests {
         }
         assert_eq!(data["focus"]["docs"].as_array().unwrap().len(), 1);
         assert!(!data.to_string().contains("Private"));
-        assert_eq!(data["forwarded_results"], json!([]));
+        assert_eq!(data["forwarded_results"], json!([{"status":"done"}]));
     }
 
     #[test]

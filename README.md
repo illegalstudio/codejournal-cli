@@ -142,6 +142,8 @@ The default task mode is read-only. CJ attempts filesystem isolation for the pro
 
 Temporary local database contention is retried without rerunning the task; a busy supervisor keeps its guest alive. If a previous version left a session stalled, `recover ID` restarts that session after its recorded processes have exited.
 
+Readable output decodes bounded nested text events and shows compact tool names, commands and paths. Reasoning and numeric byte arrays are omitted from summaries. Mise launchers are resolved to already-installed provider and interpreter paths before isolation. Missing installed targets produce guidance; CJ does not install or update provider packages. Dry runs do not execute mise.
+
 Claude and Grok delegations stream tool activity and partial responses to keep long reviews observable. Provider output counts as activity; supervisor heartbeats alone do not. A silent guest still reaches its `--stall-timeout`, and completion still requires an explicit result.
 
 `--mode write` requires a clean Git checkout and retains its writer lock through host review, a host commit and `cj delegation integrate ID`. The guest must publish a diff checkpoint and receive host approval before finishing. Before any result, it must read and acknowledge pending host corrections. It cannot commit or push. Use `cj delegation models TARGET` to inspect model options, and `run TARGET --dry-run --prompt TEXT` to inspect arguments without launching a guest.
@@ -185,6 +187,8 @@ cj open
 
 Use `cj --help` and `cj <command> --help` for the full interface. The [embedded skill](skill/SKILL.md) explains plans, tasks, docs, refs, maintenance, and the agent workflow.
 
+Confirmed `cj add --json` responses return the entry UUID at `id`, `resource_id` and `entry.id`, with `queued: false`. Scripts can read `resource_id` directly. A queued write has `queued: true` and `resource_id: null`; its legacy `id` is the request ID and cannot be used as an entry ID. Use `cj outbox receipt REQUEST_ID` after synchronization to resolve it.
+
 `cj topics similar` and `cj garden` analyze the selected project and relevant global knowledge. Use `cj topics similar --all-projects` for an explicit workspace-wide comparison. They may report that topic analysis is partial for large or highly similar topic collections. Review the returned suggestions without assuming they include every duplicate. You can still merge other known duplicates with `cj topics merge SOURCES --into TARGET`. JSON output identifies incomplete analysis.
 
 ### Review journal maintenance
@@ -220,6 +224,8 @@ Archive and restore require an online connection. Once this client has observed 
 
 Discovery returns concise summaries in both text and JSON. Defaults are current docs, active plans, open or in-progress tasks, open feedback, active knowledge and watches, and unread notifications. Recent work logs remain visible, including completed work. Project inventories default to active projects; use `cj projects --archived` or `--all` for archives; topic lists count active knowledge.
 
+Briefs also show the latest ten tasks forwarded from this project and closed elsewhere in the last 30 days, including the destination project. Reading a brief does not acknowledge or consume these closures. `cj brief --all` includes older closures within the same ten-result bound. JSON `forwarded_results_info` explains the date window and any plan restriction.
+
 ```bash
 cj doc list
 cj doc list --status outdated
@@ -247,6 +253,8 @@ The brief and session hooks keep complete project rules, active coordination and
 `cj feedback show ID` reads one complete report, including its resolution and attribution, without fetching the feedback list. Use a full ID or a unique prefix of at least eight hexadecimal characters. Closed or dismissed reports and reports from archived projects remain readable by ID; no repository checkout is required.
 
 Search results include a short matching excerpt. Use `cj search "liveness" --literal` when you need a case-insensitive phrase without stemming, including identifiers such as `worker::probe` or paths. `%` and `_` remain literal. This mode requires a query and cannot combine with `--any` or `--prefix`.
+
+When no entries match, related document suggestions retain the same literal or whole-word phrase. A package query such as `tor-browser-bin --literal` does not suggest documents that only mention `browser` or `bin`.
 
 Use `cj search "repl" --whole-word` to match `REPL` without matching `replacement`, `replies` or `replay`. It matches a literal word or phrase without stemming; adjacent letters, digits and underscores prevent a match. It can combine with `--literal`, but not `--any` or `--prefix`, and requires an updated server. Literal substring matching remains available through `--literal` alone.
 

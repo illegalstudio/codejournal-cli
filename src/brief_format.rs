@@ -64,12 +64,7 @@ pub fn render(
         &data["tasks"],
         if compact { 5 } else { 10 },
     );
-    section(
-        &mut lines,
-        "Your forwarded tasks closed elsewhere:",
-        &data["forwarded_results"],
-        10,
-    );
+    crate::brief_forwarded::render(data, &mut lines);
     section(&mut lines, "Open plans:", &data["plans"], 20);
     if !compact {
         brief_context_format::global(data, &mut lines);

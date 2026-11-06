@@ -36,6 +36,11 @@ pub fn emit(
         lines.push(
             if response["reference_filter"].is_object() {
                 "Documents with this exact reference:"
+            } else if params
+                .iter()
+                .any(|(key, value)| matches!(*key, "literal" | "whole_word") && value == "1")
+            {
+                "Current documents matching this phrase:"
             } else {
                 "Related current documents (partial term matches):"
             }

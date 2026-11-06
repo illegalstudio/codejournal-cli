@@ -1,6 +1,7 @@
 pub(super) mod adapters;
 mod codex;
 mod grok_attention;
+mod installed;
 mod launch;
 mod mcp_environment;
 mod prompt;
