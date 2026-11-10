@@ -20,10 +20,11 @@ pub fn run(
     let parsed = refs::parse_all(&args.refs)?;
     anyhow::ensure!(
         destination == here
+            || args.destination_refs
             || !parsed
                 .iter()
                 .any(|r| matches!(r["kind"].as_str(), Some("path" | "commit" | "branch"))),
-        "cross-project tasks cannot carry bare path/commit/branch refs from the source checkout; qualify them as a source repository URL, then use task edit --ref to repair existing refs"
+        "cross-project tasks cannot carry bare path/commit/branch refs from the source checkout; qualify them as a source repository URL, or pass --destination-refs when they name the destination repository; use task edit --ref to repair existing refs"
     );
     let body = input::optional_body(args.body, args.body_file)?;
     let response = api.post(
@@ -32,6 +33,7 @@ pub fn run(
             "title": args.title, "body": body, "priority": args.priority,
             "refs": parsed, "not_before": args.not_before,
             "source_project": if args.target.is_some() { Some(here.as_str()) } else { None },
+            "destination_refs": args.destination_refs && args.target.is_some(),
             "source_entry_id": args.from_entry, "plan": args.plan,
             "agent": attribution::agent(args.agent.as_deref()), "host": attribution::host(),
         }),

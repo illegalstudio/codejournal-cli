@@ -43,6 +43,11 @@ pub fn read(path: &Path, lines: u16, max_chars: u32, raw: bool) -> Result<Value>
         .take(usize::from(lines))
         .collect::<Vec<_>>();
     selected.reverse();
+    let latest = if readable {
+        latest_event(&selected)
+    } else {
+        Value::Null
+    };
     let text = selected.join("\n");
     let length = text.chars().count();
     let bounded = text
@@ -51,9 +56,30 @@ pub fn read(path: &Path, lines: u16, max_chars: u32, raw: bool) -> Result<Value>
         .collect::<String>();
     Ok(
         json!({"available":true,"text":bounded,"format":if readable {"summary"} else {"raw"},
+        "latest_event":latest,
         "capture_truncated":path.with_extension("truncated").exists() || path.metadata()?.len() >= 2097152,
         "tail_truncated":size > bytes.len() as u64 || content.lines().count() > usize::from(lines) || length > max_chars as usize}),
     )
+}
+
+/// The newest summary line, split into its UTC timestamp and text when the line carries one.
+fn latest_event(lines: &[&str]) -> Value {
+    let Some(line) = lines.iter().rev().find(|line| !line.trim().is_empty()) else {
+        return Value::Null;
+    };
+    let bounded = |text: &str| text.chars().take(1000).collect::<String>();
+    match line.split_once(' ') {
+        Some((stamp, text))
+            if chrono::NaiveDateTime::parse_from_str(
+                stamp,
+                super::super::worker::progress::TIMESTAMP_FORMAT,
+            )
+            .is_ok() =>
+        {
+            json!({"at": stamp, "text": bounded(text)})
+        }
+        _ => json!({"at": Value::Null, "text": bounded(line)}),
+    }
 }
 
 fn regular(path: &Path) -> Result<()> {

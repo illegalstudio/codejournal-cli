@@ -61,7 +61,21 @@ pub fn emit(
             ));
         }
     }
+    let stems = entries
+        .iter()
+        .filter(|entry| entry["match_quality"] == "stems")
+        .count();
+    let labelled = entries
+        .iter()
+        .any(|entry| entry["match_quality"].is_string());
+    if stems > 0 && stems * 2 >= entries.len() {
+        notices.push(format!(
+            "{stems} of {} results match only stemmed forms of your words; retry with --literal or --whole-word for the exact wording, or --topic to narrow the subsystem.",
+            entries.len()
+        ));
+    }
     if let Some((_, query)) = params.iter().find(|(key, _)| *key == "q")
+        && !labelled
         && !query.contains(char::is_whitespace)
         && !params
             .iter()

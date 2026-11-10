@@ -50,6 +50,10 @@ class FeedbackCliTest(unittest.TestCase):
                               env=self.env, input=stdin, text=True, capture_output=True,
                               timeout=3, check=True)
 
+    def attempt(self, *args):
+        return subprocess.run([self.binary, "--project", "p", *args], cwd=self.repo,
+                              env=self.env, text=True, capture_output=True, timeout=3)
+
     def test_title_and_note_updates_do_not_read_idle_stdin(self):
         for args in [("plan", "update", "aaaaaaaa", "--title", "New title"),
                      ("plan", "update", "aaaaaaaa", "--note", "CI passed")]:
@@ -121,6 +125,21 @@ class FeedbackCliTest(unittest.TestCase):
         self.assertEqual(Handler.calls[-1][2]["not_before"], "tomorrow")
         self.command("plan", "schedule", "aaaaaaaa", "7d")
         self.assertEqual(Handler.calls[-1][2]["not_before"], "7d")
+
+    def test_destination_refs_declare_bare_refs_for_the_forwarded_project(self):
+        rejected = self.attempt("task", "add", "--title", "Spec work", "--to", "target", "--ref", "path:docs/spec.md")
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("--destination-refs", rejected.stderr)
+        self.command("task", "add", "--title", "Spec work", "--to", "target", "--ref", "path:docs/spec.md",
+                     "--ref", "https://example.test/source/commit/abc", "--destination-refs")
+        self.assertEqual(Handler.calls[-1][1], "/api/v1/tenants/demo/projects/target/tasks")
+        self.assertEqual(Handler.calls[-1][2]["refs"], [{"kind": "path", "value": "docs/spec.md"},
+                                                        {"kind": "url", "value": "https://example.test/source/commit/abc"}])
+        self.assertIs(Handler.calls[-1][2]["destination_refs"], True)
+        self.assertEqual(Handler.calls[-1][2]["source_project"], "p")
+        local = self.attempt("task", "add", "--title", "Local", "--ref", "path:docs/spec.md", "--destination-refs")
+        self.assertNotEqual(local.returncode, 0)
+        self.assertIn("--to", local.stderr)
 
 
 if __name__ == "__main__":

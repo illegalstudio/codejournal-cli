@@ -38,11 +38,18 @@ pub fn line(entry: &Value, all_projects: bool) -> String {
         string(&entry["kind"]),
         string(&entry["title"])
     );
+    let stems = if entry["match_quality"] == "stems" {
+        " (stemmed words only)"
+    } else {
+        ""
+    };
     if let Some(excerpt) = entry["match_excerpt"]
         .as_str()
         .filter(|value| !value.is_empty())
     {
-        line.push_str(&format!("\n      match: {excerpt}"));
+        line.push_str(&format!("\n      match{stems}: {excerpt}"));
+    } else if !stems.is_empty() {
+        line.push_str("\n      match: stemmed words only");
     }
     line
 }

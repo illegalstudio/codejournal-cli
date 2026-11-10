@@ -37,7 +37,7 @@ Provider output counts as activity; Claude and Grok stream tool events and parti
 
 Managed Claude and Grok receive pending host corrections through native tool-boundary hooks. Grok keeps its folder-trust policy and uses an owned per-launch hook that is removed at exit. This presentation is separate from explicit guest acknowledgement; unsupported hook surfaces continue protocol polling.
 
-Diagnostics retain a rolling recent tail after the 2 MiB limit and summarize provider events without numeric byte-array noise. `--raw` retrieves bounded raw text. Normal and `--full` JSON share top-level `id`, `status`, `progress` and `sandbox`; use `sync ID --full --events-only` to omit the repeated task.
+Diagnostics retain a rolling recent tail after the 2 MiB limit and summarize provider events without numeric byte-array noise. Summary lines carry a UTC timestamp, standalone stream markers such as tool-argument deltas are skipped, and `latest_event` names the newest summarized tool, command or status with its time. `--raw` retrieves bounded raw text. Normal and `--full` JSON share top-level `id`, `status`, `progress` and `sandbox`; use `sync ID --full --events-only` to omit the repeated task.
 
 IDs accept a full UUID or a unique prefix of at least eight hex characters. Start with `--id-only` when only the identifier is needed. Default responses omit the full task and diagnostic tails; `--full` retrieves complete content and up to 500 events per page, versus 25 normally. Follow `next_after` for remaining pages.
 

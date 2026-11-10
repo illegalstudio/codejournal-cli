@@ -22,9 +22,12 @@ pub fn touching_commits(created_at: Option<&str>, paths: &[&str]) -> Vec<Value> 
         "--",
     ];
     args.extend(paths);
-    let Some(output) = git::output(&args) else {
-        return Vec::new();
-    };
+    git::output(&args).map_or_else(Vec::new, |output| parse(&output))
+}
+
+/// Parses `git log --name-only` output into commit records. Merge commits print no file
+/// names, so commits without path evidence are omitted instead of being sent as empty lists.
+fn parse(output: &str) -> Vec<Value> {
     let mut commits: Vec<Value> = Vec::new();
     for line in output.lines().filter(|line| !line.is_empty()) {
         if let Some(sha) = line.strip_prefix("CJ-COMMIT:").filter(|sha| {
@@ -46,6 +49,12 @@ pub fn touching_commits(created_at: Option<&str>, paths: &[&str]) -> Vec<Value> 
             }
         }
     }
+    commits.retain(|commit| {
+        commit["paths"]
+            .as_array()
+            .is_some_and(|paths| !paths.is_empty())
+            || commit["paths_omitted"].as_u64().unwrap_or_default() > 0
+    });
     commits
 }
 
@@ -85,5 +94,17 @@ mod tests {
                 .timestamp(),
             expected.timestamp()
         );
+    }
+
+    #[test]
+    fn merge_commits_without_listed_paths_are_omitted() {
+        let merge = "a".repeat(40);
+        let change = "b".repeat(40);
+        let output = format!("CJ-COMMIT:{merge}\nCJ-COMMIT:{change}\n\nsrc/cache.php\n");
+        let commits = parse(&output);
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0]["sha"], json!(change));
+        assert_eq!(commits[0]["paths"], json!(["src/cache.php"]));
+        assert!(parse(&format!("CJ-COMMIT:{merge}\n")).is_empty());
     }
 }

@@ -46,6 +46,27 @@ class SearchGuidanceTest(AuditCase):
                 {'id': RESOURCE, 'title': 'A match', 'kind': 'howto', 'status': 'active'}]})):
             self.assertEqual(json.loads(self.cli('--json', 'search', 'a b', '--all-projects').stdout)['notices'], [])
 
+    def test_stemmed_only_results_are_labelled_and_suggest_exact_matching(self):
+        def entry(number, title, quality):
+            return {'id': RESOURCE[:-1] + str(number), 'title': title, 'kind': 'gotcha', 'status': 'active',
+                    'match_excerpt': 'Context for ' + title, 'match_quality': quality}
+        noisy = [entry(1, 'Artifact storage budget', 'phrase'), entry(2, 'Assembly artifacts', 'stems'),
+                 entry(3, 'Value storage', 'stems')]
+        with patch.object(Handler, 'do_GET', lambda h: h.reply(200, {'entries': noisy})):
+            text = self.cli('search', 'artifact storage', '--all-projects')
+            self.assertEqual(text.returncode, 0, text.stderr)
+            self.assertIn('match (stemmed words only): Context for Assembly artifacts', text.stdout)
+            self.assertIn('match: Context for Artifact storage budget', text.stdout)
+            self.assertIn('2 of 3 results match only stemmed forms', text.stdout)
+            payload = json.loads(self.cli('--json', 'search', 'artifact storage', '--all-projects').stdout)
+            self.assertEqual(payload['entries'][1]['match_quality'], 'stems')
+            self.assertEqual(len(payload['notices']), 1)
+        exact = [entry(1, 'Artifact storage budget', 'phrase'), entry(2, 'Artifact storage paths', 'words'),
+                 entry(3, 'Assembly artifacts', 'stems')]
+        with patch.object(Handler, 'do_GET', lambda h: h.reply(200, {'entries': exact})):
+            payload = json.loads(self.cli('--json', 'search', 'artifact', '--all-projects').stdout)
+            self.assertEqual(payload['notices'], [])
+
     def test_invalid_whole_word_flags_fail_before_network(self):
         for args in [[], ['word', '--prefix'], ['word', '--any']]:
             self.assertNotEqual(self.cli('search', '--whole-word', *args).returncode, 0)

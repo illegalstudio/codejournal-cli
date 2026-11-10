@@ -22,6 +22,12 @@ pub struct TaskAddArgs {
     pub not_before: Option<String>,
     #[arg(long = "ref", help = crate::refs::HELP)]
     pub refs: Vec<String>,
+    #[arg(
+        long,
+        requires = "target",
+        help = "Bare path, commit and branch refs name the destination repository given to --to instead of this checkout"
+    )]
+    pub destination_refs: bool,
     #[arg(long)]
     pub agent: Option<String>,
     #[arg(long, conflicts_with = "body_file", allow_hyphen_values = true)]

@@ -1,6 +1,6 @@
 mod launch;
 mod monitor;
-mod progress;
+pub mod progress;
 mod rolling;
 mod streams;
 use super::{context, lifecycle, providers, store, text};
