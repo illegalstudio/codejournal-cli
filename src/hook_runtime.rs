@@ -4,7 +4,6 @@ use crate::{
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::path::Path;
-mod approval;
 
 pub fn tool(
     payload: &Value,
@@ -13,18 +12,13 @@ pub fn tool(
     base: &Value,
     now: &str,
 ) -> Result<()> {
-    let correlated = approval::completed(payload, state, base);
-    let base = &correlated;
     hook_commit::record(payload, cwd, state);
     if let Some(id) = delegation_link(payload) {
         queue(base, "delegation_link", "delegation_id", json!(id))?;
     }
     let files = hook_files::edited(payload, cwd, state.root.as_deref());
     if files.is_empty() {
-        if state.waiting
-            || base["resolved_notification_id"].is_string()
-            || stale(state.last_event_at.as_deref(), 60)
-        {
+        if state.waiting || stale(state.last_event_at.as_deref(), 60) {
             queue(base, "tool", "", Value::Null)?;
             state.last_event_at = Some(now.to_owned());
         }
@@ -42,14 +36,9 @@ pub fn tool(
     Ok(())
 }
 
-pub fn waiting(
-    event: &str,
-    payload: &Value,
-    cwd: &Path,
-    state: &mut SessionState,
-    base: &Value,
-    now: &str,
-) -> Result<()> {
+/// Records that the agent waits for the user. Waiting stays session activity: the hook never
+/// creates notifications, since the answer belongs in the agent's terminal session.
+pub fn waiting(event: &str, payload: &Value, state: &mut SessionState, base: &Value) -> Result<()> {
     let notification_type = payload["notification_type"].as_str();
     if event == "Notification"
         && notification_type.is_some_and(|value| {
@@ -84,10 +73,6 @@ pub fn waiting(
         "reason",
         json!(reason.chars().take(200).collect::<String>()),
     )?;
-    if stale(state.notified_at.as_deref(), 300) {
-        state.notified_at = Some(now.to_owned());
-        approval::notify(payload, event, cwd, state, &reason)?;
-    }
     Ok(())
 }
 

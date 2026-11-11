@@ -92,7 +92,7 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
         }
         "PostToolUse" => hook_runtime::tool(payload, cwd, &mut state, &base, &now)?,
         "Notification" | "PermissionRequest" => {
-            hook_runtime::waiting(event, payload, cwd, &mut state, &base, &now)?
+            hook_runtime::waiting(event, payload, &mut state, &base)?
         }
         "Stop" => hook_runtime::stop(payload, cwd, &mut state, &base)?,
         "PreCompact" => {

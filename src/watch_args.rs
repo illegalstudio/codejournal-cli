@@ -80,8 +80,6 @@ pub enum NotificationAction {
 
 #[derive(Args)]
 pub struct NotifyArgs {
-    #[arg(long, hide = true)]
-    pub hook_notification_id: Option<String>,
     #[arg(long, default_value = "needs_input")]
     pub kind: String,
     #[arg(long)]

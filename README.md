@@ -270,7 +270,7 @@ Empty knowledge queries also suggest a document search using `cj doc list --grep
 
 Task descriptions can be edited without replacing the task. Read `cj task show ID` for its `body_version`, then use `cj task edit ID --body-file details.md --base BODY_VERSION` (or `--body TEXT`). A stale body version fails without changing the task or its history. An explicit empty body clears the description.
 
-Task grep accepts `--whole-word` for short terms such as `INI`. Notifications accept `notifications list --grep TEXT`, filtering literal title/body text before the result limit. Exact tool completion retires correlated automatic approval notices; manual decisions remain unread until explicitly resolved.
+Task grep accepts `--whole-word` for short terms such as `INI`. Notifications accept `notifications list --grep TEXT`, filtering literal title/body text before the result limit. Session hooks never create notifications: end-of-turn, permission and question prompts belong in the agent's terminal and are recorded only as session activity. Notifications come from explicit `cj notify` calls and watch outcomes, and stay unread until you resolve them.
 
 For reference-only fact corrections, read `entry.refs_version`, then use `cj entry refs ID --base HASH --ref path:correct/path`. This replaces the complete ref list while preserving fact identity and history. `--clear-refs` clears it. For corrected content under the same title, use `cj add --force`, then explicitly supersede the old entry.
 

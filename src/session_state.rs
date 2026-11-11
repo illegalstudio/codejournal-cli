@@ -30,8 +30,6 @@ pub struct SessionState {
     pub last_log_at: Option<String>,
     pub reminded_turn: Option<String>,
     pub waiting: bool,
-    pub notified_at: Option<String>,
-    pub approval_notifications: HashMap<String, String>,
     pub delegation_id: Option<String>,
     pub ended_at: Option<String>,
     pub last_event_at: Option<String>,
