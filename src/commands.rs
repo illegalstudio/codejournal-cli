@@ -30,6 +30,8 @@ pub fn add(
     agent: Option<String>,
     force: bool,
     global_scope: bool,
+    temporary: bool,
+    durable: bool,
     json_mode: bool,
 ) -> Result<()> {
     let mut raw_refs = raw_refs;
@@ -41,11 +43,19 @@ pub fn add(
         }
     }
     let refs = refs::parse_all(&raw_refs)?;
+    let mut payload = json!({"kind": kind, "title": title, "body": body, "topics": topics, "refs": refs,
+        "agent": attribution::agent(agent.as_deref()), "host": attribution::host(),
+        "force": force, "scope": if global_scope { "global" } else { "project" }});
+    if durable {
+        payload["durable"] = json!(true);
+    }
     let mut response = api.post(
-        &format!("{}/entries", path(tenant, project)?),
-        &json!({"kind": kind, "title": title, "body": body, "topics": topics, "refs": refs,
-            "agent": attribution::agent(agent.as_deref()), "host": attribution::host(),
-            "force": force, "scope": if global_scope { "global" } else { "project" }}),
+        &format!(
+            "{}/entries{}",
+            path(tenant, project)?,
+            if temporary { "/temporary" } else { "" }
+        ),
+        &payload,
     )?;
     response["id"] = response["entry"]["id"].clone();
     response["resource_id"] = response["entry"]["id"].clone();
@@ -56,6 +66,11 @@ pub fn add(
         .replace('-', "");
     let short_id = &id[..id.len().min(8)];
     let mut text = format!("Recorded {short_id} ({kind}): {title}");
+    if let Some(expiry) = response["entry"]["expires_at"].as_str() {
+        text.push_str(&format!(
+            "\nExpires {expiry}. Promote with `cj entry promote {short_id}`."
+        ));
+    }
     if let Some(mentions) = response["mentions"].as_array() {
         for mention in mentions {
             let slug = mention["slug"].as_str().unwrap_or("");

@@ -9,6 +9,7 @@ pub fn builder(api: &Api, request: &PendingRequest) -> Result<reqwest::blocking:
         .request(method, format!("{}{}", api.server, request.path))
         .bearer_auth(&api.token)
         .header("Accept", "application/json")
+        .header("Idempotency-Replay", super::acknowledgement::FORMAT)
         .header("Idempotency-Key", &request.id);
     if let Some(seconds) = request.created_at {
         builder = builder.header("Idempotency-Created-At", seconds.to_string());

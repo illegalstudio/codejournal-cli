@@ -16,6 +16,7 @@ mod brief_audit;
 #[cfg(test)]
 mod brief_audit_tests;
 mod brief_context_format;
+mod brief_duplicates;
 mod brief_focus;
 mod brief_format;
 mod brief_forwarded;
@@ -149,6 +150,7 @@ mod watch_runner;
 mod watch_state;
 mod watch_validation;
 mod watches;
+mod work_retention;
 
 fn main() {
     if let Err(error) = runtime::run() {

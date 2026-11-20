@@ -3,17 +3,26 @@ use crate::{api::Api, git};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
-pub fn run(api: &Api, base: &str, preview: bool) -> Result<Value> {
+pub fn run(
+    api: &Api,
+    base: &str,
+    preview: bool,
+    start: u64,
+    max_pages: Option<u32>,
+) -> Result<Value> {
     let endpoint = if preview { "preview" } else { "scan" };
     let url = format!("{base}/garden/review/{endpoint}");
     let root = git::root();
     let mut findings = Vec::new();
     let mut reviewed = 0;
     let mut deferred = 0;
-    let mut page = 1;
+    let mut page = start;
+    let mut scanned = 0;
+    let mut continuation = None;
     let mut failures = Vec::new();
     let mut result = loop {
         let data = api.get(&format!("{base}/garden?page={page}&review=1"))?;
+        scanned += 1;
         eprintln!(
             "Garden: scanning page {page} ({} entries, {} docs).",
             data["entries"].as_array().map_or(0, Vec::len),
@@ -31,7 +40,7 @@ pub fn run(api: &Api, base: &str, preview: bool) -> Result<Value> {
             }
             None => Vec::new(),
         };
-        if next.is_none() {
+        if next.is_none() && max_pages.is_none() {
             if batches.is_empty() {
                 batches.push(json!({}));
             }
@@ -42,7 +51,7 @@ pub fn run(api: &Api, base: &str, preview: bool) -> Result<Value> {
                 }
             }
         }
-        let mut last = Value::Null;
+        let mut last = json!({});
         for body in batches {
             last = api.post_noqueue(&url, &body)?;
             if preview {
@@ -50,6 +59,10 @@ pub fn run(api: &Api, base: &str, preview: bool) -> Result<Value> {
             }
         }
         match next {
+            Some(next) if max_pages == Some(scanned) => {
+                continuation = Some(next);
+                break last;
+            }
             Some(next) => page = next,
             None => break last,
         }
@@ -68,6 +81,9 @@ pub fn run(api: &Api, base: &str, preview: bool) -> Result<Value> {
         result.as_object_mut().map(|value| value.remove("progress"));
     }
     result["code_scan_partial"] = json!(!failures.is_empty());
+    result["scan_pages"] = json!(scanned);
+    result["scan_next_page"] = json!(continuation);
+    result["scan_complete"] = json!(max_pages.is_none() && failures.is_empty());
     result["snapshot_failure_count"] = json!(failures.len());
     failures.truncate(20);
     result["scan_failures"] = json!(failures);

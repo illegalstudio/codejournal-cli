@@ -57,7 +57,7 @@ pub fn run() -> Result<()> {
     if matches!(cli.command, Command::Status) {
         return storage_status::status(cli.json, cli.offline, cli.server.as_deref());
     }
-    if matches!(&cli.command, Command::Outbox { action } if !matches!(action, outbox_commands::OutboxAction::Receipt { .. }))
+    if matches!(&cli.command, Command::Outbox { action } if !matches!(action, outbox_commands::OutboxAction::Receipt { .. } | outbox_commands::OutboxAction::Retry { .. }))
         && let Command::Outbox { action } = cli.command
     {
         return outbox_commands::run(action, cli.json, cli.server.as_deref());
@@ -102,7 +102,14 @@ pub fn run() -> Result<()> {
     api.set_auto_project(cli.project.is_none() && checkout_identity::current().is_some());
     let tenant = config.tenant.clone();
     let json_mode = cli.json;
-    let automatic = !cli.offline && !matches!(cli.command, Command::Sync);
+    let automatic = !cli.offline
+        && !matches!(
+            cli.command,
+            Command::Sync
+                | Command::Outbox {
+                    action: outbox_commands::OutboxAction::Retry { .. }
+                }
+        );
     let result = dispatch::run(&api, &server, &tenant, cli);
     if automatic && let Err(error) = request_sync::wake(&api, &tenant) {
         eprintln!("Automatic synchronization could not start: {error}; run cj sync.");

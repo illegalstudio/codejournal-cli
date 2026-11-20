@@ -45,12 +45,13 @@ pub fn run(server: Option<&str>, origin: &str) -> Result<()> {
             let hooks = if scope.pending_hooks()? > 0 {
                 crate::outbox_flush::run(&api, &scope.tenant)?
             } else {
-                0
+                crate::outbox_flush::Delivery::default()
             };
-            Ok::<_, anyhow::Error>(requests + hooks)
+            Ok::<_, anyhow::Error>((requests + hooks.sent, hooks.expired))
         })();
         match delivery {
-            Ok(count) => {
+            Ok((count, expired)) => {
+                saved.expired_hooks = saved.expired_hooks.saturating_add(expired);
                 if count > 0 {
                     saved.last_sync_at = Some(request_age::now());
                     saved.failures = 0;

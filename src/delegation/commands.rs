@@ -36,14 +36,20 @@ pub fn run(
         anyhow::bail!("guest processes cannot perform host actions");
     }
     super::resolve::action(&mut action, full)?;
-    let result_only = matches!(
-        &action,
-        Action::Result(_)
-            | Action::Wait(args::WaitArgs {
-                until: args::Until::Result,
-                ..
-            })
+    let minimal = matches!(&action, Action::Result(wait) | Action::Wait(wait) if wait.result_only);
+    anyhow::ensure!(
+        !(minimal && full),
+        "--result-only cannot be combined with --full"
     );
+    let result_only = minimal
+        || matches!(
+            &action,
+            Action::Result(_)
+                | Action::Wait(args::WaitArgs {
+                    until: args::Until::Result,
+                    ..
+                })
+        );
     let diagnostics = matches!(&action, Action::Output { .. } | Action::Context { .. });
     let launching = matches!(&action, Action::Start(_) | Action::Recover { .. });
     let value: Value = match action {
@@ -52,7 +58,10 @@ pub fn run(
         Action::Run(args) => return super::providers::synchronous(args),
         Action::Sync(args) => super::reads::snapshot(&args, false)?,
         Action::Status(args) => super::reads::snapshot(&args, false)?,
-        Action::Wait(args) => super::reads::wait(args, false)?,
+        Action::Wait(args) => {
+            let result_only = args.result_only;
+            super::reads::wait(args, result_only)?
+        }
         Action::Result(args) => super::reads::wait(args, true)?,
         Action::Ack { context, through } => super::reads::ack(context, through)?,
         Action::Publish(args) => super::publish::run(args)?,
@@ -104,8 +113,12 @@ pub fn run(
         return Ok(());
     }
     let value = super::render::envelope(value);
-    crate::output::json(&if full || diagnostics {
+    crate::output::json(&if minimal {
+        super::render::result_only(&value)
+    } else if diagnostics {
         value
+    } else if full {
+        super::render::bounded_tails(value)
     } else {
         super::render::compact(value, result_only)
     })

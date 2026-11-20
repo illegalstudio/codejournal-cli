@@ -8,6 +8,7 @@ use crate::{
 use anyhow::{Result, bail};
 use serde_json::Value;
 
+mod acknowledgement;
 mod request;
 
 pub fn mutate(api: &Api, method: &str, path: &str, body: Option<Value>) -> Result<Value> {
@@ -119,12 +120,17 @@ pub fn replay(api: &Api, request: &PendingRequest) -> Result<Value> {
         response,
         &format!("{} {}{}", request.method, api.server(), request.path),
     )?;
+    let compact = acknowledgement::accept(api, request, &value)?;
+    let full = compact.is_none();
+    let value = compact.unwrap_or(value);
     crate::project_cache::updated(api, request, &value)?;
-    crate::plan_write::pending::remember(
-        api,
-        request.path.split('/').nth(4).unwrap_or(""),
-        &value,
-    )?;
+    if full {
+        crate::plan_write::pending::remember(
+            api,
+            request.path.split('/').nth(4).unwrap_or(""),
+            &value,
+        )?;
+    }
     if request.path.ends_with("/checkout-activity")
         && let Some(body) = &request.body
     {

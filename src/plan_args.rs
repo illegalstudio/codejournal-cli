@@ -4,6 +4,14 @@ mod body_help;
 
 #[derive(Subcommand)]
 pub enum PlanAction {
+    /// Move a closed plan or outdated document to the trash.
+    Trash {
+        id: String,
+    },
+    /// Return a plan or document from the trash to its previous state.
+    Restore {
+        id: String,
+    },
     List {
         #[arg(
             long,

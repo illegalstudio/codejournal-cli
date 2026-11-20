@@ -51,12 +51,14 @@ class LogCommitsTest(unittest.TestCase):
         status = subprocess.run([case.binary, "--json", "status"], cwd=case.repo,
             env=case.env, capture_output=True, text=True, check=True)
         self.assertIn("HEAD changed", json.loads(status.stdout)["notices"][0])
+        self.assertIn("cj log update LOG_ID --ref commit:SHA", json.loads(status.stdout)["notices"][0])
         for _ in range(2):
             failed = subprocess.run([case.binary, "log", "add", "--title", "Done", "--body", "Done"],
                 cwd=case.repo, env=case.env, capture_output=True, text=True)
             self.assertEqual(failed.returncode, 0)
             self.assertIn("--ref commit:HEAD", failed.stdout)
             self.assertIn("No commits were inferred", failed.stdout)
+            self.assertIn("cj log update cccccccc --ref commit:SHA", failed.stdout)
             self.assertTrue(failed.stdout.splitlines()[-1].startswith("Logged "), failed.stdout)
         self.assertTrue(all(body["refs"] == [] for path, body in sessions.Handler.calls if path.endswith("/logs")))
         case.cli("log", "add", "--title", "Done", "--body", "Done", "--ref", "commit:HEAD")

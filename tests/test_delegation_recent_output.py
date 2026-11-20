@@ -35,6 +35,25 @@ class DelegationRecentOutputTest(DelegationCase):
         files = list((self.root / "state/codejournal/delegations").glob("*.log"))
         self.assertTrue(all(file.stat().st_size <= 2097152 for file in files))
 
+    def test_full_sync_bounds_process_tails_and_result_only_prints_the_answer(self):
+        fake = self.bin / "grok"
+        fake.write_text(fake.read_text().replace('publish("ready", "Protocol loaded")', 'publish("ready", "Protocol loaded")\n' + LARGE_OUTPUT))
+        ident = self.start("large_output", target="grok")
+        self.settled(ident)
+        full = self.call("sync", ident, "--full", "--events-only", "--after", "0")
+        event = next(event for event in full["events"] if event["kind"] == "process_exit")
+        tail = event["payload"]["stdout_tail"]
+        self.assertLess(len(tail), 2200)
+        self.assertIn(f"earlier characters omitted; read diagnostics with cj delegation output {ident} --raw", tail)
+        self.assertTrue(event["payload"]["diagnostics_available"])
+        for command in (("result", ident, "--result-only"), ("wait", ident, "--result-only", "--timeout", "5")):
+            answer = self.call(*command)
+            self.assertEqual(set(answer), {"id", "status", "timed_out", "result", "error"})
+            self.assertEqual((answer["id"], answer["status"], answer["timed_out"]), (ident, "completed", False))
+            self.assertTrue(answer["result"])
+        refused = self.invoke("result", ident, "--result-only", "--full", check=False)
+        self.assertIn("--result-only cannot be combined with --full", refused.stderr)
+
     def test_full_and_compact_json_share_status_and_support_events_only(self):
         ident = self.start()
         self.settled(ident)

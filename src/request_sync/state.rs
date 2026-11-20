@@ -16,6 +16,8 @@ pub struct State {
     pub failures: u32,
     pub last_error: Option<String>,
     pub blocked: bool,
+    #[serde(default)]
+    pub expired_hooks: usize,
 }
 
 fn directory() -> Result<PathBuf> {
@@ -66,11 +68,12 @@ pub fn save(scope: &Scope, state: &State) -> Result<()> {
     Ok(())
 }
 
-pub fn synchronized(api: &crate::api::Api, tenant: &str) -> Result<()> {
+pub fn synchronized(api: &crate::api::Api, tenant: &str, expired_hooks: usize) -> Result<()> {
     let scope = Scope::new(api, tenant);
     if let Some(_lock) = try_lock(&scope)? {
         let state = State {
             last_sync_at: Some(crate::request_age::now()),
+            expired_hooks: load(&scope)?.expired_hooks.saturating_add(expired_hooks),
             ..State::default()
         };
         save(&scope, &state)?;

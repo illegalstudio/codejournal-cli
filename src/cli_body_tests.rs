@@ -10,7 +10,7 @@ fn markdown_body_arguments_accept_leading_lists() {
         vec!["doc", "create"],
         vec!["task", "add"],
         vec!["log", "add"],
-        vec!["notify"],
+        vec!["notify", "--important", "--kind", "info"],
         vec!["feedback", "add", "--category", "workflow"],
     ] {
         let mut args = vec!["cj"];

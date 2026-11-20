@@ -71,11 +71,17 @@ pub fn sync(api: &Api, json_mode: bool) -> Result<()> {
     let hooks = outbox_flush::run(api, &tenant)?;
     let requests = request_outbox::flush(api);
     let resumed = crate::watches::recovery::resume(api, &tenant)?;
-    let flushed = hooks + requests?;
-    crate::request_sync::status::synchronized(api, &tenant)?;
+    let flushed = hooks.sent + requests?;
+    crate::request_sync::status::synchronized(api, &tenant, hooks.expired)?;
     let reconciliation = crate::watches::recovery::reconcile(api, &tenant);
     let reconciled = reconciliation.is_ok();
     let mut notices = Vec::new();
+    if hooks.expired > 0 {
+        notices.push(format!(
+            "{} hook event(s) expired before delivery.",
+            hooks.expired
+        ));
+    }
     let origin = outbox::fingerprint(api.server(), &tenant, &api.token);
     let hook_counts = outbox::diagnostics::inspect(Some(&origin))?;
     notices.extend(outbox::diagnostics::notices(&hook_counts));
@@ -102,7 +108,7 @@ pub fn sync(api: &Api, json_mode: bool) -> Result<()> {
         format!("Synchronized.\n{}", notices.join("\n"))
     };
     output::emit(
-        &json!({"synced": true, "flushed": flushed, "watches_started": resumed, "watches_lost": lost, "watches_reconciled": reconciled, "pending_outbox": outbox::pending()? + request_outbox::pending()?, "hook_events": hook_counts, "notices": notices}),
+        &json!({"synced": true, "flushed": flushed, "expired_hooks": hooks.expired, "watches_started": resumed, "watches_lost": lost, "watches_reconciled": reconciled, "pending_outbox": outbox::pending()? + request_outbox::pending()?, "hook_events": hook_counts, "notices": notices}),
         &text,
         json_mode,
     )

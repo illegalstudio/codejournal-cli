@@ -21,6 +21,9 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
                 cli.json,
             )
         }
+        Command::Outbox {
+            action: outbox_commands::OutboxAction::Retry { id },
+        } => outbox_commands::retry(api, tenant, &id, cli.json),
         Command::Whoami => output::json(&api.get("/api/v1/me")?),
         Command::Sync => storage_status::sync(&api, cli.json),
         Command::HookFlush { after } => {
@@ -83,6 +86,8 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
                 args.agent,
                 args.force,
                 args.global_scope,
+                args.temporary,
+                args.durable,
                 cli.json,
             )
         }

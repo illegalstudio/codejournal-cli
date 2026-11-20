@@ -23,4 +23,10 @@ pub struct AddArgs {
     pub force: bool,
     #[arg(long = "global")]
     pub global_scope: bool,
+    /// Expire a project observation after 30 days unless promoted.
+    #[arg(long, conflicts_with = "global_scope")]
+    pub temporary: bool,
+    /// Keep an agent observation without a temporary deadline.
+    #[arg(long, conflicts_with = "temporary")]
+    pub durable: bool,
 }

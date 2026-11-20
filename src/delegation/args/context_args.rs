@@ -28,6 +28,9 @@ pub struct WaitArgs {
     pub timeout: f64,
     #[arg(long, value_enum, default_value = "event")]
     pub until: Until,
+    /// Wait for the final result and print only id, status, timed_out, result and error.
+    #[arg(long)]
+    pub result_only: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, clap::ValueEnum)]

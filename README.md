@@ -134,7 +134,7 @@ cj delegation result ID --timeout 30
 cj delegation status ID
 ```
 
-Use a full session UUID or a unique prefix of at least eight hex characters. Add `--id-only` to start when only the ID is needed. Default output omits full task text and diagnostic tails; `--full` requests complete content. Bare waits remember delivered events separately from acknowledgement. `wait --until question|result|terminal` selects the wake condition; `result` waits through interim progress and returns a single top-level result. Timeouts can be up to 86400 seconds and never cancel the guest. Inspect `timed_out` and status before claiming completion.
+Use a full session UUID or a unique prefix of at least eight hex characters. Add `--id-only` to start when only the ID is needed. Default output omits full task text and diagnostic tails; `--full` requests complete content, keeping the last 2000 characters of each process tail. Bare waits remember delivered events separately from acknowledgement. `wait --until question|result|terminal` selects the wake condition; `result` waits through interim progress and returns a single top-level result; `--result-only` prints just `id`, `status`, `timed_out`, `result` and `error`. Timeouts can be up to 86400 seconds and never cancel the guest. Inspect `timed_out` and status before claiming completion.
 
 `cj delegation output ID --lines 40 --max-chars 8000` shows a bounded, redacted readable diagnostic tail. Summary lines are timestamped in UTC and skip standalone stream markers, and `latest_event` reports the newest summarized tool, command or status with its time. Captures keep recent output after reaching their rolling limit; `--raw` opts into raw provider text. Full and compact JSON share top-level `id`, `status` and `progress`; `sync --full --events-only` avoids repeating task bodies. `list` is machine-wide; pass `--cwd PATH` to scope it to a checkout. Long reviews may need a larger inactivity budget, for example `start ... --stall-timeout 3600`. Recovery can set a new budget with `recover ID --stall-timeout 3600` while retaining prior failure evidence.
 
@@ -189,6 +189,8 @@ Use `cj --help` and `cj <command> --help` for the full interface. The [embedded 
 
 Confirmed `cj add --json` responses return the entry UUID at `id`, `resource_id` and `entry.id`, with `queued: false`. Scripts can read `resource_id` directly. A queued write has `queued: true` and `resource_id: null`; its legacy `id` is the request ID and cannot be used as an entry ID. Use `cj outbox receipt REQUEST_ID` after synchronization to resolve it.
 
+Agent-authored project observations expire after 30 days by default. Use `cj add --temporary` to opt in explicitly, or `--durable` to keep an established fact. Use `cj entry use ID task TASK_ID`, `cj entry use ID log LOG_ID` or `cj entry use ID pr owner/repo#42` to record reuse and promote the entry. `cj entry promote ID` also removes the deadline. A completed task or plan keeps its final record. Use `cj entry trash ID`, `cj task trash ID`, `cj plan trash ID` or `cj doc trash ID` to schedule deletion of a retired record after 90 days. The corresponding `restore` command clears that deadline.
+
 `cj topics similar` and `cj garden` analyze the selected project and relevant global knowledge. Use `cj topics similar --all-projects` for an explicit workspace-wide comparison. They may report that topic analysis is partial for large or highly similar topic collections. Review the returned suggestions without assuming they include every duplicate. You can still merge other known duplicates with `cj topics merge SOURCES --into TARGET`. JSON output identifies incomplete analysis.
 
 ### Review journal maintenance
@@ -199,11 +201,15 @@ Confirmed `cj add --json` responses return the entry UUID at `id`, `resource_id`
 cj garden
 cj garden review FINDING_ID --outcome verified --note "Checked the cited code."
 cj garden --after FINDING_UUID
+cj garden --scan-pages 2
+cj garden --scan-pages 2 --scan-from 3
 cj garden --all
 cj garden --dry-run
 ```
 
 Use `cj garden --pending` for the stored queue without a new scan or maintenance. Full scans print page progress on stderr while JSON stays on stdout. Use `--limit N` for 1 to 25 findings. `--after` continues the stored queue without rescanning; `--all` requests the complete pending output. `--dry-run --all` previews everything without writes. A review needs an evidence note and supports `verified`, `corrected`, `superseded`, `obsolete`, `dismissed` or `deferred`; deferral also requires `--until` with a future timestamp. Correct the underlying content with its normal command first. Reviewed evidence stays hidden until the relevant knowledge or files change, and pending counts remain in the brief. Older servers provide a bounded report and explicitly identify unavailable persistent reviews.
+
+Use `--scan-pages N` to bound reference metadata scanned per invocation. `--scan-from PAGE` resumes at the reported `scan_next_page`. These runs refresh observations from the selected pages and skip full maintenance. The last full-scan timestamp advances after a complete `cj garden` run.
 
 Garden only suggests duplicate entries when titles have the same normalized content terms, allowing reordered words and inflections. A shared sentence template with a different package, host, version or other title term is insufficient. Review candidates before superseding any entry.
 
@@ -256,6 +262,8 @@ Search results include a short matching excerpt. Use `cj search "liveness" --lit
 
 Default search keeps dotted identifiers such as `2.28.239.156`, `v1.63.0` or `config.php` whole, matching them as one word or as their separate words, so an IPv4 address finds the entry that cites it without `--literal`.
 
+Underscored code names such as `array_all` match as a single identifier. Use `--prefix` to also find names beginning with it. For multi-term queries, related document suggestions require at least two distinct matching terms.
+
 When no entries match, related document suggestions retain the same literal or whole-word phrase. A package query such as `tor-browser-bin --literal` does not suggest documents that only mention `browser` or `bin`. In default mode the suggestions keep dotted and hyphenated identifiers whole and ignore bare one- or two-digit numbers when a more specific word exists, so `2.28.239.156` does not suggest documents that only mention `2`.
 
 Use `cj search "repl" --whole-word` to match `REPL` without matching `replacement`, `replies` or `replay`. It matches a literal word or phrase without stemming; adjacent letters, digits and underscores prevent a match. It can combine with `--literal`, but not `--any` or `--prefix`, and requires an updated server. Literal substring matching remains available through `--literal` alone.
@@ -270,7 +278,9 @@ Empty knowledge queries also suggest a document search using `cj doc list --grep
 
 Task descriptions can be edited without replacing the task. Read `cj task show ID` for its `body_version`, then use `cj task edit ID --body-file details.md --base BODY_VERSION` (or `--body TEXT`). A stale body version fails without changing the task or its history. An explicit empty body clears the description.
 
-Task grep accepts `--whole-word` for short terms such as `INI`. Notifications accept `notifications list --grep TEXT`, filtering literal title/body text before the result limit. Session hooks never create notifications: end-of-turn, permission and question prompts belong in the agent's terminal and are recorded only as session activity. Notifications come from explicit `cj notify` calls and watch outcomes, and stay unread until you resolve them.
+From a project that depends on an existing upstream task, use `cj task follow ID` to see its closure in that project's brief. Use `--project SLUG` to select the consuming project explicitly and `cj task unfollow ID` to remove the relationship. `cj task show ID` lists consuming projects with cross-project access.
+
+Task grep accepts `--whole-word` for short terms such as `INI`. Notifications accept `notifications list --grep TEXT`, filtering literal title/body text before the result limit. Session hooks never create notifications: end-of-turn, permission and question prompts belong in the agent's terminal and are recorded only as session activity. Use `cj notify --important --kind info|done|error` only for exceptional updates worth bringing to the user's attention. Watched commands publish their normal outcomes. Ask for decisions in the agent conversation.
 
 For reference-only fact corrections, read `entry.refs_version`, then use `cj entry refs ID --base HASH --ref path:correct/path`. This replaces the complete ref list while preserving fact identity and history. `--clear-refs` clears it. For corrected content under the same title, use `cj add --force`, then explicitly supersede the old entry.
 
@@ -356,6 +366,7 @@ A queued `request_id` identifies the synchronization request. Plan and document 
 ```bash
 cj status
 cj outbox list
+cj outbox retry REQUEST_ID
 cj outbox hooks list
 cj sync
 cj outbox receipt REQUEST_ID
@@ -363,9 +374,11 @@ cj outbox receipt REQUEST_ID
 
 `cj sync` can recover older dependencies through stored request receipts. It keeps requests pending when recovery cannot be verified. `cj status` reports a changed HEAD that commit hooks have not captured; use explicit `--ref commit:SHA` references for recovery.
 
+`cj outbox retry REQUEST_ID` delivers just the oldest pending write for the current server, workspace and credentials. It accepts the full UUID or an unambiguous prefix of at least eight hexadecimal characters. It preserves the original request ID, honors server retry delays, and leaves the rest of the queue available for normal synchronization.
+
 Hook events saved without configuration or credential access remain unbound. `cj status` explains these separately from another account's events, and `cj sync` preserves them. Inspect their project and date with `cj outbox hooks list` (add `--body` for redacted event bodies). After verifying the original account, use `cj outbox hooks bind EVENT_ID --to-current-account`, then `cj sync`. Binding preserves the event ID and payload and refuses already-bound events. To permanently discard a single hook instead, use `cj outbox hooks drop EVENT_ID`. Listing and dropping hooks require no login; both mutations accept a unique ID prefix of at least eight hexadecimal characters and refuse to race an active delivery.
 
-Checkout activity skips identical confirmed state for 15 minutes and sends real changes immediately. When earlier snapshots are waiting for delivery, later changes queue in order. Failed or uncertain requests retain their original IDs until acknowledged. Ordinary queued writes have a safe retry window of 90 days; older files remain pending so you can check existing records before resubmitting them. The server can release older saved responses to free space while retaining protection against duplicate writes. If a retry reports that its response was released, the request stays queued for verification; use `cj outbox receipt REQUEST_ID` for supported resource IDs before deciding how to reconcile it.
+Checkout activity skips identical confirmed state for 15 minutes and sends real changes immediately. When earlier snapshots are waiting for delivery, later changes queue in order. Failed or uncertain requests retain their original IDs until acknowledged. Ordinary queued writes have a safe retry window of 90 days; older files remain pending so you can check existing records before resubmitting them. The updated client and server can finish synchronization using a compact confirmation after a saved response is released. If the server reports that an older reply was released without a compact confirmation, the request stays queued for verification. Use `cj outbox receipt REQUEST_ID` for supported resource IDs before reconciling it.
 
 Use `--section "Heading"` to read one Markdown section and its subsections, or `--max-lines N` to bound the body to 1-500 lines. Selection excludes history, defaults to 200 lines and caps content at 16,000 characters. JSON reports source line ranges, full body size and truncation; selected text never claims to be the whole document. These options require the updated server. Plan/doc writes trim outer whitespace and remove duplicate leading title headings; compare the returned canonical body when verifying an update.
 

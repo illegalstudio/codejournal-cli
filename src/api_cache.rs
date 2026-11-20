@@ -27,6 +27,14 @@ pub fn read(server: &str, token: &str, endpoint: &str) -> Result<Value> {
     Ok(value)
 }
 
+pub fn forget(server: &str, token: &str, endpoint: &str) -> Result<()> {
+    match fs::remove_file(path(server, token, endpoint)?) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
 pub fn write(server: &str, token: &str, endpoint: &str, value: &Value) -> Result<()> {
     let target = path(server, token, endpoint)?;
     let temporary = target.with_extension(format!("{}.tmp", Uuid::new_v4()));

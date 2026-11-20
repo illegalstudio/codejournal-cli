@@ -26,7 +26,7 @@ pub fn run(offline: bool) -> Result<()> {
             "tools/list"=>Ok(json!({"tools":tools::definitions()})),
             "tools/call"=>call(super::text(&request["params"],"name"),&request["params"]["arguments"])
                 .map(super::render::envelope)
-                .map(|value| if request["params"]["arguments"]["full"] == true { value } else {
+                .map(|value| if request["params"]["arguments"]["full"] == true { super::render::bounded_tails(value) } else {
                     super::render::compact(value, request["params"]["name"] == "delegation_wait" && request["params"]["arguments"]["until"] == "result")
                 })
                 .map(|value|json!({"content":[{"type":"text","text":value.to_string()}],"structuredContent":value})),
@@ -83,6 +83,7 @@ fn call(name: &str, value: &Value) -> Result<Value> {
                     "terminal" => args::Until::Terminal,
                     _ => bail!("until must be event, question, result or terminal"),
                 },
+                result_only: false,
             },
             false,
         ),

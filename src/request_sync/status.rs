@@ -21,6 +21,7 @@ pub fn inspect(config: Option<&Config>, server: Option<&str>) -> Result<Value> {
         result["next_retry_at"] = json!(saved.next_retry_at);
         result["last_error"] = json!(saved.last_error);
         result["blocked"] = json!(saved.blocked);
+        result["expired_hooks"] = json!(saved.expired_hooks);
         let writes = scope.pending_writes()?;
         result["pending_current_scope"] = json!(writes);
         result["pending_other_scopes"] = json!(requests.len().saturating_sub(writes));
@@ -89,9 +90,14 @@ pub fn describe(value: &Value) -> String {
     if let Some(notices) = value["hook_notices"].as_array() {
         lines.extend(notices.iter().filter_map(Value::as_str).map(str::to_owned));
     }
+    if let Some(count) = value["expired_hooks"].as_u64().filter(|count| *count > 0) {
+        lines.push(format!(
+            "expired:     {count} hook event(s) expired before delivery"
+        ));
+    }
     lines.join("\n")
 }
 
-pub fn synchronized(api: &Api, tenant: &str) -> Result<()> {
-    state::synchronized(api, tenant)
+pub fn synchronized(api: &Api, tenant: &str, expired_hooks: usize) -> Result<()> {
+    state::synchronized(api, tenant, expired_hooks)
 }

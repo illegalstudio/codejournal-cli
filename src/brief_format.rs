@@ -43,6 +43,7 @@ pub fn render(
     for notice in data["notices"].as_array().into_iter().flatten() {
         lines.push(format!("Plan: {}", value(notice)));
     }
+    lines.extend(crate::brief_duplicates::lines(data));
     if data["locked"] == true {
         return lines.join("\n");
     }

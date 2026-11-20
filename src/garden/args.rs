@@ -8,8 +8,15 @@ pub struct GardenArgs {
     /// Show all pending findings, explicitly opting into the complete output.
     #[arg(long)]
     pub all: bool,
+    /// Maximum findings to display (the scan budget is controlled by --scan-pages).
     #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u32).range(1..=25))]
     pub limit: u32,
+    /// Scan at most this many reference pages without running full maintenance.
+    #[arg(long, conflicts_with_all = ["after", "pending"], value_parser = clap::value_parser!(u32).range(1..=1000))]
+    pub scan_pages: Option<u32>,
+    /// Start a bounded scan at the continuation page displayed by a prior scan.
+    #[arg(long, requires = "scan_pages", value_parser = clap::value_parser!(u64).range(1..=100000))]
+    pub scan_from: Option<u64>,
     /// Continue an existing scan after this finding UUID.
     #[arg(long, conflicts_with = "dry_run", value_parser = continuation)]
     pub after: Option<String>,

@@ -18,6 +18,9 @@ pub fn run(api: &Api, tenant: &str, file: PathBuf, json_mode: bool) -> Result<()
         .filter(|line| !line.trim().is_empty())
         .map(serde_json::from_str::<Value>)
         .collect::<serde_json::Result<Vec<_>>>()?;
+    let original_count = records.len();
+    records.retain(|row| row["type"] != "notification" || !crate::notification_send::retired(row));
+    let retired = original_count - records.len();
     for record in &mut records {
         canonicalize(record)?;
     }
@@ -38,7 +41,7 @@ pub fn run(api: &Api, tenant: &str, file: PathBuf, json_mode: bool) -> Result<()
     }
     let path = format!(
         "/api/v1/tenants/{tenant}/import/batches/{}",
-        batch_id(&text)
+        batch_id(&text, retired > 0)
     );
     let empty = json!({"projects": 0, "entries": 0, "logs": 0, "plans": 0,
         "notifications": 0, "tasks": 0, "feedback": 0, "reminders": 0, "skipped": 0});
@@ -54,7 +57,7 @@ pub fn run(api: &Api, tenant: &str, file: PathBuf, json_mode: bool) -> Result<()
             &json!({"records": chunk}),
         )?;
     }
-    let counts = if chunks.is_empty() {
+    let mut counts = if chunks.is_empty() {
         empty
     } else {
         api.post_noqueue(
@@ -63,6 +66,8 @@ pub fn run(api: &Api, tenant: &str, file: PathBuf, json_mode: bool) -> Result<()
         )?["counts"]
             .clone()
     };
+    let skipped = counts["skipped"].as_u64().unwrap_or(0);
+    counts["skipped"] = json!(skipped + retired as u64);
     let message = format!(
         "Imported {} entries across {} projects ({} skipped).",
         counts["entries"], counts["projects"], counts["skipped"]
@@ -89,9 +94,12 @@ fn annotate(row: &Value, ids: &HashMap<String, String>) -> Result<Value> {
     Ok(value)
 }
 
-fn batch_id(text: &str) -> uuid::Uuid {
+fn batch_id(text: &str, filtered: bool) -> uuid::Uuid {
     let mut digest = Sha256::new();
     digest.update(b"cj-import-byte-chunks-v1\0");
+    if filtered {
+        digest.update(b"without-retired-notices\0");
+    }
     digest.update(text.as_bytes());
     let hash = digest.finalize();
     let mut bytes = [0_u8; 16];

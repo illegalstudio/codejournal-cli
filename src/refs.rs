@@ -36,13 +36,11 @@ fn parse(raw: &str) -> Result<Value> {
     } else {
         raw.to_owned()
     };
-    let (kind, value) = expanded.split_once(':').context(
-        "ref must be KIND:VALUE, a URL, or GitHub shorthand; for a file use --ref path:FILE",
-    )?;
+    let (kind, value) = expanded.split_once(':').with_context(|| invalid_ref(raw))?;
     let kind = kind.trim().to_ascii_lowercase();
     let value = value.trim();
     if !["path", "commit", "branch", "url", "issue"].contains(&kind.as_str()) || value.is_empty() {
-        bail!("invalid ref: {raw}");
+        bail!("{}", invalid_ref(raw));
     }
     let value = if kind == "path" {
         path_ref::normalize(value)?
@@ -53,6 +51,10 @@ fn parse(raw: &str) -> Result<Value> {
         value.to_owned()
     };
     Ok(json!({"kind": kind, "value": value}))
+}
+
+fn invalid_ref(raw: &str) -> String {
+    format!("invalid ref: {raw}. {HELP}")
 }
 
 #[cfg(test)]
@@ -74,5 +76,12 @@ mod tests {
             json!({"kind": "path", "value": "docs"})
         );
         assert!(parse("path:../secret").is_err());
+    }
+
+    #[test]
+    fn invalid_ref_errors_show_supported_forms() {
+        let message = parse("src/example.rs:55").unwrap_err().to_string();
+        assert!(message.contains("path:FILE"));
+        assert!(message.contains("commit:SHA"));
     }
 }

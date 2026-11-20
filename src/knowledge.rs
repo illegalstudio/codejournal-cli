@@ -3,6 +3,7 @@ use crate::output;
 use anyhow::Result;
 use serde_json::Value;
 mod hint;
+mod newer;
 
 fn root(tenant: &str) -> String {
     format!("/api/v1/tenants/{tenant}/entries")
@@ -62,12 +63,16 @@ pub fn show(api: &Api, tenant: &str, id: &str, no_track: bool, json_mode: bool) 
                 .map(|note| format!("WRONG:     {}", string(note))),
         );
     }
+    if let Some(evidence) = entry["use_evidence"].as_array() {
+        lines.extend(evidence.iter().filter_map(Value::as_str).map(str::to_owned));
+    }
     lines.extend([
         "".to_owned(),
         string(&entry["title"]).to_owned(),
         "".to_owned(),
         string(&entry["body"]).to_owned(),
     ]);
+    lines.extend(newer::lines(entry));
     output::emit(&response, &lines.join("\n"), json_mode)
 }
 

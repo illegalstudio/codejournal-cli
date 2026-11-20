@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 mod entry_flag;
 mod entry_move;
 mod entry_refs;
+mod entry_use;
 
 fn path(tenant: &str, id: &str) -> String {
     format!("/api/v1/tenants/{tenant}/entries/{id}")
@@ -57,10 +58,13 @@ fn patch(
     tenant: &str,
     id: &str,
     value: &Value,
-    human: String,
+    mut human: String,
     json_mode: bool,
 ) -> Result<()> {
     let result = api.patch(&path(tenant, id), value)?;
+    if let Some(date) = result["purge_at"].as_str() {
+        human.push_str(&format!(" Scheduled deletion: {date}."));
+    }
     output::emit(&result, &human, json_mode)
 }
 
@@ -88,6 +92,35 @@ pub fn obsolete(api: &Api, tenant: &str, id: &str, json_mode: bool) -> Result<()
 
 pub fn entry(api: &Api, tenant: &str, action: EntryAction, json_mode: bool) -> Result<()> {
     match action {
+        EntryAction::Use {
+            id,
+            kind,
+            reference,
+        } => entry_use::run(api, tenant, &id, &kind, &reference, json_mode),
+        EntryAction::Promote { id } => patch(
+            api,
+            tenant,
+            &id,
+            &json!({"action": "promote"}),
+            format!("Promoted entry {}.", short(&id)),
+            json_mode,
+        ),
+        EntryAction::Trash { id } => patch(
+            api,
+            tenant,
+            &id,
+            &json!({"action": "trash"}),
+            format!("Moved entry {} to trash for 90 days.", short(&id)),
+            json_mode,
+        ),
+        EntryAction::Restore { id } => patch(
+            api,
+            tenant,
+            &id,
+            &json!({"action": "restore"}),
+            format!("Restored entry {} from trash.", short(&id)),
+            json_mode,
+        ),
         EntryAction::Refs {
             id,
             base,

@@ -91,6 +91,8 @@ fn add(
             linked.join(", ")
         ));
     }
+    // The log exists now, so the correction command can name it.
+    let notice = notice.map(|notice| notice.replace("LOG_ID", &id[..id.len().min(8)]));
     if let Some(notice) = &notice {
         text = format!("Commit tracking warning: {notice}\n{text}");
     }

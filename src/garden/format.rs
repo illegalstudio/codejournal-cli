@@ -47,6 +47,16 @@ pub fn render(data: &Value) -> String {
                 value(&target["id"])
             ));
         }
+        if row["kind"] == "unused_entry" {
+            if let Some(views) = row["details"]["views"].as_u64() {
+                lines.push(format!(
+                    "    {views} recorded openings. Check whether the note was reused."
+                ));
+            }
+            if row["details"]["replacement_id"].is_string() {
+                lines.push("    Compare the successor before deciding whether to move the old note to trash.".into());
+            }
+        }
         for commit in row["details"]["touching_commits"]
             .as_array()
             .into_iter()
@@ -99,6 +109,13 @@ pub fn render(data: &Value) -> String {
         lines.push(format!(
             "Continue: cj garden --after {next} | Complete output: cj garden --all"
         ));
+    }
+    if let Some(next) = data["scan_next_page"].as_u64() {
+        lines.push(format!(
+            "Continue the reference scan with --scan-from {next} and --scan-pages N."
+        ));
+    } else if data["scan_complete"] == false && data["code_scan_partial"] != true {
+        lines.push("Bounded reference scan finished. Run cj garden for full maintenance.".into());
     }
     if data["dry_run"] == true
         && data["next"].is_null()

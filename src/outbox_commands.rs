@@ -1,4 +1,4 @@
-use crate::{output, request_outbox};
+use crate::{api::Api, output, request_outbox};
 use anyhow::{Result, bail};
 use clap::Subcommand;
 use fs2::FileExt;
@@ -14,6 +14,8 @@ pub enum OutboxAction {
     },
     /// Resolve a synchronized creation request to its entry, plan or document ID.
     Receipt { id: String },
+    /// Retry only the oldest queued write in the current credential scope by request ID.
+    Retry { id: String },
     /// Inspect pending writes without authenticating. Bodies may contain private journal data.
     List {
         #[arg(long)]
@@ -28,7 +30,9 @@ pub enum OutboxAction {
 pub fn run(action: OutboxAction, json_mode: bool, server: Option<&str>) -> Result<()> {
     match action {
         OutboxAction::Hooks { action } => crate::outbox::commands::run(action, json_mode, server),
-        OutboxAction::Receipt { .. } => bail!("receipt lookup requires the authenticated API"),
+        OutboxAction::Receipt { .. } | OutboxAction::Retry { .. } => {
+            bail!("this outbox command requires the authenticated API")
+        }
         OutboxAction::List { server, body } => {
             let requests = request_outbox::entries()?.into_iter()
                 .filter(|(_, item)| server.as_ref().is_none_or(|server| item.server == server.trim_end_matches('/')))
@@ -60,14 +64,7 @@ pub fn run(action: OutboxAction, json_mode: bool, server: Option<&str>) -> Resul
             output::emit(&json!({"requests": requests}), &text, json_mode)
         }
         OutboxAction::Drop { id } => {
-            let prefix = id.replace('-', "").to_lowercase();
-            if prefix.len() < 8
-                || !prefix
-                    .bytes()
-                    .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
-            {
-                bail!("request ID must be at least eight hexadecimal characters");
-            }
+            let prefix = request_outbox::id_prefix(&id)?;
             let entries = request_outbox::entries()?;
             let matches = entries
                 .iter()
@@ -93,4 +90,13 @@ pub fn run(action: OutboxAction, json_mode: bool, server: Option<&str>) -> Resul
             )
         }
     }
+}
+
+pub fn retry(api: &Api, tenant: &str, id: &str, json_mode: bool) -> Result<()> {
+    let id = request_outbox::delivery::retry(api, tenant, id)?;
+    output::emit(
+        &json!({"retried": id}),
+        &format!("Delivered queued write {id}."),
+        json_mode,
+    )
 }

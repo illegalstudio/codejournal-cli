@@ -80,8 +80,11 @@ pub enum NotificationAction {
 
 #[derive(Args)]
 pub struct NotifyArgs {
-    #[arg(long, default_value = "needs_input")]
+    #[arg(long, value_parser = ["info", "done", "error"])]
     pub kind: String,
+    /// Send an exceptional update worth alerting the user about.
+    #[arg(long, required = true)]
+    pub important: bool,
     #[arg(long)]
     pub title: String,
     #[arg(long)]

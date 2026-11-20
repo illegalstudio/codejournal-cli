@@ -4,6 +4,8 @@ use crate::{api::Api, attribution, checkout_identity, project, project_provides}
 use anyhow::{Result, bail};
 use serde_json::json;
 
+mod resolve;
+
 pub fn tenant_for_path(api: &Api, path: &str) -> Option<String> {
     let parts = matching_parts(api, path)?;
     (parts.len() >= 7 && parts[6] != "paths").then(|| parts[3].to_owned())
@@ -58,7 +60,7 @@ pub fn read_path(api: &Api, path: &str) -> Result<String> {
         "/api/v1/tenants/{tenant}/projects/resolve?{}",
         query.query().unwrap_or("")
     );
-    let found = api.get(&endpoint)?;
+    let found = resolve::checkout(api, &endpoint, tenant, parts[5])?;
     let canonical = found["project"]["slug"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("project resolver returned no slug"))?;

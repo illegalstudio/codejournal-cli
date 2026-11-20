@@ -31,6 +31,9 @@ class PolicyHandler(http.server.BaseHTTPRequestHandler):
             self.respond({})
             return
         item = json.loads(body)
+        if item.get("important") is not True:
+            self.send_error(422)
+            return
         if self.priority is not None:
             item["delivery_policy"] = {"desktop": "normal", "ntfy": self.priority}
         self.respond({"notification": item, "queued": False})
@@ -61,10 +64,10 @@ class NotificationPolicyTest(unittest.TestCase):
                 "notifications": {"desktop": False, "ntfy_url": url + "/ntfy"}}))
             env = dict(os.environ, XDG_CONFIG_HOME=str(config.parent), XDG_CACHE_HOME=str(base / "cache"),
                        CJ_TOKEN="test-token")
-            for priority in ["low", "high", None]:
+            for kind, priority in [("info", "low"), ("error", "high"), ("done", None)]:
                 PolicyHandler.priority = priority
                 subprocess.run([str(ROOT / "target" / "debug" / "cj"), "--json", "--project", "repo",
-                                "notify", "--kind", "error", "--title", "Synthetic failure"],
+                                "notify", "--important", "--kind", kind, "--title", "Synthetic update"],
                                cwd=ROOT, env=env, check=True, capture_output=True, timeout=5)
         self.assertEqual(PolicyHandler.priorities, ["low", "high", "default"])
 

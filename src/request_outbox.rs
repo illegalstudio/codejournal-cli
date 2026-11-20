@@ -1,10 +1,10 @@
 use crate::{api::Api, outbox};
-use anyhow::Result;
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
@@ -39,7 +39,12 @@ pub(crate) fn directory() -> Result<PathBuf> {
 pub fn enqueue(request: &PendingRequest) -> Result<()> {
     let epoch = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     let target = directory()?.join(format!("{epoch:020}-{}.json", request.id));
-    let temporary = target.with_extension("tmp");
+
+    persist(&target, request)
+}
+
+pub(crate) fn persist(target: &Path, request: &PendingRequest) -> Result<()> {
+    let temporary = target.with_extension(format!("{}.tmp", Uuid::new_v4()));
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -48,10 +53,17 @@ pub fn enqueue(request: &PendingRequest) -> Result<()> {
         options.mode(0o600);
     }
     let mut file = options.open(&temporary)?;
-    file.write_all(&serde_json::to_vec(request)?)?;
-    file.sync_all()?;
-    fs::rename(temporary, target)?;
-    Ok(())
+    let result = (|| {
+        file.write_all(&serde_json::to_vec(request)?)?;
+        file.sync_all()?;
+        drop(file);
+        fs::rename(&temporary, target)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
 }
 
 pub(crate) fn entries() -> Result<Vec<(PathBuf, PendingRequest)>> {
@@ -84,6 +96,15 @@ pub(crate) fn entries() -> Result<Vec<(PathBuf, PendingRequest)>> {
 
 pub fn pending() -> Result<usize> {
     Ok(entries()?.len())
+}
+
+pub(crate) fn id_prefix(id: &str) -> Result<String> {
+    let prefix = id.replace('-', "").to_ascii_lowercase();
+    ensure!(
+        (8..=32).contains(&prefix.len()) && prefix.bytes().all(|byte| byte.is_ascii_hexdigit()),
+        "request ID must be a UUID or at least eight hexadecimal characters"
+    );
+    Ok(prefix)
 }
 
 pub fn has_project_init(server: &str, path: &str, slug: &str) -> Result<bool> {

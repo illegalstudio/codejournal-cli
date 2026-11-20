@@ -22,10 +22,19 @@ pub fn run(
     if api.offline() && !args.dry_run && !args.pending {
         bail!("Garden needs an online connection; use --dry-run for a cached preview");
     }
+    if api.offline() && args.scan_pages.is_some() {
+        bail!("A bounded reference scan requires an online connection");
+    }
     let slug = project_bootstrap::resolved_slug(api, tenant, project)?;
     let base = format!("/api/v1/tenants/{tenant}/projects/{slug}");
     if let Some(args::GardenAction::Review(action)) = args.action.take() {
-        if args.dry_run || args.all || args.after.is_some() || args.pending || args.limit != 5 {
+        if args.dry_run
+            || args.all
+            || args.after.is_some()
+            || args.pending
+            || args.scan_pages.is_some()
+            || args.limit != 5
+        {
             bail!("List options cannot be combined with garden review");
         }
         return review::run(api, &base, action, json_mode);
@@ -38,7 +47,7 @@ pub fn run(
     let mut result = match api.get(&path) {
         Ok(value) if value["findings"].is_array() && value["counts"].is_object() => value,
         Ok(_) => {
-            if args.after.is_some() || args.pending {
+            if args.after.is_some() || args.pending || args.scan_pages.is_some() {
                 bail!("This server does not support persistent garden reviews");
             }
             return legacy::run(
@@ -62,7 +71,7 @@ pub fn run(
                     .contains(&response.status)
                 }) =>
         {
-            if args.after.is_some() || args.pending {
+            if args.after.is_some() || args.pending || args.scan_pages.is_some() {
                 bail!("This server does not support persistent garden reviews");
             }
             return legacy::run(
@@ -86,17 +95,26 @@ pub fn run(
         eprintln!(
             "Garden: scanning project references; use cj garden --pending for the stored queue without a scan."
         );
-        if !args.dry_run {
+        if !args.dry_run && args.scan_pages.is_none() {
             applied =
                 api.post(&format!("{base}/garden/maintenance"), &json!({}))?["applied"].clone();
         }
-        let scan = scan::run(api, &base, args.dry_run)?;
+        let scan = scan::run(
+            api,
+            &base,
+            args.dry_run,
+            args.scan_from.unwrap_or(1),
+            args.scan_pages,
+        )?;
         automatic = scan["automatic"].clone();
         partial = scan["partial"] == true;
         for key in [
             "code_scan_partial",
             "snapshot_failure_count",
             "scan_failures",
+            "scan_pages",
+            "scan_next_page",
+            "scan_complete",
         ] {
             snapshots[key] = scan[key].clone();
         }
@@ -115,12 +133,10 @@ pub fn run(
     result["automatic"] = automatic;
     result["partial"] = json!(partial);
     result["topic_analysis_partial"] = json!(partial);
-    for key in [
-        "code_scan_partial",
-        "snapshot_failure_count",
-        "scan_failures",
-    ] {
-        result[key] = snapshots[key].clone();
+    if let Some(snapshots) = snapshots.as_object() {
+        for (key, value) in snapshots {
+            result[key] = value.clone();
+        }
     }
     result["review_queue_complete"] = json!(
         result["next"].is_null()

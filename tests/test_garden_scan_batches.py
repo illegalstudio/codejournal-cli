@@ -86,6 +86,22 @@ class GardenScanBatchTest(AuditCase):
         requests, _ = self.scan()
         self.assertEqual(requests, [{'complete': True}])
 
+    def test_bounded_scan_continues_by_reference_page_without_completing_maintenance(self):
+        self.pages = [(self.rows(1), []), (self.rows(1, offset=2), [])]
+        for page in [1, 2]:
+            Handler.calls.clear()
+            result = self.cli('--json', '--project', 'fixture', 'garden', '--scan-pages', '1', '--scan-from', str(page))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            data = json.loads(result.stdout)
+            self.assertEqual(data['scan_pages'], 1)
+            self.assertEqual(data['scan_next_page'], 2 if page == 1 else None)
+            self.assertFalse(data['scan_complete'])
+            scans = [(path, body) for method, path, body in Handler.calls if method == 'POST']
+            self.assertEqual(len(scans), 1)
+            self.assertTrue(scans[0][0].endswith('/scan'))
+            self.assertFalse(scans[0][1].get('complete'))
+            self.assertEqual(scans[0][1]['entries'][0]['id'], str(uuid.UUID(int=page)))
+
     def test_path_limit_splits_without_losing_or_duplicating_records(self):
         entries = self.rows(51, refs=[])
         for i, row in enumerate(entries):

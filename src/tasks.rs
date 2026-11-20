@@ -3,6 +3,8 @@ use crate::task_args::TaskAction;
 use crate::{task_add, task_change, task_read, task_show};
 use anyhow::Result;
 
+mod consumers;
+
 pub fn run(
     api: &Api,
     tenant: &str,
@@ -11,9 +13,19 @@ pub fn run(
     json_mode: bool,
 ) -> Result<()> {
     match action {
+        TaskAction::Trash { id } => {
+            crate::work_retention::change(api, tenant, "tasks", &id, "trash", json_mode)
+        }
+        TaskAction::Restore { id } => {
+            crate::work_retention::change(api, tenant, "tasks", &id, "restore", json_mode)
+        }
         TaskAction::Add(args) => task_add::run(api, tenant, project, args, json_mode),
         TaskAction::List(args) => task_read::list(api, tenant, project, args, json_mode),
-        TaskAction::Show { id } => task_show::show(api, tenant, &id, json_mode),
+        TaskAction::Show { id, history } => task_show::show(api, tenant, &id, history, json_mode),
+        TaskAction::Follow { id } => consumers::change(api, tenant, project, &id, true, json_mode),
+        TaskAction::Unfollow { id } => {
+            consumers::change(api, tenant, project, &id, false, json_mode)
+        }
         TaskAction::Start { id, note, agent } => {
             task_change::status(api, tenant, project, &id, "start", note, agent, json_mode)
         }

@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -16,13 +17,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
     get_calls = []
     created = False
     canonical = None
+    unresolved = 0
 
     def log_message(self, *_args):
         pass
 
     def do_GET(self):
         self.get_calls.append(self.path)
-        if "/projects/resolve?" in self.path:
+        if "/projects/resolve?" in self.path and Handler.unresolved > 0:
+            Handler.unresolved -= 1
+            status, payload = 404, {"message": "Project not found"}
+        elif "/projects/resolve?" in self.path:
             status, payload = 200, {"project": {"slug": Handler.canonical or "new-project"}}
         elif self.path.endswith("/projects/new-project-2"):
             status, payload = 200, {"project": {"slug": "new-project-2", "name": "New", "counts": {}, "paths": []}}
@@ -81,6 +86,7 @@ class AutoProjectTest(unittest.TestCase):
         Handler.get_calls.clear()
         Handler.created = False
         Handler.canonical = None
+        Handler.unresolved = 0
         self.temp = tempfile.TemporaryDirectory(prefix="cj-auto-project-")
         self.addCleanup(self.temp.cleanup)
         self.base = pathlib.Path(self.temp.name)
@@ -155,6 +161,32 @@ class AutoProjectTest(unittest.TestCase):
             "/api/v1/tenants/demo/projects/new-project-2/entries",
         ])
 
+    def test_compact_bootstrap_acknowledgement_preserves_canonical_project_mapping(self):
+        self.env['CODE_JOURNAL_AUTO_SYNC'] = 'off'
+        self.assertEqual(self.run_add('--offline').returncode, 0)
+        Handler.canonical = 'new-project-2'
+        full = Handler.do_POST
+
+        def compact(handler):
+            if not handler.path.endswith('/projects'):
+                return full(handler)
+            body = json.loads(handler.rfile.read(int(handler.headers['Content-Length'])))
+            Handler.calls.append((handler.path, body))
+            Handler.created = True
+            response = json.dumps({'replay': 'compact-v1', 'request_id': handler.headers['Idempotency-Key'],
+                                   'applied': True, 'result': {'project': {'slug': Handler.canonical}}}).encode()
+            handler.send_response(200)
+            handler.send_header('Content-Length', str(len(response)))
+            handler.end_headers()
+            handler.wfile.write(response)
+
+        with patch.object(Handler, 'do_POST', compact):
+            result = subprocess.run([self.binary, 'sync'], cwd=self.repo, env=self.env,
+                                    capture_output=True, text=True, timeout=8)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([path for path, _ in Handler.calls], [
+            '/api/v1/tenants/demo/projects', '/api/v1/tenants/demo/projects/new-project-2/entries'])
+
     def test_first_read_resolves_existing_project_without_creating_it(self):
         Handler.canonical = "new-project-2"
         result = subprocess.run([self.binary, "--json", "project", "show"], cwd=self.repo,
@@ -166,6 +198,24 @@ class AutoProjectTest(unittest.TestCase):
         cached = subprocess.run([self.binary, "--offline", "--json", "project", "show"],
                                 cwd=self.repo, env=self.env, capture_output=True, text=True, timeout=8)
         self.assertEqual(cached.returncode, 0, cached.stderr)
+
+    def test_brief_retries_registration_without_creating_a_project(self):
+        Handler.unresolved = 1
+        result = subprocess.run([self.binary, "brief"], cwd=self.repo, env=self.env,
+                                capture_output=True, text=True, timeout=8)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reads = [path for path in Handler.get_calls if '/projects/resolve?' in path]
+        self.assertEqual(len(reads), 2)
+        self.assertFalse(any(path.endswith('/projects') for path, _ in Handler.calls))
+
+    def test_unregistered_checkout_explains_retry_and_registration(self):
+        Handler.unresolved = 3
+        result = subprocess.run([self.binary, "brief"], cwd=self.repo, env=self.env,
+                                capture_output=True, text=True, timeout=8)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('retry shortly', result.stderr)
+        self.assertIn('cj project init', result.stderr)
+        self.assertEqual(Handler.calls, [])
 
     def test_path_add_uses_resolved_project_slug(self):
         Handler.canonical = "new-project-2"

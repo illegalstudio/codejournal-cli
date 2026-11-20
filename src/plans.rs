@@ -23,6 +23,12 @@ pub fn run(
         bail!("--local is only supported for docs");
     }
     match action {
+        PlanAction::Trash { id } => {
+            crate::work_retention::change(api, tenant, kind, &id, "trash", json_mode)
+        }
+        PlanAction::Restore { id } => {
+            crate::work_retention::change(api, tenant, kind, &id, "restore", json_mode)
+        }
         PlanAction::List {
             status,
             all,

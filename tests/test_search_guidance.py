@@ -46,6 +46,14 @@ class SearchGuidanceTest(AuditCase):
                 {'id': RESOURCE, 'title': 'A match', 'kind': 'howto', 'status': 'active'}]})):
             self.assertEqual(json.loads(self.cli('--json', 'search', 'a b', '--all-projects').stdout)['notices'], [])
 
+    def test_document_suggestions_start_after_an_explicit_empty_entry_result(self):
+        documents = [{'id': RESOURCE, 'title': 'Relevant guide', 'match_excerpt': 'Important context'}]
+        with patch.object(Handler, 'do_GET', lambda h: h.reply(200, {'entries': [], 'documents': documents})):
+            result = self.cli('search', 'some terms', '--all-projects')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines()[0], 'No matching entries.')
+            self.assertIn('Relevant guide', result.stdout)
+
     def test_stemmed_only_results_are_labelled_and_suggest_exact_matching(self):
         def entry(number, title, quality):
             return {'id': RESOURCE[:-1] + str(number), 'title': title, 'kind': 'gotcha', 'status': 'active',

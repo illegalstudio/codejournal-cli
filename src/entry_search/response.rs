@@ -26,6 +26,9 @@ pub fn emit(
         })
         .collect();
     let mut notices = super::empty::notices(params, entries.is_empty());
+    if entries.is_empty() {
+        lines.push("No matching entries.".to_owned());
+    }
     if response["relaxed"] == true {
         notices.push("No entries matched all terms; this explicit relaxed search retried with ranked any-term matching.".to_owned());
     }
@@ -104,18 +107,11 @@ pub fn emit(
     });
     output::emit(
         &payload,
-        &if lines.is_empty() {
-            std::iter::once("No matching entries.".to_owned())
-                .chain(notices)
-                .collect::<Vec<_>>()
-                .join("\n")
-        } else {
-            lines
-                .into_iter()
-                .chain(notices)
-                .collect::<Vec<_>>()
-                .join("\n")
-        },
+        &lines
+            .into_iter()
+            .chain(notices)
+            .collect::<Vec<_>>()
+            .join("\n"),
         json_mode,
     )
 }

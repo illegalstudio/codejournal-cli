@@ -55,7 +55,7 @@ pub fn notice(explicit_refs: &[String], no_auto: bool) -> Result<Option<String>>
             .iter()
             .any(|other| other.repo_common == state.repo_common && other.commits.contains(&head))
     {
-        return Ok(Some("HEAD changed outside captured session commits. No commits were inferred from that change. If it belongs to this session, add --ref commit:HEAD (or an explicit SHA).".to_owned()));
+        return Ok(Some("HEAD changed outside captured session commits. No commits were inferred from that change. If it belongs to this session, pass --ref commit:HEAD (or an explicit SHA) to cj log add, or correct an existing log with cj log update LOG_ID --ref commit:SHA (this replaces all of its refs).".to_owned()));
     }
     Ok(None)
 }

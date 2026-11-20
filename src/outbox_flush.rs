@@ -7,15 +7,21 @@ use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::path::Path;
 
-pub fn run(api: &Api, tenant: &str) -> Result<usize> {
+#[derive(Default)]
+pub struct Delivery {
+    pub sent: usize,
+    pub expired: usize,
+}
+
+pub fn run(api: &Api, tenant: &str) -> Result<Delivery> {
     let lock = OpenOptions::new()
         .write(true)
         .create(true)
         .open(outbox::directory()?.join(".flush.lock"))?;
     if lock.try_lock_exclusive().is_err() {
-        return Ok(0);
+        return Ok(Delivery::default());
     }
-    let mut sent = 0;
+    let mut delivery = Delivery::default();
     loop {
         let origin = outbox::fingerprint(&api.server, tenant, &api.token);
         let batch = outbox::entries()?
@@ -59,13 +65,22 @@ pub fn run(api: &Api, tenant: &str) -> Result<usize> {
         let acknowledged = result["acknowledged"]
             .as_array()
             .ok_or_else(|| anyhow::anyhow!("server did not acknowledge the batch"))?;
+        let empty = Vec::new();
+        let expired = result["expired"].as_array().unwrap_or(&empty);
         for (path, event) in batch {
+            if expired.contains(&event["id"]) && !acknowledged.contains(&event["id"]) {
+                let id = event["id"].as_str().unwrap_or("unknown");
+                eprintln!("Hook event {id} expired before delivery");
+                fs::remove_file(path)?;
+                delivery.expired += 1;
+                continue;
+            }
             if !acknowledged.iter().any(|id| id == &event["id"]) {
                 bail!("server did not acknowledge event {}", event["id"]);
             }
             fs::remove_file(path)?;
-            sent += 1;
+            delivery.sent += 1;
         }
     }
-    Ok(sent)
+    Ok(delivery)
 }

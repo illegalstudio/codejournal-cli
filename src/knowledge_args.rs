@@ -39,6 +39,25 @@ pub enum TopicsAction {
 
 #[derive(Subcommand)]
 pub enum EntryAction {
+    /// Record that an entry helped with a task, work log or pull request.
+    Use {
+        id: String,
+        #[arg(value_parser = ["task", "log", "pr"])]
+        kind: String,
+        reference: String,
+    },
+    /// Keep a temporary entry as durable knowledge.
+    Promote {
+        id: String,
+    },
+    /// Place a retired entry in the trash for 90 days.
+    Trash {
+        id: String,
+    },
+    /// Restore a trashed entry to its previous lifecycle state.
+    Restore {
+        id: String,
+    },
     /// Correct reference metadata without replacing the knowledge entry.
     Refs {
         id: String,

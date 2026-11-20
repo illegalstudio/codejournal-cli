@@ -64,9 +64,31 @@ pub struct TaskListArgs {
 
 #[derive(Subcommand)]
 pub enum TaskAction {
+    /// Move a completed or dismissed task to the trash.
+    Trash {
+        id: String,
+    },
+    /// Return a task from the trash to its completed state.
+    Restore {
+        id: String,
+    },
     Add(TaskAddArgs),
     List(TaskListArgs),
+    /// Read one task with its current body and latest events.
     Show {
+        id: String,
+        #[arg(
+            long,
+            help = "Include the complete event history instead of the latest five events"
+        )]
+        history: bool,
+    },
+    /// Follow an upstream task's result in the current or selected project's brief.
+    Follow {
+        id: String,
+    },
+    /// Stop showing an upstream task's result in this project's brief.
+    Unfollow {
         id: String,
     },
     Start {

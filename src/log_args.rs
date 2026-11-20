@@ -45,6 +45,7 @@ pub enum LogAction {
     Add(LogAddArgs),
     List(LogListArgs),
     /// Amend a work log with revision protection, or replace its refs.
+    #[command(alias = "edit")]
     Update(LogUpdateArgs),
     /// Read one work log by its full ID or unique prefix.
     Show {

@@ -1,4 +1,6 @@
 use serde_json::{Value, json};
+mod tails;
+pub use tails::bounded_tails;
 
 fn session(value: &mut Value) {
     if let Some(map) = value.as_object_mut() {
@@ -97,4 +99,10 @@ pub fn compact(mut value: Value, result_only: bool) -> Value {
         events(&mut value, &mut 16000, false);
     }
     value
+}
+
+/// The answer a supervising loop needs, without the session, events or host messages.
+pub fn result_only(value: &Value) -> Value {
+    json!({"id": value["id"], "status": value["status"], "timed_out": value["timed_out"],
+        "result": value["result"], "error": value["session"]["error"]})
 }
