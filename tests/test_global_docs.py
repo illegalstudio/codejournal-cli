@@ -109,6 +109,7 @@ class GlobalDocsTest(unittest.TestCase):
         online = json.loads(self.cli("--json", "doc", "list", "--global").stdout)
         offline = json.loads(self.cli("--json", "--offline", "doc", "list", "--global").stdout)
         self.assertTrue(offline.pop("cached"))
+        self.assertRegex(offline.pop("cached_at"), r"^20\d\d-\d\d-\d\dT")
         self.assertEqual(online, offline)
         self.assertIn("project:   GLOBAL", self.cli("doc", "show", "aaaaaaaa").stdout)
 

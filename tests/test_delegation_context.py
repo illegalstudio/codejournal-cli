@@ -20,6 +20,26 @@ if os.environ.get("CJ_FAKE_BEHAVIOR") == "context":
 '''
 
 
+GH = r'''
+import json, os, sys
+args = sys.argv[1:]
+with open(os.environ["CJ_FAKE_GH_LOG"], "a") as log:
+    log.write(json.dumps(args) + "\n")
+record = {"title": "Fix lowering", "state": "OPEN", "author": {"login": "alice"}, "body": "Why it changed",
+    "comments": [{"author": {"login": "bob"}, "createdAt": "2026-11-21T10:00:00Z", "body": "Please test"}]}
+if args[:3] == ["pr", "view", "7"]:
+    print(json.dumps({**record, "number": 7, "url": "https://github.test/owner/repo/pull/7",
+        "headRefName": "fix", "baseRefName": "main", "reviews": []}))
+elif args[:3] == ["pr", "diff", "7"]:
+    print("diff --git a/x b/x\n+new line")
+elif args[:3] == ["issue", "view", "9"]:
+    print(json.dumps({**record, "number": 9, "title": "Strict mode fails", "url": "https://github.test/owner/repo/issues/9"}))
+else:
+    sys.stderr.write("HTTP 401: Bad credentials\n")
+    sys.exit(1)
+'''
+
+
 class DelegationContextTest(DelegationCase):
     def setUp(self):
         super().setUp()
@@ -59,6 +79,35 @@ class DelegationContextTest(DelegationCase):
         part = self.call("context", ident, "--name", "result-1")["attachment"]
         self.assertEqual(part["source"]["delegation_id"], previous)
         self.assertEqual(part["body"], "Standalone provider completed")
+
+    def test_github_records_are_read_by_the_host_and_attached_for_the_guest(self):
+        import sys
+        gh = self.bin / "gh"
+        gh.write_text(f"#!{sys.executable}\n" + GH)
+        gh.chmod(0o755)
+        log = self.root / "gh.log"
+        self.env["CJ_FAKE_GH_LOG"] = str(log)
+        ident = self.call("create", "claude", "--prompt", "Review the pull request",
+            "--context-github", "owner/repo#7", "--context-github", "#9")["id"]
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertEqual(calls[0][:5], ["pr", "view", "7", "--repo", "owner/repo"])
+        self.assertEqual(calls[1], ["pr", "diff", "7", "--repo", "owner/repo"])
+        self.assertEqual([call[:3] for call in calls[2:]], [["pr", "view", "9"], ["issue", "view", "9"]])
+        manifest = self.call("context", ident)["attachments"]
+        self.assertEqual([item["name"] for item in manifest], ["github-1", "github-2"])
+        self.assertEqual(manifest[0]["source"], {"github": "owner/repo#7", "url": "https://github.test/owner/repo/pull/7"})
+        pull = self.call("context", ident, "--name", "github-1", "--limit", "12000")["attachment"]["body"]
+        for expected in ["# Pull request #7: Fix lowering", "Branches: fix into main", "### bob at 2026-11-21T10:00:00Z",
+                         "Please test", "## Diff", "+new line"]:
+            self.assertIn(expected, pull)
+        issue = self.call("context", ident, "--name", "github-2", "--limit", "12000")["attachment"]["body"]
+        self.assertTrue(issue.startswith("# Issue #9: Strict mode fails"), issue)
+        self.assertNotIn("## Diff", issue)
+        for reference, message in [("#404", "could not read #404 as a pull request"), ("--web", "invalid GitHub reference")]:
+            failed = self.invoke("create", "claude", "--prompt", "Review", f"--context-github={reference}", check=False)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn(message, failed.stderr)
+        self.assertEqual(len(self.call("list", "--all")["sessions"]), 1)
 
     def test_large_unicode_task_is_loaded_from_canonical_state(self):
         prompt = self.root / "task.txt"

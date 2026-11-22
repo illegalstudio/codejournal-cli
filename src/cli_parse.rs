@@ -3,8 +3,42 @@ use clap::builder::PossibleValuesParser;
 use clap::{Command, CommandFactory, FromArgMatches};
 
 pub fn parse() -> Cli {
-    let matches = command().get_matches();
+    let matches = command().try_get_matches().unwrap_or_else(|error| {
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        if let Some(hint) = body_hint(&error, &args) {
+            let _ = error.print();
+            eprintln!("\n{hint}");
+            std::process::exit(error.exit_code());
+        }
+        error.exit()
+    });
     Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit())
+}
+
+/// Text passed without a flag to a command that takes it through `--body`.
+fn body_hint(error: &clap::Error, args: &[String]) -> Option<String> {
+    use clap::error::{ContextKind, ContextValue, ErrorKind};
+    if error.kind() != ErrorKind::UnknownArgument {
+        return None;
+    }
+    let Some(ContextValue::String(unexpected)) = error.get(ContextKind::InvalidArg) else {
+        return None;
+    };
+    let root = command();
+    let mut current = &root;
+    for arg in args {
+        match current.find_subcommand(arg) {
+            Some(next) => current = next,
+            None if current.has_subcommands() && arg.starts_with('-') => {}
+            None => break,
+        }
+    }
+    let takes_body = current
+        .get_arguments()
+        .any(|arg| arg.get_long() == Some("body"));
+    (takes_body && !unexpected.starts_with('-')).then(|| {
+        "hint: this command takes no positional text; pass it with --body \"...\" or --body-file FILE".to_owned()
+    })
 }
 
 fn command() -> Command {
@@ -75,6 +109,22 @@ mod tests {
                 .is_err()
         );
     }
+    #[test]
+    fn positional_text_points_to_the_body_flag() {
+        let hint = |args: &[&str]| {
+            let error = command()
+                .try_get_matches_from([&["cj"], args].concat())
+                .unwrap_err();
+            let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
+            body_hint(&error, &args)
+        };
+        assert!(hint(&["log", "add", "--title", "Done", "What changed"]).is_some());
+        assert!(hint(&["--json", "feedback", "add", "It failed"]).is_some());
+        assert!(hint(&["log", "add", "--titel", "Done"]).is_none());
+        assert!(hint(&["supersede", "12345678", "extra"]).is_none());
+        assert!(hint(&["log", "add"]).is_none());
+    }
+
     #[test]
     fn checklist_step_requires_an_explicit_state_and_positive_number() {
         for flag in ["--done", "--undone"] {

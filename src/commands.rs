@@ -3,7 +3,7 @@ use crate::output;
 use crate::project;
 use crate::refs;
 use crate::{attribution, git, staleness};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use serde_json::json;
 
 fn root(tenant: &str) -> String {
@@ -18,6 +18,20 @@ pub(crate) fn path(tenant: &str, explicit_project: Option<&str>) -> Result<Strin
     ))
 }
 
+/// The kinds the server keeps as temporary observations; checked here so no request is sent for the others.
+const OBSERVATIONS: [&str; 3] = ["discovery", "gotcha", "howto"];
+
+fn temporary_kind(kind: &str, temporary: bool) -> Result<()> {
+    if temporary && !OBSERVATIONS.contains(&kind) {
+        bail!(
+            "--temporary applies to project observations ({}); a {kind} entry is kept until it is superseded or marked obsolete, so omit --temporary",
+            OBSERVATIONS.join(", ")
+        );
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn add(
     api: &Api,
     tenant: &str,
@@ -29,11 +43,13 @@ pub fn add(
     raw_refs: Vec<String>,
     agent: Option<String>,
     force: bool,
+    supersedes: Option<String>,
     global_scope: bool,
     temporary: bool,
     durable: bool,
     json_mode: bool,
 ) -> Result<()> {
+    temporary_kind(kind, temporary)?;
     let mut raw_refs = raw_refs;
     if project.is_none() {
         if let Some(branch) = git::output(&["symbolic-ref", "--quiet", "--short", "HEAD"]) {
@@ -48,6 +64,9 @@ pub fn add(
         "force": force, "scope": if global_scope { "global" } else { "project" }});
     if durable {
         payload["durable"] = json!(true);
+    }
+    if let Some(old) = &supersedes {
+        payload["supersedes"] = json!(old);
     }
     let mut response = api.post(
         &format!(
@@ -66,6 +85,18 @@ pub fn add(
         .replace('-', "");
     let short_id = &id[..id.len().min(8)];
     let mut text = format!("Recorded {short_id} ({kind}): {title}");
+    if let Some(old) = &supersedes {
+        // An older server ignores the field and leaves the old entry active.
+        match response["superseded"].as_str() {
+            Some(done) => text.push_str(&format!(
+                "\nSuperseded {}.",
+                &done.replace('-', "")[..8.min(done.len())]
+            )),
+            None => text.push_str(&format!(
+                "\nwarning: this server did not supersede {old}; run `cj supersede {old} --by {short_id}`"
+            )),
+        }
+    }
     if let Some(expiry) = response["entry"]["expires_at"].as_str() {
         text.push_str(&format!(
             "\nExpires {expiry}. Promote with `cj entry promote {short_id}`."

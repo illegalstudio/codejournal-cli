@@ -26,10 +26,14 @@ pub fn active(data: &Value, lines: &mut Vec<String>) {
                     files.into_iter().rev().collect::<Vec<_>>().join(", ")
                 ));
             }
+            let head = match row["branch"].as_str() {
+                Some(branch) => format!(" on {branch}"),
+                None if row["detached_head"].as_bool() == Some(true) => " (detached HEAD)".into(),
+                None => String::new(),
+            };
             lines.push(format!(
-                "  {} on {} at {} ({}){detail}",
+                "  {}{head} at {} ({}){detail}",
                 value(&row["agent"]),
-                row["branch"].as_str().unwrap_or("detached"),
                 value(&row["checkout_path"]),
                 value(&row["host"])
             ));
@@ -154,7 +158,7 @@ pub fn tail(data: &Value, lines: &mut Vec<String>, compact: bool) {
                 .collect::<Vec<_>>()
                 .join(", ");
             lines.push(String::new());
-            lines.push(format!("Doc candidates (busy topics without a doc; write one with `cj doc create` when you work there): {labels}"));
+            lines.push(format!("Doc candidates (busy topics without a doc; write one with `cj doc create` when you work there, or declare an existing doc that covers one with `cj doc update ID --topics NAME`): {labels}"));
         }
     }
     if let Some(hint) = data["garden_hint"].as_str() {

@@ -16,7 +16,9 @@ pub fn run(args: args::StartArgs) -> Result<()> {
         "write mode requires a durable delegation start"
     );
     ensure!(
-        args.context_file.is_empty() && args.context_result.is_empty(),
+        args.context_file.is_empty()
+            && args.context_result.is_empty()
+            && args.context_github.is_empty(),
         "context attachments require a durable delegation start/create"
     );
     let body = crate::input::body(args.prompt, args.prompt_file)?;

@@ -1,17 +1,18 @@
 use crate::api::Api;
 use crate::{attribution, commands, input, refs};
-use anyhow::{Result, bail};
-use serde_json::{Value, json};
+use anyhow::Result;
+use serde_json::json;
 
 pub(crate) mod pending;
+pub(crate) mod update;
 
-fn noun(kind: &str) -> &str {
+pub(crate) fn noun(kind: &str) -> &str {
     if kind == "docs" { "doc" } else { "plan" }
 }
-fn path(tenant: &str, kind: &str, id: &str) -> String {
+pub(crate) fn path(tenant: &str, kind: &str, id: &str) -> String {
     format!("/api/v1/tenants/{tenant}/{kind}/{id}")
 }
-fn short(id: &str) -> String {
+pub(crate) fn short(id: &str) -> String {
     id.replace('-', "").chars().take(8).collect()
 }
 
@@ -28,9 +29,14 @@ pub fn create(
     status: Option<String>,
     not_before: Option<String>,
     raw_refs: Vec<String>,
+    topics: Vec<String>,
     agent: Option<String>,
     json_mode: bool,
 ) -> Result<()> {
+    anyhow::ensure!(
+        topics.is_empty() || kind == "docs",
+        "--topics is only supported for docs"
+    );
     let body = input::body(body, body_file)?;
     crate::plan_validation::body(&body)?;
     let status =
@@ -41,11 +47,14 @@ pub fn create(
         commands::path(tenant, project)?
     };
     let resource_id = uuid::Uuid::new_v4().to_string();
-    let payload = json!({
+    let mut payload = json!({
         "id": resource_id, "title": title, "body": body, "status": status, "not_before": not_before,
         "refs": refs::parse_all(&raw_refs)?, "agent": attribution::agent(agent.as_deref()),
         "host": attribution::host(),
     });
+    if !topics.is_empty() {
+        payload["topics"] = json!(topics);
+    }
     let result = match api.post(&format!("{base}/{kind}"), &payload) {
         Ok(result) => result,
         Err(error)
@@ -82,53 +91,4 @@ pub fn create(
         ),
         json_mode,
     )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn update(
-    api: &Api,
-    tenant: &str,
-    kind: &str,
-    id: &str,
-    title: Option<String>,
-    body: Option<String>,
-    body_file: Option<String>,
-    raw_refs: Vec<String>,
-    note: Option<String>,
-    based_on: Option<u32>,
-    agent: Option<String>,
-    json_mode: bool,
-) -> Result<()> {
-    let markdown = input::optional_body(body, body_file)?;
-    crate::plan_validation::body(&markdown)?;
-    if title.is_none()
-        && markdown.is_empty()
-        && raw_refs.is_empty()
-        && note.as_deref().is_none_or(str::is_empty)
-    {
-        bail!("nothing to update; pass Markdown, --title, --ref, or --note");
-    }
-    let mut payload = json!({"note": note, "based_on": based_on,
-        "agent": attribution::agent(agent.as_deref()), "host": attribution::host()});
-    if let Some(title) = title {
-        payload["title"] = Value::String(title);
-    }
-    if !markdown.is_empty() {
-        payload["body"] = Value::String(markdown);
-    }
-    if !raw_refs.is_empty() {
-        payload["refs"] = json!(refs::parse_all(&raw_refs)?);
-    }
-    let result = api.patch(&path(tenant, kind, id), &payload)?;
-    let item = &result[noun(kind)];
-    let mut text = format!(
-        "{} {} is now at revision {}.",
-        noun(kind),
-        short(item["id"].as_str().unwrap_or(id)),
-        item["revision"]
-    );
-    if result["conflict"].as_bool().unwrap_or(false) {
-        text.push_str(" Warning: the base revision changed; review history.");
-    }
-    crate::plan_show::size::emit(&result, &text, json_mode)
 }

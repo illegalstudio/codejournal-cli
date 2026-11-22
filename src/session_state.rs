@@ -25,6 +25,7 @@ pub struct SessionState {
     pub started_at: String,
     pub turn_started_at: String,
     pub turn_head: Option<String>,
+    pub reported_head: Option<crate::git::CheckoutHead>,
     pub turn_files: Vec<String>,
     pub files: HashMap<String, String>,
     pub last_log_at: Option<String>,

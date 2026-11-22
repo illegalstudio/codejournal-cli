@@ -18,12 +18,15 @@ pub struct AddArgs {
     pub agent: Option<String>,
     #[arg(
         long,
-        help = "Allow creation despite an existing active entry with the same title; to replace a fact, add with --force and then supersede the old entry with the returned new ID"
+        help = "Allow creation despite an existing active entry with the same title; to replace a fact, use --supersedes ID instead"
     )]
     pub force: bool,
+    /// Replace a fact in one step: record this entry and mark entry ID as superseded by it. The title may stay the same.
+    #[arg(long, value_name = "ID")]
+    pub supersedes: Option<String>,
     #[arg(long = "global")]
     pub global_scope: bool,
-    /// Expire a project observation after 30 days unless promoted.
+    /// Expire a project observation (kind discovery, gotcha or howto) after 30 days unless promoted; other kinds are refused.
     #[arg(long, conflicts_with = "global_scope")]
     pub temporary: bool,
     /// Keep an agent observation without a temporary deadline.

@@ -85,6 +85,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
                 args.refs,
                 args.agent,
                 args.force,
+                args.supersedes,
                 args.global_scope,
                 args.temporary,
                 args.durable,

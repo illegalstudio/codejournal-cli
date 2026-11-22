@@ -46,6 +46,10 @@ pub fn reachable(cwd: &Path, sha: &str) -> bool {
     command(cwd, &["merge-base", "--is-ancestor", sha, "HEAD"]).is_some()
 }
 
+pub fn subject(cwd: &Path, sha: &str) -> Option<String> {
+    command(cwd, &["log", "-1", "--format=%s", sha]).filter(|subject| !subject.is_empty())
+}
+
 pub fn checkout(cwd: &Path) -> Option<String> {
     let root = command(cwd, &["rev-parse", "--show-toplevel"])?;
     Some(
@@ -59,6 +63,27 @@ pub fn checkout(cwd: &Path) -> Option<String> {
 
 pub fn head(cwd: &Path) -> Option<String> {
     command(cwd, &["rev-parse", "HEAD"])
+}
+
+pub fn head_to_report(
+    event: &str,
+    state: &crate::session_state::SessionState,
+) -> Option<git::CheckoutHead> {
+    if !matches!(
+        event,
+        "SessionStart" | "UserPromptSubmit" | "PostToolUse" | "Stop"
+    ) {
+        return None;
+    }
+    let head = git::checkout_head(Path::new(state.root.as_deref()?))?;
+    if !matches!(event, "SessionStart" | "UserPromptSubmit")
+        && state.reported_head.as_ref() == Some(&head)
+    {
+        return None;
+    }
+    head.branch()
+        .is_none_or(|branch| branch.chars().count() <= 255)
+        .then_some(head)
 }
 
 pub fn resolve_commit(cwd: &Path, sha: &str) -> Option<String> {

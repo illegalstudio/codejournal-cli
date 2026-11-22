@@ -33,7 +33,9 @@ class SearchGuidanceTest(AuditCase):
                 self.assertIn('requires all terms', result.stdout)
                 self.assertIn('--any', result.stdout)
                 if '--json' in flags:
-                    self.assertEqual(len(json.loads(result.stdout)['notices']), 2)
+                    notices = json.loads(result.stdout)['notices']
+                    self.assertEqual(len(notices), 3 if '--offline' in flags else 2)
+                    self.assertEqual('--offline' in flags, any('Not a live search' in notice for notice in notices))
         self.assertEqual(len(Handler.calls), 2)
 
     def test_no_irrelevant_hint_for_single_term_filters_literal_any_or_success(self):

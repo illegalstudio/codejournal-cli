@@ -57,6 +57,9 @@ pub struct StartArgs {
     /// Attach a previous terminal delegation result without granting cross-session access.
     #[arg(long)]
     pub context_result: Vec<String>,
+    /// Snapshot a pull request or issue read with the host's gh (description, comments, reviews and a pull request's diff), repeatable. Guests run without your GitHub credentials. REF is a URL, owner/repo#N, or #N for this repository.
+    #[arg(long, value_name = "REF")]
+    pub context_github: Vec<String>,
     #[arg(long, default_value = "600")]
     pub stall_timeout: f64,
     #[arg(long, default_value = "300")]

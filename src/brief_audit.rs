@@ -25,6 +25,7 @@ pub fn project(data: &Value) -> Value {
                 "checkout_path",
                 "checkout_kind",
                 "branch",
+                "detached_head",
                 "started_at",
                 "last_seen_at",
                 "waiting_since",

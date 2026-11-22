@@ -29,6 +29,19 @@ pub fn emit(
     if entries.is_empty() {
         lines.push("No matching entries.".to_owned());
     }
+    if let Some(index) = response["local_index"].as_object() {
+        notices.push(format!(
+            "Not a live search: these results come from the {} entries that searches on this machine saw between {} and {}. Entries never seen here are missing and statuses may have changed; retry online for a complete search.",
+            index["indexed"],
+            index["oldest_seen_at"].as_str().unwrap_or("an unknown time"),
+            index["newest_seen_at"].as_str().unwrap_or("an unknown time")
+        ));
+    } else if response["cached"] == true {
+        notices.push(format!(
+            "Not a live search: these are the results the same search returned {}; they may be outdated.",
+            response["cached_at"].as_str().map_or("earlier".to_owned(), |at| format!("at {at}"))
+        ));
+    }
     if response["relaxed"] == true {
         notices.push("No entries matched all terms; this explicit relaxed search retried with ranked any-term matching.".to_owned());
     }
@@ -103,7 +116,8 @@ pub fn emit(
     let payload = json!({
         "project": response["project"], "entries": entries, "documents": response["documents"],
         "relaxed":response["relaxed"] == true,"reference_filter":response["reference_filter"],
-        "cached": response["cached"] == true, "notices": notices,
+        "cached": response["cached"] == true, "cached_at": response["cached_at"],
+        "local_index": response["local_index"], "notices": notices,
     });
     output::emit(
         &payload,

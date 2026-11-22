@@ -10,6 +10,9 @@ pub fn run(api: &Api, tenant: &str, args: LogUpdateArgs, json_mode: bool) -> Res
     if args.clear_refs || !args.refs.is_empty() {
         payload["refs"] = json!(references);
     }
+    if !args.add_refs.is_empty() {
+        payload["add_refs"] = json!(refs::parse_all(&args.add_refs)?);
+    }
     if has_body {
         let body = input::optional_body(args.body, args.body_file)?;
         anyhow::ensure!(
@@ -39,7 +42,7 @@ pub fn run(api: &Api, tenant: &str, args: LogUpdateArgs, json_mode: bool) -> Res
             crate::log_commits::amendment(id)?;
         }
     }
-    let text = if args.base.is_some() {
+    let mut text = if args.base.is_some() {
         format!(
             "Updated work log {id} to revision {}.",
             result["log"]["revision"]
@@ -47,6 +50,21 @@ pub fn run(api: &Api, tenant: &str, args: LogUpdateArgs, json_mode: bool) -> Res
     } else {
         format!("Updated refs of work log {id}.")
     };
+    match (
+        result["log"]["refs_before"].as_u64(),
+        result["log"]["refs_after"].as_u64(),
+    ) {
+        (Some(before), Some(after)) if args.add_refs.is_empty() => {
+            text.push_str(&format!(" Refs: replaced {before} with {after}."));
+        }
+        (Some(before), Some(after)) => {
+            text.push_str(&format!(" Refs: {before} before, {after} now."));
+        }
+        _ => anyhow::ensure!(
+            args.add_refs.is_empty(),
+            "this server does not support --add-ref and left the references unchanged; update the server, or resend the complete list with --ref"
+        ),
+    }
     result["body_omitted"] = json!(result["log"].get("body").is_none());
     if result["body_omitted"] == true {
         result["readback_command"] = json!(format!("cj log show {id} --json"));

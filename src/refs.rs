@@ -7,6 +7,10 @@ pub const HELP: &str = "Reference, repeatable (maximum 30 unique references): pa
 
 pub const UPDATE_HELP: &str = "Replace the entire ref list (maximum 30 unique references); omit --ref to keep existing refs. Use path:FILE, file:/absolute/path (this host), host:HOST:/path, commit:SHA, branch:NAME, issue:#N, URLs, or GitHub shorthand.";
 
+pub const ADD_HELP: &str = "Add a reference and keep the existing ones, repeatable; same forms as --ref. The list still holds at most 30 unique references.";
+
+pub const TOPICS_HELP: &str = "Docs only: the existing topics this doc covers, comma-separated, replacing the declared list. The brief stops proposing a new doc for a covered topic.";
+
 pub fn parse_all(values: &[String]) -> Result<Vec<Value>> {
     let mut parsed = Vec::new();
     for value in values {

@@ -5,10 +5,17 @@ use anyhow::Result;
 
 mod empty;
 mod format;
+mod local;
+mod local_match;
 mod response;
 
 fn root(tenant: &str) -> String {
     format!("/api/v1/tenants/{tenant}/entries")
+}
+
+/// Keeps an entry read in full available to searches made while the server is unreachable.
+pub fn remember(api: &Api, tenant: &str, entry: &serde_json::Value) {
+    local::remember(api, tenant, None, &serde_json::json!({"entries": [entry]}));
 }
 
 pub fn run(
@@ -100,7 +107,8 @@ fn fetch(
     all_projects: bool,
 ) -> Result<()> {
     let query = reqwest::Url::parse_with_params("http://local/", &params)?;
-    let mut response = api.get(&format!("{}?{}", root(tenant), query.query().unwrap_or("")))?;
+    let path = format!("{}?{}", root(tenant), query.query().unwrap_or(""));
+    let mut response = local::get(api, tenant, &path, &params)?;
     anyhow::ensure!(
         !params.iter().any(|(key, _)| *key == "ref_kind")
             || response["reference_filter"].is_object(),
@@ -117,7 +125,7 @@ fn fetch(
             || response["search_mode"] == "whole_word",
         "this server does not support whole-word search; update the server and retry"
     );
-    if !all_projects {
+    if !all_projects && !response["local_index"].is_object() {
         if let Some((_, slug)) = params.iter().find(|(key, _)| *key == "project") {
             staleness::enrich(
                 api,

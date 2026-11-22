@@ -60,6 +60,8 @@ pub enum PlanAction {
         not_before: Option<String>,
         #[arg(long = "ref", help = crate::refs::HELP)]
         refs: Vec<String>,
+        #[arg(long, value_delimiter = ',', help = crate::refs::TOPICS_HELP)]
+        topics: Vec<String>,
         #[arg(long)]
         agent: Option<String>,
     },
@@ -95,6 +97,12 @@ pub enum PlanAction {
         body_file: Option<String>,
         #[arg(long = "ref", help = crate::refs::UPDATE_HELP)]
         refs: Vec<String>,
+        #[arg(long = "add-ref", conflicts_with = "refs", help = crate::refs::ADD_HELP)]
+        add_refs: Vec<String>,
+        #[arg(long, value_delimiter = ',', conflicts_with = "clear_topics", help = crate::refs::TOPICS_HELP)]
+        topics: Vec<String>,
+        #[arg(long, help = "Docs only: remove every declared topic")]
+        clear_topics: bool,
         #[arg(long)]
         note: Option<String>,
         #[arg(long = "base", alias = "based-on")]

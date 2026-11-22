@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 mod discovery;
+pub(crate) mod stale;
 
 pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<Value> {
     if body["session"].is_null()
@@ -32,6 +33,11 @@ pub fn load(api: &Api, base: &str, cache_path: &str, mut body: Value) -> Result<
             return Ok(localize(archived, "offline", &body));
         }
         return api_cache::read(api.server(), &api.token, &shared_cache)
+            .map(|mut result| {
+                result["cached_at"] =
+                    json!(api_cache::saved_at(api.server(), &api.token, &shared_cache));
+                result
+            })
             .or_else(|_| api.get(&cache_path))
             .and_then(|result| crate::project_commands::archive::validate_cached(api, base, result))
             .map(|result| localize(result, "offline", &body));
@@ -102,6 +108,9 @@ fn localize(mut result: Value, mode: &str, policy: &Value) -> Value {
         policy["visibility"] != "all",
         policy["summary"] == true,
     );
+    if mode == "offline" {
+        stale::withhold_live(&mut result);
+    }
     result["mode"] = Value::String(mode.to_owned());
     result["pending_outbox"] =
         Value::from(outbox::pending().unwrap_or(0) + request_outbox::pending().unwrap_or(0));

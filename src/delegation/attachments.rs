@@ -1,3 +1,5 @@
+mod github;
+mod github_text;
 mod snapshot;
 use super::{context, store, text};
 use anyhow::{Context, Result, ensure};

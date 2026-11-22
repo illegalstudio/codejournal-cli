@@ -55,9 +55,41 @@ pub fn notice(explicit_refs: &[String], no_auto: bool) -> Result<Option<String>>
             .iter()
             .any(|other| other.repo_common == state.repo_common && other.commits.contains(&head))
     {
-        return Ok(Some("HEAD changed outside captured session commits. No commits were inferred from that change. If it belongs to this session, pass --ref commit:HEAD (or an explicit SHA) to cj log add, or correct an existing log with cj log update LOG_ID --ref commit:SHA (this replaces all of its refs).".to_owned()));
+        return Ok(Some(format!(
+            "HEAD changed outside captured session commits and is now {}. No commits were inferred from that change. If it belongs to this session, pass --ref commit:HEAD (or an explicit SHA) to cj log add, or add it to an existing log with cj log update LOG_ID --add-ref commit:SHA.",
+            label(&cwd, &head)
+        )));
     }
     Ok(None)
+}
+
+/// "1a2b3c4d Subject", so a linked or missing commit can be recognized without looking it up.
+fn label(cwd: &std::path::Path, sha: &str) -> String {
+    let short = &sha[..sha.len().min(8)];
+    match session_git::subject(cwd, sha) {
+        Some(subject) => format!("{short} {subject}"),
+        None => short.to_owned(),
+    }
+}
+
+/// Names the automatically linked commits and the checkout they were captured in.
+pub fn describe(linked: &[String], warned: bool) -> Option<String> {
+    let cwd = std::env::current_dir().ok()?;
+    if linked.is_empty() {
+        return None;
+    }
+    let mut text = format!(
+        "Linked {} commit(s) this session captured in {} since your previous log:",
+        linked.len(),
+        session_git::checkout(&cwd).unwrap_or_else(|| cwd.to_string_lossy().into_owned())
+    );
+    for sha in linked {
+        text.push_str(&format!("\n  {}", label(&cwd, sha)));
+    }
+    if warned {
+        text.push_str("\nThese are earlier captures, not the new HEAD named in the warning. If this log is not about them, replace its references with cj log update LOG_ID --ref commit:SHA.");
+    }
+    Some(text)
 }
 
 pub fn record(refs: &[String], log_id: Option<&str>) -> Result<()> {

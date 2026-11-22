@@ -51,14 +51,14 @@ class LogCommitsTest(unittest.TestCase):
         status = subprocess.run([case.binary, "--json", "status"], cwd=case.repo,
             env=case.env, capture_output=True, text=True, check=True)
         self.assertIn("HEAD changed", json.loads(status.stdout)["notices"][0])
-        self.assertIn("cj log update LOG_ID --ref commit:SHA", json.loads(status.stdout)["notices"][0])
+        self.assertIn("cj log update LOG_ID --add-ref commit:SHA", json.loads(status.stdout)["notices"][0])
         for _ in range(2):
             failed = subprocess.run([case.binary, "log", "add", "--title", "Done", "--body", "Done"],
                 cwd=case.repo, env=case.env, capture_output=True, text=True)
             self.assertEqual(failed.returncode, 0)
             self.assertIn("--ref commit:HEAD", failed.stdout)
             self.assertIn("No commits were inferred", failed.stdout)
-            self.assertIn("cj log update cccccccc --ref commit:SHA", failed.stdout)
+            self.assertIn("cj log update cccccccc --add-ref commit:SHA", failed.stdout)
             self.assertTrue(failed.stdout.splitlines()[-1].startswith("Logged "), failed.stdout)
         self.assertTrue(all(body["refs"] == [] for path, body in sessions.Handler.calls if path.endswith("/logs")))
         case.cli("log", "add", "--title", "Done", "--body", "Done", "--ref", "commit:HEAD")
@@ -68,6 +68,23 @@ class LogCommitsTest(unittest.TestCase):
         case.cli("log", "add", "--title", "Next", "--body", "Next")
         logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
         self.assertEqual(logs[-1]["refs"], [])
+
+    def test_older_captures_are_named_when_head_moved_outside_them(self):
+        case = self.fixture
+        captured, output = self.commit()
+        case.hook("PostToolUse", "session-one", "git commit -m 'My change'", output)
+        (case.repo / "mine.txt").write_text("signed\n")
+        case.git("commit", "-am", "Second change")
+        head = case.git("rev-parse", "HEAD")
+        result = case.cli("log", "add", "--title", "Done", "--body", "Done")
+        self.assertIn(f"is now {head[:8]} Second change", result)
+        self.assertIn(f"Linked 1 commit(s) this session captured in {case.repo.resolve()}", result)
+        self.assertIn(f"\n  {captured[:8]} My change", result)
+        self.assertIn("These are earlier captures, not the new HEAD", result)
+        self.assertIn("cj log update cccccccc --ref commit:SHA", result)
+        self.assertIn("cj log update cccccccc --add-ref commit:SHA", result)
+        logs = [body for path, body in sessions.Handler.calls if path.endswith("/logs")]
+        self.assertEqual(logs[-1]["refs"], [{"kind": "commit", "value": captured}])
 
     def test_automatic_reference_overflow_keeps_the_remaining_commits_pending(self):
         import json
@@ -83,6 +100,9 @@ class LogCommitsTest(unittest.TestCase):
         first = json.loads(case.cli("log", "add", "--title", "First group", "--body", "Done", "--ref", "path:mine.txt", "--json"))
         self.assertEqual(first["commit_tracking"]["linked"], 29)
         self.assertEqual(first["commit_tracking"]["remaining"], 6)
+        self.assertEqual(first["commit_tracking"]["commits"], expected[:29])
+        self.assertIn(f"{expected[0][:8]} change 0", first["commit_tracking"]["detail"])
+        self.assertIn(str(case.repo.resolve()), first["commit_tracking"]["detail"])
         self.assertIn("remain pending", first["notices"][0])
         second = json.loads(case.cli("log", "add", "--title", "Remaining group", "--body", "Done", "--json"))
         self.assertEqual(second["commit_tracking"]["linked"], 6)

@@ -11,6 +11,18 @@ fn noun(kind: &str) -> &str {
 fn text(value: &Value) -> &str {
     value.as_str().unwrap_or("")
 }
+fn ref_label(item: &Value) -> String {
+    format!("{}:{}", text(&item["kind"]), text(&item["value"]))
+}
+/// A comma-separated list, or "(none)" so an empty list is visible.
+fn labels(value: &Value, label: impl Fn(&Value) -> String) -> String {
+    let items: Vec<_> = value.as_array().into_iter().flatten().map(label).collect();
+    if items.is_empty() {
+        "(none)".to_owned()
+    } else {
+        items.join(", ")
+    }
+}
 
 pub fn show(
     api: &Api,
@@ -73,7 +85,14 @@ pub fn show(
         format!("status:    {}", text(&item["status"])),
         format!("revision:  {}", item["revision"]),
         format!("updated:   {}", text(&item["updated_at"])),
+        format!("refs:      {}", labels(&item["refs"], ref_label)),
     ];
+    if kind == "docs" {
+        lines.push(format!(
+            "topics:    {}",
+            labels(&item["topics"], |topic| text(topic).to_owned())
+        ));
+    }
     if selected {
         lines.push(format!(
             "Selection: lines {}-{}, truncated={}",

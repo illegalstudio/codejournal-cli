@@ -9,7 +9,7 @@ use std::process::{Command, Stdio};
 
 pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result<()> {
     let mut state = session_state::load(session)?;
-    let now = session_state::now();
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true);
     if state.started_at.is_empty() {
         state.started_at = now.clone();
         state.agent = runtime_agent(payload);
@@ -51,9 +51,13 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
     if crate::project_commands::archive::current().is_some() {
         return Ok(());
     }
-    let base = json!({"session": session, "agent": state.agent, "project": project,
+    let mut base = json!({"session": session, "agent": state.agent, "project": project,
         "project_explicit": preferred.is_some() || state.project.is_some(), "checkout_path": state.root,
         "host": attribution::host(), "cwd": state.cwd, "ts": now});
+    let head = session_git::head_to_report(event, &state);
+    if let Some(head) = &head {
+        base["git_head"] = json!({"branch": head.branch()});
+    }
     if state.delegation_id.is_some() && state.last_event_at.is_none() {
         queue(&base, "guest", "delegation_id", json!(state.delegation_id))?;
         state.last_event_at = Some(now.clone());
@@ -103,6 +107,9 @@ pub fn handle(event: &str, payload: &Value, session: &str, cwd: &Path) -> Result
             queue(&base, "end", "reason", payload["reason"].clone())?;
         }
         _ => {}
+    }
+    if head.is_some() {
+        state.reported_head = head;
     }
     state.last_event_at = Some(now);
     session_state::save(session, &state)?;

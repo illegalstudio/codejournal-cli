@@ -27,6 +27,18 @@ pub fn read(server: &str, token: &str, endpoint: &str) -> Result<Value> {
     Ok(value)
 }
 
+/// When the cached copy was written, in UTC.
+pub fn saved_at(server: &str, token: &str, endpoint: &str) -> Option<String> {
+    let modified = fs::metadata(path(server, token, endpoint).ok()?)
+        .ok()?
+        .modified()
+        .ok()?;
+    Some(
+        chrono::DateTime::<chrono::Utc>::from(modified)
+            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+    )
+}
+
 pub fn forget(server: &str, token: &str, endpoint: &str) -> Result<()> {
     match fs::remove_file(path(server, token, endpoint)?) {
         Ok(()) => Ok(()),

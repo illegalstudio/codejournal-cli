@@ -84,15 +84,13 @@ fn add(
         log["status"].as_str().unwrap_or("done"),
         log["title"].as_str().unwrap_or("")
     );
-    if !linked.is_empty() {
-        text.push_str(&format!(
-            "\nLinked {} commit(s) made since your previous log: {}",
-            linked.len(),
-            linked.join(", ")
-        ));
+    // The log exists now, so the correction commands can name it.
+    let named = |text: String| text.replace("LOG_ID", &id[..id.len().min(8)]);
+    let detail = log_commits::describe(&linked, notice.is_some()).map(named);
+    if let Some(detail) = &detail {
+        text.push_str(&format!("\n{detail}"));
     }
-    // The log exists now, so the correction command can name it.
-    let notice = notice.map(|notice| notice.replace("LOG_ID", &id[..id.len().min(8)]));
+    let notice = notice.map(named);
     if let Some(notice) = &notice {
         text = format!("Commit tracking warning: {notice}\n{text}");
     }
@@ -107,7 +105,8 @@ fn add(
     }
     output::emit(
         &json!({"log": log, "queued": false, "notices": notices,
-            "commit_tracking":{"linked":linked.len(),"remaining":remaining,"selection":"oldest_captured_first"}}),
+            "commit_tracking":{"linked":linked.len(),"remaining":remaining,"selection":"oldest_captured_first",
+                "commits":linked,"detail":detail}}),
         &text,
         json_mode,
     )

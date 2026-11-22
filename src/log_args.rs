@@ -64,11 +64,13 @@ pub enum LogAction {
 }
 
 #[derive(Args)]
-#[command(group(clap::ArgGroup::new("changes").required(true).multiple(true).args(["refs", "clear_refs", "body", "body_file", "status"])))]
+#[command(group(clap::ArgGroup::new("changes").required(true).multiple(true).args(["refs", "add_refs", "clear_refs", "body", "body_file", "status"])))]
 pub struct LogUpdateArgs {
     pub id: String,
     #[arg(long = "ref", conflicts_with = "clear_refs", help = crate::refs::UPDATE_HELP)]
     pub refs: Vec<String>,
+    #[arg(long = "add-ref", conflicts_with_all = ["refs", "clear_refs"], help = crate::refs::ADD_HELP)]
+    pub add_refs: Vec<String>,
     #[arg(long)]
     pub clear_refs: bool,
     #[arg(

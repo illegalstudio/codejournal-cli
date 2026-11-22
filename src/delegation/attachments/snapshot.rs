@@ -3,9 +3,9 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs::File, io::Read, path::PathBuf};
 
-pub fn capture(files: &[PathBuf], results: &[String]) -> Result<Value> {
+pub fn capture(files: &[PathBuf], results: &[String], github: &[String]) -> Result<Value> {
     ensure!(
-        files.len() + results.len() <= 20,
+        files.len() + results.len() + github.len() <= 20,
         "at most 20 context attachments are allowed"
     );
     let mut items = Vec::new();
@@ -37,6 +37,18 @@ pub fn capture(files: &[PathBuf], results: &[String]) -> Result<Value> {
         items.push(item(
             format!("result-{}", index + 1),
             json!({"delegation_id":id,"attempt":session["attempt"]}),
+            body,
+        ));
+    }
+    for (index, reference) in github.iter().enumerate() {
+        let (body, url) = super::github::read(reference)?;
+        ensure!(
+            body.len() <= 1_000_000,
+            "the GitHub record {reference} exceeds 1000000 bytes; attach the relevant parts with --context-file"
+        );
+        items.push(item(
+            format!("github-{}", index + 1),
+            json!({"github":reference,"url":url}),
             body,
         ));
     }

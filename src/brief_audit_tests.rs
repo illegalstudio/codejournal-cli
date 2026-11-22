@@ -39,3 +39,17 @@ fn cached_and_locked_audits_preserve_access_notices() {
     assert!(text.contains("Upgrade required"));
     assert!(!text.contains("Project rules"));
 }
+
+#[test]
+fn audit_distinguishes_detached_head_from_missing_git_state() {
+    let audit = project(&json!({"other_sessions": [
+        {"id": "a", "agent": "codex", "branch": "feat/worktree", "detached_head": false, "checkout_path": "/worktree"},
+        {"id": "b", "agent": "claude", "branch": null, "detached_head": true, "checkout_path": "/detached"},
+        {"id": "c", "agent": "grok", "checkout_path": "/legacy"}
+    ]}));
+    assert_eq!(audit["other_sessions"][1]["detached_head"], true);
+    let text = render(&audit);
+    assert!(text.contains("codex on feat/worktree at /worktree"));
+    assert!(text.contains("claude (detached HEAD) at /detached"));
+    assert!(text.contains("grok at /legacy"));
+}

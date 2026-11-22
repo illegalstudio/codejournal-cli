@@ -36,7 +36,8 @@ pub fn publish(api: &Api, tenant: &str, project_name: Option<&str>) -> Result<()
                 .map(|value| String::from_utf8_lossy(&value.stdout).trim().to_owned())
         })
         .context("cannot determine host name")?;
-    let branch = git::output(&["symbolic-ref", "--quiet", "--short", "HEAD"]);
+    let head = git::checkout_head(&root);
+    let branch = head.as_ref().and_then(git::CheckoutHead::branch);
     let commit = git::output(&["rev-parse", "HEAD"]);
     let kind = if git::output(&["rev-parse", "--git-dir"])
         != git::output(&["rev-parse", "--git-common-dir"])

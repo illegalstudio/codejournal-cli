@@ -17,7 +17,9 @@ class DocSearchHintTest(AuditCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('cj doc list --local --project fixture --grep agent', result.stdout)
                 if '--json' in flags:
-                    self.assertEqual(len(json.loads(result.stdout)['notices']), 1)
+                    notices = json.loads(result.stdout)['notices']
+                    self.assertEqual(len(notices), 2 if '--offline' in flags else 1)
+                    self.assertEqual('--offline' in flags, any('the same search returned at 20' in notice for notice in notices))
         self.assertEqual(len(Handler.calls), 2)
 
     def test_cross_project_hints_keep_scope_and_quote_arbitrary_queries_as_one_argument(self):

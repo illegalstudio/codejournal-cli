@@ -24,6 +24,9 @@ pub fn show(api: &Api, tenant: &str, id: &str, no_track: bool, json_mode: bool) 
             }
         })?;
     let entry = &response["entry"];
+    if response["cached"] != true {
+        crate::entry_search::remember(api, tenant, entry);
+    }
     let topics = array_text(&entry["topics"]);
     let refs = entry["refs"]
         .as_array()

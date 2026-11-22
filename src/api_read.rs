@@ -2,21 +2,39 @@ use crate::{
     api::{Api, sanitized},
     api_cache, api_status, project_bootstrap,
 };
-use anyhow::{Result, bail};
+use anyhow::Result;
 use serde_json::Value;
+
+/// A read that reached neither the server nor a cached copy of the same request.
+#[derive(Debug)]
+pub struct NoCachedResponse(String);
+
+impl std::fmt::Display for NoCachedResponse {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for NoCachedResponse {}
 
 pub fn fallback(api: &Api, path: &str, cause: &str) -> Result<Value> {
     match api_cache::read(api.server(), &api.token, path) {
         Ok(mut value) => {
-            eprintln!("{cause}; using a cached response, which may be outdated.");
+            let saved = api_cache::saved_at(api.server(), &api.token, path);
+            eprintln!(
+                "{cause}; using a response cached {}, which may be outdated.",
+                saved.as_deref().map_or("earlier".to_owned(), |at| format!("at {at}"))
+            );
             if value.is_object() {
                 value["cached"] = Value::Bool(true);
+                value["cached_at"] = serde_json::json!(saved);
             }
             Ok(sanitized(value))
         }
-        Err(_) => bail!(
+        Err(_) => Err(NoCachedResponse(format!(
             "{cause}. No cached response is available for this request; project context is unavailable, not empty. Cached briefs may still be available with cj brief --offline. Work can continue locally and durable writes can be queued with --offline; queued writes are not synchronized. Inspect them with cj outbox list and retry online when the service is available"
-        ),
+        ))
+        .into()),
     }
 }
 

@@ -62,11 +62,13 @@ pub enum Command {
         #[command(subcommand)]
         action: Option<crate::knowledge_args::TopicsAction>,
     },
+    /// Mark an entry as replaced by a newer one. To record the replacement at the same time, use cj add --supersedes ID.
     Supersede {
         id: String,
         #[arg(long)]
         by: String,
     },
+    /// Mark an entry as no longer true when nothing replaces it.
     Obsolete {
         id: String,
     },

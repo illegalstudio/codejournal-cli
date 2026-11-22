@@ -24,6 +24,8 @@ After compaction, reuse this delegation's own durable read coverage for the same
 
 When the task declares immutable context attachments, list them with `cj delegation context ID` and read each through `--name NAME --offset OFFSET --limit 12000` until `next_offset` is null. Verify the complete SHA256. Reads record exact hashes and character ranges; required unread ranges block a result. An attached prior result is available only as a host-captured snapshot, without permission to read another delegation directly.
 
+The sandbox withholds the user's credentials by design: the keyring, the SSH agent and therefore `gh` authentication are unavailable. Do not retry `gh`, search for tokens, or fall back to unauthenticated API calls for a private repository. Pull requests and issues the host wants you to read arrive as `github-N` attachments holding the description, comments, reviews and diff. When you need one that is not attached, publish a question asking the host to attach it.
+
 ## Progress and questions
 
 Publish meaningful progress with `delegation_status_update`, information with `delegation_message`, a recoverable checkpoint with `delegation_checkpoint`, and questions with `delegation_question`. CLI equivalents use `delegation publish ID --role guest --kind status|message|checkpoint|question --body TEXT`. Prefer `--body-file` or stdin for long text. Check `host_messages` in responses for pending corrections and read them before dependent work.

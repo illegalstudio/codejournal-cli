@@ -24,7 +24,10 @@ pub fn at(path: &Path, depth: usize) -> Option<Checkout> {
     let root = PathBuf::from(git(path, &["rev-parse", "--show-toplevel"])?)
         .canonicalize()
         .ok()?;
-    let branch = git(&root, &["symbolic-ref", "--quiet", "--short", "HEAD"]);
+    let branch = crate::git::checkout_head(&root)
+        .as_ref()
+        .and_then(crate::git::CheckoutHead::branch)
+        .map(str::to_owned);
     let origin =
         git(&root, &["remote", "get-url", "origin"]).map(|raw| project::normalize_remote(&raw));
     let mut checkout = Checkout {

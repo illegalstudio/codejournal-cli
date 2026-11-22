@@ -38,7 +38,7 @@ pub fn render(
         data["pending_outbox"].as_u64().unwrap_or(0),
     ));
     if data["mode"] == "offline" {
-        lines.push("Cached brief: metadata may be outdated, and listed documents may not have cached bodies. Do not replace missing cached rules with new rules during an outage.".into());
+        lines.push(crate::brief_focus::stale::notice(data));
     }
     for notice in data["notices"].as_array().into_iter().flatten() {
         lines.push(format!("Plan: {}", value(notice)));

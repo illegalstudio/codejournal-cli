@@ -18,7 +18,10 @@ pub fn tool(
     }
     let files = hook_files::edited(payload, cwd, state.root.as_deref());
     if files.is_empty() {
-        if state.waiting || stale(state.last_event_at.as_deref(), 60) {
+        if base.get("git_head").is_some()
+            || state.waiting
+            || stale(state.last_event_at.as_deref(), 60)
+        {
             queue(base, "tool", "", Value::Null)?;
             state.last_event_at = Some(now.to_owned());
         }
