@@ -112,6 +112,12 @@ fn localize(mut result: Value, mode: &str, policy: &Value) -> Value {
         stale::withhold_live(&mut result);
     }
     result["mode"] = Value::String(mode.to_owned());
+    if mode == "remote" {
+        crate::update_check::refresh_if_due();
+    }
+    if let Some(update) = crate::update_check::available() {
+        result["update_available"] = update;
+    }
     result["pending_outbox"] =
         Value::from(outbox::pending().unwrap_or(0) + request_outbox::pending().unwrap_or(0));
     result

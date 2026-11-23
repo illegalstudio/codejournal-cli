@@ -38,6 +38,8 @@ pub enum Command {
     RequestSync {
         origin: String,
     },
+    #[command(hide = true)]
+    UpdateCheck,
     Outbox {
         #[command(subcommand)]
         action: crate::outbox_commands::OutboxAction,

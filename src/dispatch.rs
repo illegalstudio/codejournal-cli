@@ -135,6 +135,7 @@ pub fn run(api: &api::Api, server: &str, tenant: &str, cli: Cli) -> Result<()> {
         Command::Login
         | Command::Delegation(..)
         | Command::RequestSync { .. }
+        | Command::UpdateCheck
         | Command::Update(..)
         | Command::Setup(..)
         | Command::Logout

@@ -51,6 +51,9 @@ pub fn run() -> Result<()> {
     if let Command::Update(args) = &cli.command {
         return distribution::run(args, cli.json);
     }
+    if matches!(cli.command, Command::UpdateCheck) {
+        return crate::update_check::run();
+    }
     if matches!(cli.command, Command::Login) {
         return login::run(cli.server.as_deref());
     }

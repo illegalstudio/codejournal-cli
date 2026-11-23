@@ -17,6 +17,23 @@ pub struct UpdateArgs {
     check: bool,
 }
 
+/// How this installation is updated: its package manager's command, or `cj update`.
+pub fn update_command() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|binary| binary.canonicalize().ok())
+        .and_then(|binary| manager::command(&binary))
+        .map_or_else(
+            || "cj update".to_owned(),
+            |command| format!("{command}`, then `cj setup agents --refresh"),
+        )
+}
+
+/// The latest stable release, asked with a short timeout for the background check.
+pub fn latest_release() -> Result<Version> {
+    releases::latest(&releases::with_timeout(std::time::Duration::from_secs(10))?)
+}
+
 pub fn run(args: &UpdateArgs, json_mode: bool) -> Result<()> {
     let binary = std::env::current_exe()?.canonicalize()?;
     let managed = manager::command(&binary);
@@ -29,6 +46,7 @@ pub fn run(args: &UpdateArgs, json_mode: bool) -> Result<()> {
     }
     let client = releases::client()?;
     let latest = releases::latest(&client)?;
+    let _ = crate::update_check::record(&latest);
     let current = Version::parse(env!("CARGO_PKG_VERSION"))?;
     let available = latest > current;
     if !args.check && available {

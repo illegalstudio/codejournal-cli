@@ -40,6 +40,7 @@ pub fn render(
     if data["mode"] == "offline" {
         lines.push(crate::brief_focus::stale::notice(data));
     }
+    lines.extend(crate::update_check::line(&data["update_available"]));
     for notice in data["notices"].as_array().into_iter().flatten() {
         lines.push(format!("Plan: {}", value(notice)));
     }

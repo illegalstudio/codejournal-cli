@@ -38,7 +38,12 @@ pub fn status(json_mode: bool, offline: bool, server_override: Option<&str>) -> 
     }
     let hooks = outbox::pending()?;
     let writes = request_outbox::pending()?;
+    if !offline {
+        crate::update_check::refresh_if_due();
+    }
+    let update = crate::update_check::available();
     let result = json!({
+        "update_available": update,
         "version": crate::api_version::VERSION, "build_revision": crate::api_version::REVISION, "build_dirty": crate::api_version::DIRTY,
         "config_path": path, "database_path": null, "mode": if config.is_some() { "remote" } else { "unconfigured" },
         "remote_configured": config.is_some(), "server": server, "tenant": tenant,
@@ -62,6 +67,10 @@ pub fn status(json_mode: bool, offline: bool, server_override: Option<&str>) -> 
         || text.clone(),
         |notice| format!("{text}\nCommit tracking: {notice}"),
     );
+    let text = update
+        .as_ref()
+        .and_then(crate::update_check::line)
+        .map_or_else(|| text.clone(), |line| format!("{text}\n{line}"));
     output::emit(&result, &text, json_mode)
 }
 

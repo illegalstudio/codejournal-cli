@@ -167,6 +167,8 @@ cj sync
 
 For a direct installation, `cj update` downloads the latest stable release, verifies its checksum, replaces the binary, and refreshes your installed agent skills. `cj update --check` checks for a release without changing anything. Package-managed binaries are protected from direct replacement.
 
+The client also looks for a newer stable release on its own, at most once every 24 hours. `cj brief` (including the brief injected at session start) and `cj status` start the check in a detached process when the last one is older than that, so no command waits for it. Once a newer release is known, they show an `Update available` line with the command for your installation method, and `update_available` in JSON. Nothing is downloaded or installed. The check sends one anonymous request to the GitHub releases API. It is skipped with `--offline`, inside delegated guest sessions, and in development builds; set `CODE_JOURNAL_UPDATE_CHECK=off` to disable it.
+
 The server can require a minimum CLI version. If your version is no longer supported, `cj` shows the installed and required releases with update instructions. Agent session hooks pass that notice to your coding agent too. With mise, select the required release explicitly using `mise use -g github:illegalstudio/codejournal-cli@VERSION` if `latest` has not picked it up yet. After updating, verify `cj --version`, refresh agent instructions with `cj setup agents --refresh`, and run `cj sync`.
 
 While an update is required, cached reads are not fresh and queued writes have not reached the server. Keep the outbox so synchronization can retry safely after the upgrade. Every backend request identifies the installed release, and the service records it with the data written by the CLI.

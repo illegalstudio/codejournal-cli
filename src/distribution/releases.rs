@@ -13,19 +13,30 @@ struct Release {
     tag_name: String,
 }
 
+/// Development builds can point the release lookup at a local server; release builds cannot.
+fn test_endpoint() -> Option<String> {
+    cfg!(debug_assertions)
+        .then(|| std::env::var("CODE_JOURNAL_RELEASES_URL").ok())
+        .flatten()
+}
+
 pub fn client() -> Result<Client> {
+    with_timeout(Duration::from_secs(120))
+}
+
+pub fn with_timeout(timeout: Duration) -> Result<Client> {
     Ok(Client::builder()
-        .https_only(true)
-        .timeout(Duration::from_secs(120))
+        .https_only(test_endpoint().is_none())
+        .timeout(timeout)
         .user_agent(concat!("cj/", env!("CARGO_PKG_VERSION")))
         .build()?)
 }
 
 pub fn latest(client: &Client) -> Result<Version> {
     let release: Release = client
-        .get(format!(
-            "https://api.github.com/repos/{REPOSITORY}/releases/latest"
-        ))
+        .get(test_endpoint().unwrap_or_else(|| {
+            format!("https://api.github.com/repos/{REPOSITORY}/releases/latest")
+        }))
         .send()?
         .error_for_status()?
         .json()?;

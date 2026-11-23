@@ -144,6 +144,7 @@ mod task_validation;
 mod tasks;
 mod topic_analysis;
 mod topics;
+mod update_check;
 mod watch_args;
 mod watch_format;
 mod watch_runner;

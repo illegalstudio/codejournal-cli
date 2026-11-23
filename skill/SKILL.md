@@ -23,6 +23,8 @@ If a command or session hook reports `client_upgrade_required`, `client_version_
 
 Use the installation's own updater: Homebrew uses `brew update && brew upgrade illegalstudio/tap/codejournal-cli`; mise uses `mise use -g github:illegalstudio/codejournal-cli@VERSION` with the required release, or `@latest`; direct installations use `cj update`. An explicit mise version avoids its default release-age delay. After updating, run `cj --version`, `cj setup agents --refresh`, and `cj sync`. Follow the user's installation permissions; do not run an installer automatically merely because the server requested an upgrade.
 
+The client checks for a newer release in the background at most once every 24 hours. When a brief or `cj status` shows `Update available` (`update_available` in JSON), tell the user once, with the command it names, and continue the task: this update is optional and nothing is blocked. Do not install it unless the user asks.
+
 Run `cj brief` before exploring a repository unless the session hook already injected the brief. Follow its project rules, active plans, and open tasks for the whole session. If the rules are empty, summarize the repository's instruction files with `cj rules set` and tell the user. A `Duplicate journal` line means another project is registered for this same checkout and its history is hidden here: read it with `cj brief --project SLUG`, tell the user, and merge or remove a registration only with their confirmation.
 
 Search before rediscovering a behavior or debugging a known failure:
