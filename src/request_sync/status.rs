@@ -22,6 +22,10 @@ pub fn inspect(config: Option<&Config>, server: Option<&str>) -> Result<Value> {
         result["last_error"] = json!(saved.last_error);
         result["blocked"] = json!(saved.blocked);
         result["expired_hooks"] = json!(saved.expired_hooks);
+        if let Some((request, _)) = super::blockage::rejected(&scope) {
+            result["blocked_request"] = json!({"request_id": request.id, "method": request.method,
+                "path": request.path, "repair": super::blockage::repair(&request)});
+        }
         let writes = scope.pending_writes()?;
         result["pending_current_scope"] = json!(writes);
         result["pending_other_scopes"] = json!(requests.len().saturating_sub(writes));
@@ -80,6 +84,15 @@ pub fn describe(value: &Value) -> String {
     }
     if let Some(error) = value["last_error"].as_str() {
         lines.push(format!("sync error:  {error}"));
+    }
+    let blocked = &value["blocked_request"];
+    if let Some(id) = blocked["request_id"].as_str() {
+        lines.push(format!(
+            "blocked by:  {id} {} {}. {}",
+            blocked["method"].as_str().unwrap_or(""),
+            blocked["path"].as_str().unwrap_or(""),
+            blocked["repair"].as_str().unwrap_or("")
+        ));
     }
     if let Some(count) = value["pending_other_scopes"]
         .as_u64()

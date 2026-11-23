@@ -18,6 +18,9 @@ pub struct State {
     pub blocked: bool,
     #[serde(default)]
     pub expired_hooks: usize,
+    /// The write the server rejected for good, which keeps the later ones waiting.
+    #[serde(default)]
+    pub blocked_request: Option<String>,
 }
 
 fn directory() -> Result<PathBuf> {

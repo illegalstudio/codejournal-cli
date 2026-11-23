@@ -95,6 +95,16 @@ class November13FeedbackTest(unittest.TestCase):
         self.assertNotIn("Synthetic note 3", text)
         self.assertIn("Synthetic note 1", self.cli("task", "show", "aaaaaaaa", "--history"))
 
+    def test_task_show_names_the_owning_project_when_changes_need_it(self):
+        self.assertNotIn("scope:", self.cli("task", "show", "aaaaaaaa"))
+        self.assertNotIn("change_scope", json.loads(self.cli("task", "show", "aaaaaaaa", "--json")))
+        self.env["CJ_PROJECT"] = "elsewhere"
+        command = "cj task edit aaaaaaaa --project p --base base --append-body TEXT"
+        self.assertIn(f"scope:     belongs to p; commands that change it from here need --project p, for example: {command}",
+                      self.cli("task", "show", "aaaaaaaa"))
+        self.assertEqual(json.loads(self.cli("task", "show", "aaaaaaaa", "--json"))["change_scope"],
+                         {"project": "p", "edit_command": command, "readback_command": "cj task show aaaaaaaa"})
+
     def test_entry_show_lists_newer_environment_facts(self):
         text = self.cli("show", "bbbbbbbb", "--no-track")
         self.assertIn("Newer environment facts sharing rare terms", text)

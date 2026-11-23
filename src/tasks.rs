@@ -21,7 +21,9 @@ pub fn run(
         }
         TaskAction::Add(args) => task_add::run(api, tenant, project, args, json_mode),
         TaskAction::List(args) => task_read::list(api, tenant, project, args, json_mode),
-        TaskAction::Show { id, history } => task_show::show(api, tenant, &id, history, json_mode),
+        TaskAction::Show { id, history } => {
+            task_show::show(api, tenant, project, &id, history, json_mode)
+        }
         TaskAction::Follow { id } => consumers::change(api, tenant, project, &id, true, json_mode),
         TaskAction::Unfollow { id } => {
             consumers::change(api, tenant, project, &id, false, json_mode)

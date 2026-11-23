@@ -3,10 +3,19 @@ use crate::output;
 use anyhow::Result;
 use serde_json::{Value, json};
 
+mod scope;
+
 /// Events shown without --history: enough for the current state, not the whole trail.
 const RECENT_EVENTS: usize = 5;
 
-pub fn show(api: &Api, tenant: &str, id: &str, history: bool, json_mode: bool) -> Result<()> {
+pub fn show(
+    api: &Api,
+    tenant: &str,
+    project: Option<&str>,
+    id: &str,
+    history: bool,
+    json_mode: bool,
+) -> Result<()> {
     let mut response = api.get(&format!("/api/v1/tenants/{tenant}/tasks/{id}"))?;
     let all = match response["task"]["events"].take() {
         Value::Array(events) => events,
@@ -42,6 +51,10 @@ pub fn show(api: &Api, tenant: &str, id: &str, history: bool, json_mode: bool) -
             task["agent"].as_str().unwrap_or("unknown")
         ),
     ];
+    let scope = scope::hint(task, project);
+    if let Some((_, line)) = &scope {
+        lines.push(line.clone());
+    }
     if task["forwarded"].as_bool().unwrap_or(false) {
         lines.push(format!("from:      {}", string(&task["source_slug"])));
     }
@@ -117,6 +130,9 @@ pub fn show(api: &Api, tenant: &str, id: &str, history: bool, json_mode: bool) -
             "cj task show {} --history",
             short(string(&task["id"]))
         ));
+    }
+    if let Some((fields, _)) = scope {
+        data["change_scope"] = fields;
     }
     output::emit(&data, &lines.join("\n"), json_mode)
 }

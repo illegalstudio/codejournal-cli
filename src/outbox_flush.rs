@@ -11,6 +11,8 @@ use std::path::Path;
 pub struct Delivery {
     pub sent: usize,
     pub expired: usize,
+    /// Unbound events removed after their 48-hour recovery window.
+    pub unbound_removed: usize,
 }
 
 pub fn run(api: &Api, tenant: &str) -> Result<Delivery> {
@@ -21,7 +23,10 @@ pub fn run(api: &Api, tenant: &str) -> Result<Delivery> {
     if lock.try_lock_exclusive().is_err() {
         return Ok(Delivery::default());
     }
-    let mut delivery = Delivery::default();
+    let mut delivery = Delivery {
+        unbound_removed: outbox::expiry::sweep()?,
+        ..Delivery::default()
+    };
     loop {
         let origin = outbox::fingerprint(&api.server, tenant, &api.token);
         let batch = outbox::entries()?

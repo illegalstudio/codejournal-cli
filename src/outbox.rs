@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 pub(crate) mod commands;
 pub(crate) mod diagnostics;
+pub(crate) mod expiry;
 mod inventory;
 mod mutation;
 pub(crate) mod origin;

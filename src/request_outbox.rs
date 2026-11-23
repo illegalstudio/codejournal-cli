@@ -9,6 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 pub(crate) mod delivery;
+pub(crate) mod rebase;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PendingRequest {

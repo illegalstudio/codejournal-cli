@@ -24,6 +24,7 @@ pub fn run(server: Option<&str>, origin: &str) -> Result<()> {
             saved.next_retry_at = None;
             saved.last_error = None;
             saved.blocked = false;
+            saved.blocked_request = None;
             state::save(&scope, &saved)?;
             drop(lock);
             // Recheck after releasing ownership so a concurrent enqueue cannot lose its wakeup.
@@ -39,9 +40,11 @@ pub fn run(server: Option<&str>, origin: &str) -> Result<()> {
         saved.last_attempt_at = Some(request_age::now());
         saved.blocked = false;
         state::save(&scope, &saved)?;
+        let mut write_failed = false;
         let delivery = (|| {
             let requests =
-                request_outbox::delivery::flush(&api, Some((&scope.tenant, &scope.origin)), 50)?;
+                request_outbox::delivery::flush(&api, Some((&scope.tenant, &scope.origin)), 50)
+                    .inspect_err(|_| write_failed = true)?;
             let hooks = if scope.pending_hooks()? > 0 {
                 crate::outbox_flush::run(&api, &scope.tenant)?
             } else {
@@ -57,6 +60,7 @@ pub fn run(server: Option<&str>, origin: &str) -> Result<()> {
                     saved.failures = 0;
                     saved.last_error = None;
                 }
+                saved.blocked_request = None;
                 saved.next_retry_at = Some(request_age::now().saturating_add(1));
             }
             Err(error) => {
@@ -72,6 +76,11 @@ pub fn run(server: Option<&str>, origin: &str) -> Result<()> {
                 saved.next_retry_at =
                     delay.map(|seconds| request_age::now().saturating_add(seconds));
                 saved.blocked = delay.is_none();
+                // Delivery stops at the first failure, so the oldest write is the rejected one.
+                saved.blocked_request = (saved.blocked && write_failed)
+                    .then(|| scope.writes().ok()?.into_iter().next())
+                    .flatten()
+                    .map(|request| request.id);
             }
         }
         state::save(&scope, &saved)?;

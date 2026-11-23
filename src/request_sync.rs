@@ -2,6 +2,7 @@ use crate::{api::Api, config::Config, outbox, request_outbox};
 use anyhow::Result;
 use std::process::{Command, Stdio};
 
+pub(crate) mod blockage;
 mod retry;
 mod state;
 pub(crate) mod status;
@@ -26,13 +27,19 @@ impl Scope {
         Ok(self.pending_writes()? + self.pending_hooks()?)
     }
 
-    pub fn pending_writes(&self) -> Result<usize> {
+    /// The queued writes of this scope, oldest first.
+    pub fn writes(&self) -> Result<Vec<request_outbox::PendingRequest>> {
         Ok(request_outbox::entries()?
-            .iter()
-            .filter(|(_, request)| {
+            .into_iter()
+            .map(|(_, request)| request)
+            .filter(|request| {
                 request_outbox::delivery::matches(request, &self.server, &self.tenant, &self.origin)
             })
-            .count())
+            .collect())
+    }
+
+    pub fn pending_writes(&self) -> Result<usize> {
+        Ok(self.writes()?.len())
     }
 
     pub fn pending_hooks(&self) -> Result<usize> {

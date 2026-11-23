@@ -31,7 +31,7 @@ pub fn matches(request: &PendingRequest, server: &str, tenant: &str, origin: &st
             .is_none_or(|value| value == origin)
 }
 
-fn delivery_lock() -> Result<File> {
+pub(super) fn delivery_lock() -> Result<File> {
     Ok(OpenOptions::new()
         .write(true)
         .create(true)

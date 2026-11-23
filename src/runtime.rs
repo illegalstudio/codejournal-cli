@@ -121,8 +121,16 @@ pub fn run() -> Result<()> {
                 .is_some() =>
         {
             let queued = error.downcast_ref::<request_outbox::QueuedWrite>().unwrap();
+            let waiting = request_sync::blockage::ahead_of(&api, &tenant, &queued.0);
+            let stuck = waiting.as_ref().and_then(|waiting| waiting.text());
             if json_mode {
                 let mut receipt = serde_json::json!({"queued": true, "id": queued.0, "request_id": queued.0, "resource_id": null, "next": "Background delivery retries when online. Run cj sync to retry now, then find the created resource with its list/search command. Do not use request_id as a resource ID."});
+                if let Some(waiting) = &waiting {
+                    receipt["queued_behind"] = waiting.json();
+                }
+                if let Some(stuck) = &stuck {
+                    receipt["next"] = serde_json::json!(stuck);
+                }
                 if let Some(upgrade) = api_upgrade::details() {
                     receipt["upgrade_required"] = serde_json::Value::Bool(true);
                     receipt["compatibility"] = upgrade;
@@ -133,8 +141,9 @@ pub fn run() -> Result<()> {
                     crate::stdout::println!("{notice}");
                 }
                 crate::stdout::println!(
-                    "Queued request_id: {} (not a resource ID). Background delivery retries when online. Run cj sync to retry now, then find the created resource with its list/search command.",
-                    queued.0
+                    "Queued request_id: {} (not a resource ID). {}",
+                    queued.0,
+                    stuck.as_deref().unwrap_or("Background delivery retries when online. Run cj sync to retry now, then find the created resource with its list/search command.")
                 );
             }
             Ok(())

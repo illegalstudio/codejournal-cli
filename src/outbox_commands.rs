@@ -25,6 +25,15 @@ pub enum OutboxAction {
     },
     /// Permanently discard one queued write by its unique request ID prefix.
     Drop { id: String },
+    /// Point one queued write at the base revision you read and reviewed, without sending it.
+    Rebase {
+        id: String,
+        #[arg(
+            long,
+            help = "Current revision or version of the record the write changes"
+        )]
+        base: String,
+    },
 }
 
 pub fn run(action: OutboxAction, json_mode: bool, server: Option<&str>) -> Result<()> {
@@ -63,6 +72,7 @@ pub fn run(action: OutboxAction, json_mode: bool, server: Option<&str>) -> Resul
                 .join("\n");
             output::emit(&json!({"requests": requests}), &text, json_mode)
         }
+        OutboxAction::Rebase { id, base } => request_outbox::rebase::run(&id, &base, json_mode),
         OutboxAction::Drop { id } => {
             let prefix = request_outbox::id_prefix(&id)?;
             let entries = request_outbox::entries()?;

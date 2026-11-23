@@ -45,7 +45,7 @@ pub fn inspect(origin: Option<&str>) -> Result<Counts> {
 pub fn notices(counts: &Counts) -> Vec<String> {
     let mut notices = Vec::new();
     if counts.unbound > 0 {
-        notices.push(format!("{} hook event(s) have no account binding and cannot sync; inspect cj outbox hooks list, then explicitly bind an event to its original account with cj outbox hooks bind ID --to-current-account, or discard it with cj outbox hooks drop ID", counts.unbound));
+        notices.push(format!("{} hook event(s) have no account binding and cannot sync; inspect cj outbox hooks list, then explicitly bind an event to its original account with cj outbox hooks bind ID --to-current-account, or discard it with cj outbox hooks drop ID. Unbound events are removed automatically {} hours after they were queued", counts.unbound, super::expiry::UNBOUND_HOURS));
     }
     if counts.other_scopes.unwrap_or(0) > 0 {
         notices.push(format!("{} hook event(s) belong to other accounts or workspaces and remain preserved; use their original account/server", counts.other_scopes.unwrap_or(0)));
