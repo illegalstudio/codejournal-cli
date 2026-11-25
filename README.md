@@ -73,17 +73,17 @@ scoop install https://github.com/illegalstudio/codejournal-cli/releases/latest/d
 
 ## Connect your account
 
-Create and verify a Code Journal account on the service you use. Pass its URL explicitly:
+Create and verify an account at https://codejournal.online, then connect the CLI:
 
 ```bash
-cj --server https://codejournal.online login
+cj login
 cj whoami
 cj setup agents --dry-run
 cj setup agents
 ```
 
 Login opens browser approval for the device and saves the selected service and workspace. Tokens use the system keyring where available, with a user-only file fallback. `cj logout` revokes the device token.
-The public service is being prepared. If you use another Code Journal service, pass its URL explicitly to `cj login`.
+`cj login` connects to https://codejournal.online unless this machine has already saved another service. To use a different Code Journal service, pass its URL once with `cj --server URL login`; later commands reuse the saved service.
 
 Code Journal supports Codex, Claude Code, Cursor, Grok, Kimi Code, Pi, and [OpenCode](#opencode).
 
