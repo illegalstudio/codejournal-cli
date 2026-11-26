@@ -193,6 +193,8 @@ Confirmed `cj add --json` responses return the entry UUID at `id`, `resource_id`
 
 Agent-authored project observations expire after 30 days by default. Use `cj add --temporary` to opt in explicitly, or `--durable` to keep an established fact. Use `cj entry use ID task TASK_ID`, `cj entry use ID log LOG_ID` or `cj entry use ID pr owner/repo#42` to record reuse and promote the entry. `cj entry promote ID` also removes the deadline. A completed task or plan keeps its final record. Use `cj entry trash ID`, `cj task trash ID`, `cj plan trash ID` or `cj doc trash ID` to schedule deletion of a retired record after 90 days. The corresponding `restore` command clears that deadline.
 
+The hosted service at codejournal.online permanently deletes activity 12 months after it is recorded: work logs, agent sessions, task and delegation history, and checkout activity. Knowledge entries, docs, plans and tasks stay until you delete them. To keep older activity, download the complete journal from Settings > Data & privacy in the dashboard before it expires.
+
 `cj topics similar` and `cj garden` analyze the selected project and relevant global knowledge. Use `cj topics similar --all-projects` for an explicit workspace-wide comparison. They may report that topic analysis is partial for large or highly similar topic collections. Review the returned suggestions without assuming they include every duplicate. You can still merge other known duplicates with `cj topics merge SOURCES --into TARGET`. JSON output identifies incomplete analysis.
 
 ### Review journal maintenance
@@ -295,7 +297,7 @@ cj log update LOG_ID --base 1 --body-file revised-log.md --status done
 
 Use the current `revision` reported by `log show` for `--base`. Body and status edits require it; a stale base fails and preserves the existing record. Status accepts `done`, `in_progress` or `blocked`. An explicit empty body clears it. ID, creation time, title, attribution and plan link are retained; omitted fields, including refs, are retained. `--add-ref` extends the stored refs, `--ref` replaces them and `--clear-refs` clears them; the confirmation states how many refs there were before and after. `cj doc update` and `cj plan update` accept `--add-ref` too, and `cj doc update ID --topics NAME` declares the topics an existing doc covers so the brief stops proposing a new doc for them. Existing refs-only commands still work without `--base`; supplying it also protects ref changes.
 
-Amendments require the updated server. Offline amendments queue their original base and content; a conflict remains pending for you to review and is never rebased automatically. Work logs stored in activity archives, and logs belonging to archived projects, remain read-only.
+Amendments require the updated server. Offline amendments queue their original base and content; a conflict remains pending for you to review and is never rebased automatically. Logs belonging to archived projects remain read-only.
 
 Automatic commit attribution fills the available slots within the thirty-reference cap, oldest first. Excess captured commits remain pending for the next log; text and JSON `commit_tracking` report the split. Metadata-only update JSON includes `body_omitted` and `readback_command`.
 
@@ -315,7 +317,7 @@ cj log move LOG_ID --to destination
 cj plan move PLAN_ID --to destination --with-logs
 ```
 
-Moving a log keeps its ID, original date, content, attribution, refs and plan link. `--with-logs` moves a plan and all its linked live logs in one transaction, including logs left in earlier projects. Without it, only the plan moves. All affected projects must be writable; stored activity archives remain read-only. A log preview requires an online connection and never queues; actual moves support the offline outbox.
+Moving a log keeps its ID, original date, content, attribution, refs and plan link. `--with-logs` moves a plan and all its linked live logs in one transaction, including logs left in earlier projects. Without it, only the plan moves. All affected projects must be writable. A log preview requires an online connection and never queues; actual moves support the offline outbox.
 
 ### Read a repository audit
 
