@@ -1,0 +1,6 @@
+# RustSec policy for scripts/check-advisories.sh. Every exception needs a reason and a tracked follow-up.
+
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained with no known vulnerability; replacing it with jiff is tracked separately" },
+]

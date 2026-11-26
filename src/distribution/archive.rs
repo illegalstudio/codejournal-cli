@@ -31,12 +31,11 @@ pub fn extract(bytes: &[u8], directory: &Path) -> Result<PathBuf> {
     #[cfg(windows)]
     {
         let mut archive = zip::ZipArchive::new(Cursor::new(bytes))?;
-        if archive
-            .file_names()
-            .filter(|name| *name == "cj.exe")
-            .count()
-            != 1
-        {
+        let mut executables = 0;
+        for name in archive.file_names() {
+            executables += usize::from(name? == "cj.exe");
+        }
+        if executables != 1 {
             bail!("release archive must contain exactly one cj.exe");
         }
         let mut entry = archive.by_name("cj.exe")?;

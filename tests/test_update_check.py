@@ -6,9 +6,11 @@ import subprocess
 import tempfile
 import threading
 import time
+import tomllib
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
 BRIEF = {"project": {"slug": "p", "name": "p"}, "counts": {"active": 1}, "rules": "Synthetic rule"}
 
 
@@ -88,14 +90,14 @@ class UpdateCheckTest(unittest.TestCase):
     def test_one_background_check_a_day_feeds_status_and_brief(self):
         self.assertIsNone(self.status())
         self.wait_for_release()
-        self.assertEqual(self.status(), {"current": "0.1.0", "latest": "9.9.9", "command": "cj update"})
-        line = "Update available: cj 9.9.9 is released (installed 0.1.0). Tell the user; they can update with `cj update`."
+        self.assertEqual(self.status(), {"current": VERSION, "latest": "9.9.9", "command": "cj update"})
+        line = f"Update available: cj 9.9.9 is released (installed {VERSION}). Tell the user; they can update with `cj update`."
         self.assertIn(line, self.cli("status"))
         self.assertIn(line, self.cli("brief"))
         self.assertEqual(json.loads(self.cli("brief", "--json"))["update_available"]["latest"], "9.9.9")
         self.assertEqual(Handler.release_calls, 1)
         saved = json.loads(self.state.read_text())
-        saved.update(checked_at=saved["checked_at"] - 25 * 3600, latest="0.1.0")
+        saved.update(checked_at=saved["checked_at"] - 25 * 3600, latest=VERSION)
         self.state.write_text(json.dumps(saved))
         self.assertIsNone(self.status())
         self.wait_for_release()

@@ -47,7 +47,7 @@ cj --version
 Install the published binary with mise:
 
 ```bash
-mise use -g github:illegalstudio/codejournal-cli@0.1.0
+mise use -g github:illegalstudio/codejournal-cli@0.1.1
 cj --version
 ```
 
@@ -63,7 +63,7 @@ For a user-local installation on macOS or Linux:
 curl -fsSL https://raw.githubusercontent.com/illegalstudio/codejournal-cli/main/install.sh | sh
 ```
 
-The installer verifies the published checksum before installing into `~/.local/bin`. Add that directory to your `PATH`. Set `CJ_VERSION=0.1.0` to choose a release or `CJ_INSTALL_DIR` to choose the installation directory.
+The installer verifies the published checksum before installing into `~/.local/bin`. Add that directory to your `PATH`. Set `CJ_VERSION=0.1.1` to choose a release or `CJ_INSTALL_DIR` to choose the installation directory.
 
 On Windows, download the ZIP archive or use Scoop:
 

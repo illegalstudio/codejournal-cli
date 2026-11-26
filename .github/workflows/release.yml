@@ -37,6 +37,8 @@ jobs:
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then [[ "$GITHUB_REF_NAME" == "v$version" ]]; fi
           echo "value=$version" >> "$GITHUB_OUTPUT"
+      - name: Check RustSec advisories
+        run: bash scripts/check-advisories.sh
       - name: Test the standalone client
         env:
           GH_TOKEN: ${{ github.token }}
